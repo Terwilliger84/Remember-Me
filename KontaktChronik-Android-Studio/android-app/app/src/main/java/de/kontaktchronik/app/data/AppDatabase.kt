@@ -115,10 +115,34 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
 
     suspend fun syncDeviceContactsWithBirthdays(contentResolver: ContentResolver): Int {
         val existing = dao.getAllPersonsOnce().associateBy { it.importedFromDeviceContactId }
-        val birthdaysByContactId = mutableMapOf<String, Pair<String, String>>()
+        val allNamesByContactId = mutableMapOf<String, String>()
+        val birthdaysByContactId = mutableMapOf<String, String>()
         val phonesByContactId = mutableMapOf<String, String>()
         val emailsByContactId = mutableMapOf<String, String>()
 
+        // 1. Alle Kontakte aus dem Telefonbuch lesen (auch ohne Geburtstag/Datum)
+        contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            arrayOf(
+                ContactsContract.Contacts._ID,
+                ContactsContract.Contacts.DISPLAY_NAME_PRIMARY
+            ),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            val idIdx = cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID)
+            val nameIdx = cursor.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)
+            while (cursor.moveToNext()) {
+                val cid = cursor.getString(idIdx) ?: continue
+                val name = cursor.getString(nameIdx)?.trim().orEmpty()
+                if (name.isNotBlank()) {
+                    allNamesByContactId[cid] = name
+                }
+            }
+        }
+
+        // 2. Geburtstage zuordnen (falls vorhanden)
         val bdayProjection = arrayOf(
             ContactsContract.Data.CONTACT_ID,
             ContactsContract.Data.DISPLAY_NAME,
@@ -144,7 +168,10 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                 val cid = cursor.getString(idIdx) ?: continue
                 val name = cursor.getString(nameIdx) ?: "Unbekannt"
                 val rawDate = cursor.getString(dateIdx) ?: continue
-                birthdaysByContactId[cid] = name to rawDate
+                if (!allNamesByContactId.containsKey(cid)) {
+                    allNamesByContactId[cid] = name
+                }
+                birthdaysByContactId[cid] = rawDate
             }
         }
 
@@ -191,8 +218,8 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
         }
 
         var importedCount = 0
-        for ((cid, nameAndDate) in birthdaysByContactId) {
-            val (name, bday) = nameAndDate
+        for ((cid, name) in allNamesByContactId) {
+            val bday = birthdaysByContactId[cid]
             val phone = phonesByContactId[cid].orEmpty()
             val email = emailsByContactId[cid].orEmpty()
             val current = existing[cid]
@@ -204,6 +231,7 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                         hasNoOwnPhone = phone.isBlank(),
                         phone = phone,
                         email = email,
+                        timerEnabled = !bday.isNullOrBlank(),
                         importedFromDeviceContactId = cid
                     )
                 )
@@ -211,7 +239,7 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             } else {
                 dao.updatePerson(
                     current.copy(
-                        birthdayIso = bday,
+                        birthdayIso = if (!bday.isNullOrBlank()) bday else current.birthdayIso,
                         phone = if (current.phone.isBlank()) phone else current.phone,
                         email = if (current.email.isBlank()) email else current.email
                     )

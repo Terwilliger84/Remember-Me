@@ -309,6 +309,14 @@ fun KontaktChronikApp(
     var showOptionsDialog by remember { mutableStateOf(false) }
     var showPastDates by remember { mutableStateOf(false) }
     var contactSortMode by remember { mutableStateOf("birthday") } // "birthday" | "firstname" | "lastname"
+    var allContactsFilter by remember { mutableStateOf("all") } // "all" | "hidden"
+    var hiddenPersonIds by remember {
+        val rawSet = appPrefs.getStringSet("hidden_person_ids", emptySet()).orEmpty()
+        mutableStateOf(rawSet.mapNotNull { it.toLongOrNull() }.toSet())
+    }
+    val visiblePersons = remember(persons, hiddenPersonIds) {
+        persons.filter { !hiddenPersonIds.contains(it.id) }
+    }
     var selectedTreeRootId by remember { mutableStateOf<Long?>(null) }
     var popupPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var popupReason by remember { mutableStateOf(initialPopupReason) }
@@ -316,6 +324,12 @@ fun KontaktChronikApp(
     var showCreateDialog by remember { mutableStateOf(false) }
     var detailPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var syncStatus by remember { mutableStateOf("") }
+
+    fun setPersonHidden(personId: Long, hidden: Boolean) {
+        val next = if (hidden) hiddenPersonIds + personId else hiddenPersonIds - personId
+        hiddenPersonIds = next
+        appPrefs.edit().putStringSet("hidden_person_ids", next.map { it.toString() }.toSet()).apply()
+    }
 
     LaunchedEffect(Unit) {
         isLightMode = appPrefs.getBoolean("light_mode", false)
@@ -390,7 +404,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.6", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.7", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
@@ -422,11 +436,11 @@ fun KontaktChronikApp(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Navigation inkl. Stammbaum & Erinnerung
+        // Navigation inkl. Alle Kontakte, Stammbaum & Erinnerung
         val visibleTabs = if (treeEnabled) {
-            listOf("Übersicht", "Stammbaum", "Timer", "Erinnerung")
+            listOf("Übersicht", "Alle Kontakte", "Stammbaum", "Timer", "Erinnerung")
         } else {
-            listOf("Übersicht", "Timer", "Erinnerung")
+            listOf("Übersicht", "Alle Kontakte", "Timer", "Erinnerung")
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -573,17 +587,143 @@ fun KontaktChronikApp(
         }
 
         when (activeTab) {
+            "Alle Kontakte" -> {
+                val baseList = remember(persons, hiddenPersonIds, allContactsFilter) {
+                    if (allContactsFilter == "hidden") {
+                        persons.filter { hiddenPersonIds.contains(it.id) }
+                    } else {
+                        persons
+                    }
+                }
+                val sortedAll = remember(baseList, contactSortMode) {
+                    when (contactSortMode) {
+                        "firstname" -> baseList.sortedWith(
+                            compareBy<PersonEntity> { extractFirstName(it.name).lowercase() }
+                                .thenBy { extractLastName(it.name).lowercase() }
+                        )
+                        "lastname" -> baseList.sortedWith(
+                            compareBy<PersonEntity> { extractLastName(it.name).lowercase() }
+                                .thenBy { extractFirstName(it.name).lowercase() }
+                        )
+                        else -> baseList.sortedWith(
+                            compareBy<PersonEntity> {
+                                ContactResolver.daysUntilNextBirthday(it.birthdayIso) ?: Long.MAX_VALUE
+                            }.thenBy { it.name.lowercase() }
+                        )
+                    }
+                }
+                val sortBtnLabel = when (contactSortMode) {
+                    "firstname" -> "⇅ Vorname"
+                    "lastname" -> "⇅ Name"
+                    else -> "⇅ Geburtstag"
+                }
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CompactButton(sortBtnLabel) {
+                            contactSortMode = when (contactSortMode) {
+                                "birthday" -> "firstname"
+                                "firstname" -> "lastname"
+                                else -> "birthday"
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            CompactButton(if (allContactsFilter == "all") "✓ Alle (${persons.size})" else "Alle (${persons.size})") {
+                                allContactsFilter = "all"
+                            }
+                            CompactButton(
+                                if (allContactsFilter == "hidden") "✓ Ausgeblendet (${hiddenPersonIds.size})"
+                                else "Ausgeblendet (${hiddenPersonIds.size})"
+                            ) {
+                                allContactsFilter = "hidden"
+                            }
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(sortedAll) { person ->
+                            val isHidden = hiddenPersonIds.contains(person.id)
+                            val bdayLine = formatCompactBirthdayLine(person.birthdayIso)
+                            val subText = bdayLine ?: if (person.phone.isNotBlank()) "Ohne Datum • ${person.phone}" else "Ohne Datumsangabe"
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(CardSlate, RoundedCornerShape(8.dp))
+                                    .border(1.dp, if (isHidden) WarnAmber else BorderSlate, RoundedCornerShape(8.dp))
+                                    .clickable { detailPerson = person }
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = person.name,
+                                            color = if (isHidden) TextMuted else TextPrimary,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        if (isHidden) {
+                                            Text(
+                                                text = "Ausgeblendet",
+                                                color = WarnAmber,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        if (person.birthdayIso.isNullOrBlank()) {
+                                            Text(
+                                                text = "Ohne Datum",
+                                                color = AccentSteel,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = subText,
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                CompactButton(if (isHidden) "Einblenden" else "Ausblenden") {
+                                    setPersonHidden(person.id, !isHidden)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             "Stammbaum" -> {
                 FamilyTreeScreen(
-                    persons = persons,
+                    persons = visiblePersons,
                     relations = relations,
-                    selectedRootId = selectedTreeRootId ?: persons.firstOrNull()?.id,
+                    selectedRootId = selectedTreeRootId?.takeIf { id -> visiblePersons.any { it.id == id } } ?: visiblePersons.firstOrNull()?.id,
                     onSelectRoot = { selectedTreeRootId = it },
                     onOpenDetails = { detailPerson = it },
                     onOpenMessage = { p ->
                         val relPairs = relations
                             .filter { it.fromPersonId == p.id }
-                            .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                            .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                         val resolved = ContactResolver.resolveTarget(p, relPairs)
                         popupReason = "Nachricht"
                         quickMessageText = "Hallo ${resolved.targetPersonName.substringBefore(" ")}, herzliche Grüße!"
@@ -597,7 +737,7 @@ fun KontaktChronikApp(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val timerPersons = persons.filter { it.timerEnabled }
+                    val timerPersons = visiblePersons.filter { it.timerEnabled }
                     items(timerPersons) { p ->
                         val nextTimer = ContactResolver.nextTimerDate(p)
                         val diff = nextTimer?.let { ChronoUnit.DAYS.between(LocalDate.now(), it) } ?: 0L
@@ -632,7 +772,7 @@ fun KontaktChronikApp(
                                 CompactButton("Nachricht") {
                                     val relPairs = relations
                                         .filter { it.fromPersonId == p.id }
-                                        .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                                        .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                                     val resolved = ContactResolver.resolveTarget(p, relPairs)
                                     popupReason = "Melde-Timer"
                                     quickMessageText = "Hallo ${resolved.targetPersonName.substringBefore(" ")}, herzliche Grüße!"
@@ -645,11 +785,15 @@ fun KontaktChronikApp(
             }
 
             "Erinnerung" -> {
+                val visibleEvents = remember(specialEvents, visiblePersons) {
+                    val visIds = visiblePersons.map { it.id }.toSet()
+                    specialEvents.filter { visIds.contains(it.personId) }
+                }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (specialEvents.isEmpty() && persons.none { !it.birthdayIso.isNullOrBlank() }) {
+                    if (visibleEvents.isEmpty() && visiblePersons.none { !it.birthdayIso.isNullOrBlank() }) {
                         item {
                             Box(
                                 modifier = Modifier
@@ -666,8 +810,8 @@ fun KontaktChronikApp(
                             }
                         }
                     }
-                    items(specialEvents) { ev ->
-                        val p = persons.find { it.id == ev.personId }
+                    items(visibleEvents) { ev ->
+                        val p = visiblePersons.find { it.id == ev.personId }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -697,7 +841,7 @@ fun KontaktChronikApp(
                                 CompactButton("Nachricht") {
                                     val relPairs = relations
                                         .filter { it.fromPersonId == p.id }
-                                        .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                                        .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                                     val resolved = ContactResolver.resolveTarget(p, relPairs)
                                     popupReason = "Erinnerung: ${ev.title}"
                                     quickMessageText = "Hallo ${resolved.targetPersonName.substringBefore(" ")}, herzliche Grüße!"
@@ -706,8 +850,7 @@ fun KontaktChronikApp(
                             }
                         }
                     }
-                    items(persons.filter { !it.birthdayIso.isNullOrBlank() }) { p ->
-                        val bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso)
+                    items(visiblePersons.filter { !it.birthdayIso.isNullOrBlank() }) { p ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -737,7 +880,7 @@ fun KontaktChronikApp(
                             CompactButton("Nachricht") {
                                 val relPairs = relations
                                     .filter { it.fromPersonId == p.id }
-                                    .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                                    .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                                 val resolved = ContactResolver.resolveTarget(p, relPairs)
                                 popupReason = "Geburtstag"
                                 quickMessageText = "Herzlichen Glückwunsch zum Geburtstag, ${resolved.targetPersonName.substringBefore(" ")}!"
@@ -749,24 +892,24 @@ fun KontaktChronikApp(
             }
 
             else -> {
-                val sortedPersons = remember(persons, showPastDates, contactSortMode) {
+                val sortedPersons = remember(visiblePersons, showPastDates, contactSortMode) {
                     when (contactSortMode) {
-                        "firstname" -> persons.sortedWith(
+                        "firstname" -> visiblePersons.sortedWith(
                             compareBy<PersonEntity> { extractFirstName(it.name).lowercase() }
                                 .thenBy { extractLastName(it.name).lowercase() }
                         )
-                        "lastname" -> persons.sortedWith(
+                        "lastname" -> visiblePersons.sortedWith(
                             compareBy<PersonEntity> { extractLastName(it.name).lowercase() }
                                 .thenBy { extractFirstName(it.name).lowercase() }
                         )
                         else -> if (!showPastDates) {
-                            persons.sortedWith(
+                            visiblePersons.sortedWith(
                                 compareBy<PersonEntity> {
                                     ContactResolver.daysUntilNextBirthday(it.birthdayIso) ?: Long.MAX_VALUE
                                 }.thenBy { it.name.lowercase() }
                             )
                         } else {
-                            persons.sortedWith(
+                            visiblePersons.sortedWith(
                                 compareByDescending<PersonEntity> {
                                     ContactResolver.negativeDaysSinceLastBirthday(it.birthdayIso) ?: Long.MIN_VALUE
                                 }.thenBy { it.name.lowercase() }
@@ -822,7 +965,7 @@ fun KontaktChronikApp(
                         items(sortedPersons) { person ->
                             val personRelations = relations
                                 .filter { it.fromPersonId == person.id }
-                                .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                                .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                             val personEvents = specialEvents.filter { it.personId == person.id }
                             val resolved = ContactResolver.resolveTarget(person, personRelations)
                             val bdayLine = if (showPastDates) {
@@ -857,6 +1000,12 @@ fun KontaktChronikApp(
                                         Text(
                                             text = bdayLine,
                                             color = if (showPastDates) WarnAmber else TextSecondary,
+                                            fontSize = 12.sp
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "Ohne Datumsangabe",
+                                            color = TextMuted,
                                             fontSize = 12.sp
                                         )
                                     }
@@ -999,7 +1148,7 @@ fun KontaktChronikApp(
                         val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
                         val rootJson = JSONObject().apply {
                             put("app", "Remember Me")
-                            put("version", "1.0.6")
+                            put("version", "1.0.7")
                             put("createdAt", dateStr)
                             val personsArr = JSONArray()
                             persons.forEach { p ->
@@ -1009,6 +1158,7 @@ fun KontaktChronikApp(
                                         put("name", p.name)
                                         put("birthdayIso", p.birthdayIso ?: "")
                                         put("hasNoOwnPhone", p.hasNoOwnPhone)
+                                        put("isHidden", hiddenPersonIds.contains(p.id))
                                         put("phone", p.phone)
                                         put("email", p.email)
                                         put("notes", p.notes)
@@ -1335,6 +1485,7 @@ fun KontaktChronikApp(
         var phoneVal by remember(dp) { mutableStateOf(dp.phone) }
         var noPhoneVal by remember(dp) { mutableStateOf(dp.hasNoOwnPhone) }
         var saveInDeviceVal by remember(dp) { mutableStateOf(true) }
+        var isHiddenVal by remember(dp, hiddenPersonIds) { mutableStateOf(hiddenPersonIds.contains(dp.id)) }
         var emailVal by remember(dp) { mutableStateOf(dp.email) }
         var notesVal by remember(dp) { mutableStateOf(dp.notes) }
         var extraInfos by remember(dp) {
@@ -1405,6 +1556,10 @@ fun KontaktChronikApp(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = saveInDeviceVal, onCheckedChange = { saveInDeviceVal = it })
                         Text("In Handykontakten speichern", color = TextSecondary, fontSize = 12.sp)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = isHiddenVal, onCheckedChange = { isHiddenVal = it })
+                        Text("Kontakt dauerhaft ausblenden (nur in „Alle Kontakte“)", color = TextSecondary, fontSize = 12.sp)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = noPhoneVal, onCheckedChange = { noPhoneVal = it })
@@ -1697,6 +1852,7 @@ fun KontaktChronikApp(
                                     }
                                 }
                                 db.updatePerson(updated)
+                                setPersonHidden(dp.id, isHiddenVal)
                                 val serializedExtras = extraInfos
                                     .filter { it.first.isNotBlank() || it.second.isNotBlank() }
                                     .joinToString("\n") { "${it.first.replace("\t", " ")}\t${it.second.replace("\t", " ")}" }

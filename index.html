@@ -981,17 +981,41 @@
           timerInterval: 30,
           timerUnit: "DAYS",
           lastContactedIso: addDaysIso(today, -20)
+        },
+        {
+          name: "Max Berger",
+          birthdayIso: "",
+          phone: "+4915122334455",
+          email: "max.berger@beispiel.de",
+          appPeerId: "",
+          notes: "Nachbar (ohne Geburtsdatum)",
+          timerEnabled: false,
+          timerInterval: 30,
+          timerUnit: "DAYS",
+          lastContactedIso: ""
+        },
+        {
+          name: "Praxis Dr. Klein",
+          birthdayIso: "",
+          phone: "+4930123456",
+          email: "",
+          appPeerId: "",
+          notes: "Hausarzt (ohne Datum)",
+          timerEnabled: false,
+          timerInterval: 30,
+          timerUnit: "DAYS",
+          lastContactedIso: ""
         }
       ];
       let count = 0;
       deviceMocks.forEach(m => {
         if (!existingNames.has(m.name)) {
-          state.persons.push({ id: state.nextId++, hasNoOwnPhone: false, ...m });
+          state.persons.push({ id: state.nextId++, hasNoOwnPhone: false, isHidden: false, ...m });
           count++;
         }
       });
       syncStatus = `${count} Kontakte synchronisiert`;
-      addLog(`${count} Telefonkontakte synchronisiert.`);
+      addLog(`${count} Telefonkontakte (inkl. Kontakte ohne Datum) synchronisiert.`);
       saveState();
     }
 
@@ -1034,7 +1058,7 @@
 
     function runDailyReminderWorker() {
       const today = todayIso();
-      for (const p of state.persons) {
+      for (const p of state.persons.filter(x => !x.isHidden)) {
         const nextTimer = ContactResolver.nextTimerDate(p, today);
         if (nextTimer && nextTimer <= today) {
           openPopupForPerson(p.id, `Erinnerung: Melde-Timer (${p.timerInterval} ${p.timerUnit})`);
@@ -1161,8 +1185,8 @@
         activeTab = "Übersicht";
       }
       const tabs = treeActive
-        ? ["Übersicht", "Stammbaum", "Timer", "Erinnerung"]
-        : ["Übersicht", "Timer", "Erinnerung"];
+        ? ["Übersicht", "Alle Kontakte", "Stammbaum", "Timer", "Erinnerung"]
+        : ["Übersicht", "Alle Kontakte", "Timer", "Erinnerung"];
       let contentHtml = "";
 
       if (state.persons.length === 0) {
@@ -1177,7 +1201,9 @@
         `;
       }
 
-      if (activeTab === "Stammbaum" && treeActive) {
+      if (activeTab === "Alle Kontakte") {
+        contentHtml += renderAllContactsTab();
+      } else if (activeTab === "Stammbaum" && treeActive) {
         contentHtml += renderFamilyTreeTab();
       } else if (activeTab === "Timer") {
         contentHtml += renderTimerTab();
@@ -1189,7 +1215,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.6</div>
+          <div class="app-title">Remember Me v1.0.7</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
@@ -1341,8 +1367,18 @@
       return `${dateStr}  •  ${passedAgeStr} (${negLabel})`;
     }
 
-    function renderPersonsList() {
-      const sorted = [...state.persons].sort((a, b) => {
+    let allContactsFilter = "all"; // "all" | "hidden"
+
+    function togglePersonHidden(personId) {
+      const p = state.persons.find(x => x.id === personId);
+      if (!p) return;
+      p.isHidden = !p.isHidden;
+      addLog(p.isHidden ? `Kontakt "${p.name}" dauerhaft ausgeblendet (nur noch unter "Alle Kontakte" sichtbar).` : `Kontakt "${p.name}" wieder eingeblendet.`);
+      saveState();
+    }
+
+    function sortPersonsArray(arr) {
+      return [...arr].sort((a, b) => {
         if (contactSortMode === "firstname") {
           const cmp = extractFirstName(a.name).localeCompare(extractFirstName(b.name), "de");
           return cmp !== 0 ? cmp : extractLastName(a.name).localeCompare(extractLastName(b.name), "de");
@@ -1361,6 +1397,69 @@
           return na !== nb ? nb - na : a.name.localeCompare(b.name, "de");
         }
       });
+    }
+
+    function renderAllContactsTab() {
+      const hiddenCount = state.persons.filter(p => p.isHidden).length;
+      const baseList = allContactsFilter === "hidden"
+        ? state.persons.filter(p => p.isHidden)
+        : state.persons;
+      const sorted = sortPersonsArray(baseList);
+
+      const headerBar = `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px;">
+          <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Geburtstag / Vorname / Name)">
+            ${getSortModeButtonLabel()}
+          </button>
+          <div class="btn-row">
+            <button class="compact-btn ${allContactsFilter === 'all' ? 'primary' : ''}" onclick="allContactsFilter='all'; renderPhoneApp();">
+              Alle (${state.persons.length})
+            </button>
+            <button class="compact-btn ${allContactsFilter === 'hidden' ? 'primary' : ''}" onclick="allContactsFilter='hidden'; renderPhoneApp();">
+              Ausgeblendet (${hiddenCount})
+            </button>
+          </div>
+        </div>
+      `;
+
+      if (sorted.length === 0) {
+        return headerBar + `
+          <div class="card">
+            <div style="font-size:12px; color:var(--text-secondary);">Keine Kontakte in dieser Ansicht vorhanden.</div>
+          </div>
+        `;
+      }
+
+      const listHtml = sorted.map(person => {
+        const bdayLine = formatCompactBirthdayLine(person.birthdayIso);
+        const subText = bdayLine || (person.phone ? `Ohne Datum • ${person.phone}` : "Ohne Datumsangabe");
+        return `
+          <div class="card" style="padding: 9px 12px; opacity:${person.isHidden ? '0.72' : '1'};">
+            <div class="person-header" style="align-items: center;">
+              <div style="flex:1; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span style="font-size:15px; font-weight:600; color:var(--text-primary);">${escapeHtml(person.name)}</span>
+                  ${person.isHidden ? `<span class="badge-nophone">Ausgeblendet</span>` : ""}
+                  ${!person.birthdayIso ? `<span class="badge-app">Ohne Datum</span>` : ""}
+                </div>
+                <div class="person-sub" style="margin-top:2px; color:var(--text-secondary);">${escapeHtml(subText)}</div>
+              </div>
+              <div class="btn-row">
+                <button class="compact-btn ${person.isHidden ? 'primary' : ''}" onclick="togglePersonHidden(${person.id})">
+                  ${person.isHidden ? "Einblenden" : "Ausblenden"}
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      return headerBar + listHtml;
+    }
+
+    function renderPersonsList() {
+      const visiblePersons = state.persons.filter(p => !p.isHidden);
+      const sorted = sortPersonsArray(visiblePersons);
 
       const headerBar = `
         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px;">
@@ -1379,13 +1478,14 @@
         const bdayLine = showPastDates
           ? formatPassedBirthdayLine(person.birthdayIso)
           : formatCompactBirthdayLine(person.birthdayIso);
+        const fallbackLine = !bdayLine ? "Ohne Datumsangabe" : "";
 
         return `
           <div class="card" style="padding: 9px 12px;">
             <div class="person-header" style="align-items: center;">
               <div style="flex:1; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
                 <div style="font-size:15px; font-weight:600; color:var(--text-primary);">${escapeHtml(person.name)}</div>
-                ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : ""}
+                ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : `<div class="person-sub" style="margin-top:2px; color:var(--text-muted);">${escapeHtml(fallbackLine)}</div>`}
                 ${personEvents.length > 0 ? `
                   <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
                     ${personEvents.map(e => {
@@ -1410,9 +1510,10 @@
     }
 
     function renderFamilyTreeTab() {
-      if (state.persons.length === 0) return "";
-      const rootPerson = state.persons.find(p => p.id === selectedTreeRootId) || state.persons[0];
-      const personMap = new Map(state.persons.map(p => [p.id, p]));
+      const visiblePersons = state.persons.filter(p => !p.isHidden);
+      if (visiblePersons.length === 0) return "";
+      const rootPerson = visiblePersons.find(p => p.id === selectedTreeRootId) || visiblePersons[0];
+      const personMap = new Map(visiblePersons.map(p => [p.id, p]));
 
       // BFS generation calculation
       const genMap = new Map();
@@ -1556,7 +1657,7 @@
       }
       const sortedLevels = [...levelsMap.keys()].sort((a, b) => a - b);
 
-      const dropdownOptions = state.persons.map(p => `
+      const dropdownOptions = visiblePersons.map(p => `
         <option value="${p.id}" ${p.id === rootPerson.id ? 'selected' : ''}>
           ${escapeHtml(p.name)}
         </option>
@@ -1632,7 +1733,7 @@
 
     function renderTimerTab() {
       const today = todayIso();
-      const timerPersons = state.persons.filter(p => p.timerEnabled);
+      const timerPersons = state.persons.filter(p => !p.isHidden && p.timerEnabled);
       return timerPersons.map(p => {
         const nextDate = ContactResolver.nextTimerDate(p, today);
         const diff = daysBetween(today, nextDate);
@@ -1652,18 +1753,19 @@
       const today = todayIso();
       const rows = [];
       state.specialEvents.forEach(ev => {
-        const person = state.persons.find(p => p.id === ev.personId);
+        const person = state.persons.find(p => p.id === ev.personId && !p.isHidden);
+        if (!person) return;
         const days = daysUntilEventSpec(ev.dateIso, today);
         const isWeekly = isWeeklyDateSpec(ev.dateIso);
         rows.push({
           days,
           personId: ev.personId,
-          title: `${isWeekly ? "🔁 " : "Erinnerung: "}${ev.title} (${person ? person.name : ""})`,
+          title: `${isWeekly ? "🔁 " : "Erinnerung: "}${ev.title} (${person.name})`,
           sub: `${formatIsoToDdMmYyyy(ev.dateIso)} ${days === 0 ? "• Heute fällig!" : `• in ${days}T`}`,
           badge: days === 0 ? "Heute" : `in ${days}T`
         });
       });
-      state.persons.forEach(p => {
+      state.persons.filter(p => !p.isHidden).forEach(p => {
         if (p.birthdayIso) {
           const days = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
           rows.push({
@@ -1691,7 +1793,7 @@
       const container = document.getElementById("widget-rows");
       const today = todayIso();
       const items = [];
-      for (const p of state.persons) {
+      for (const p of state.persons.filter(x => !x.isHidden)) {
         const bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
         if (bdayDays !== null && bdayDays <= 60) {
           items.push({ sortKey: bdayDays, personId: p.id, name: p.name, subtitle: `Geburtstag (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`, badge: bdayDays === 0 ? "Heute" : `in ${bdayDays}T` });
@@ -1700,7 +1802,7 @@
       for (const ev of state.specialEvents) {
         const diff = daysUntilEventSpec(ev.dateIso, today);
         if (diff >= 0 && diff <= 45) {
-          const person = state.persons.find(p => p.id === ev.personId);
+          const person = state.persons.find(p => p.id === ev.personId && !p.isHidden);
           const isWeekly = isWeeklyDateSpec(ev.dateIso);
           if (person) items.push({ sortKey: diff, personId: person.id, name: person.name, subtitle: isWeekly ? `${formatIsoToDdMmYyyy(ev.dateIso)}: ${ev.title}` : `Erinnerung: ${ev.title}`, badge: diff === 0 ? "Heute" : `in ${diff}T` });
         }
@@ -1904,6 +2006,10 @@
               <label class="checkbox-row">
                 <input type="checkbox" id="d-savephone" ${dp.savedInDeviceContacts !== false ? 'checked' : ''} />
                 <span>In Handykontakten speichern</span>
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" id="d-hidden" ${dp.isHidden ? 'checked' : ''} />
+                <span>Kontakt dauerhaft ausblenden (nur in „Alle Kontakte“ sichtbar)</span>
               </label>
 
               <div id="d-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
@@ -2328,6 +2434,8 @@
       dp.notes = document.getElementById("d-notes").value.trim();
       const savePhoneEl = document.getElementById("d-savephone");
       dp.savedInDeviceContacts = savePhoneEl ? savePhoneEl.checked : true;
+      const hiddenEl = document.getElementById("d-hidden");
+      if (hiddenEl) dp.isHidden = hiddenEl.checked;
       dp.extraInfos = detailExtraInfos.filter(x => (x.label && x.label.trim()) || (x.value && x.value.trim()));
 
       const evTitle = document.getElementById("d-evtitle").value.trim();
@@ -2499,7 +2607,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.6",
+        version: "1.0.7",
         createdAt: dateStr,
         state
       };
@@ -2575,7 +2683,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.6 gestartet.");
+      addLog("Remember Me v1.0.7 gestartet.");
       renderAll();
     }
   </script>
