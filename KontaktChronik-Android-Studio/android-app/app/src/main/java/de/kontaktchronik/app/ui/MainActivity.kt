@@ -259,8 +259,12 @@ data class WichtelParticipant(
     val name: String,
     val phone: String = "",
     val wishText: String = "",
+    val noGos: String = "",
+    val address: String = "",
     val wishlistUrl: String = "",
+    val extraWishUrls: List<String> = emptyList(),
     val drawnTargetId: Long? = null,
+    val lastYearTargetId: Long? = null,
     val notifiedVia: String = ""
 )
 
@@ -268,9 +272,12 @@ data class WichtelGroup(
     val id: Long,
     val groupName: String,
     val adminName: String,
+    val motto: String = "🎁 Klassisches Wichteln",
     val budget: String = "25 €",
     val revealDateIso: String = "${LocalDate.now().year}-12-24",
+    val reminderDaysBefore: Int = 7,
     val excludeCouples: Boolean = true,
+    val excludeLastYear: Boolean = true,
     val forceRevealed: Boolean = false,
     val isDrawn: Boolean = false,
     val participants: List<WichtelParticipant> = emptyList()
@@ -285,14 +292,22 @@ fun parseWichtelGroupsJson(raw: String?): List<WichtelGroup> {
             val pArr = obj.optJSONArray("participants") ?: JSONArray()
             val parts = (0 until pArr.length()).map { j ->
                 val pObj = pArr.getJSONObject(j)
+                val extraArr = pObj.optJSONArray("extraWishUrls")
+                val extras = if (extraArr != null) {
+                    (0 until extraArr.length()).mapNotNull { k -> extraArr.optString(k).takeIf { it.isNotBlank() } }
+                } else emptyList()
                 WichtelParticipant(
                     id = pObj.optLong("id", System.nanoTime()),
                     personId = pObj.optLong("personId", -1L).takeIf { it > 0 },
                     name = pObj.optString("name", ""),
                     phone = pObj.optString("phone", ""),
                     wishText = pObj.optString("wishText", ""),
+                    noGos = pObj.optString("noGos", ""),
+                    address = pObj.optString("address", ""),
                     wishlistUrl = pObj.optString("wishlistUrl", ""),
+                    extraWishUrls = extras,
                     drawnTargetId = pObj.optLong("drawnTargetId", -1L).takeIf { it > 0 },
+                    lastYearTargetId = pObj.optLong("lastYearTargetId", -1L).takeIf { it > 0 },
                     notifiedVia = pObj.optString("notifiedVia", "")
                 )
             }
@@ -300,9 +315,12 @@ fun parseWichtelGroupsJson(raw: String?): List<WichtelGroup> {
                 id = obj.optLong("id", System.nanoTime()),
                 groupName = obj.optString("groupName", "Wichtelrunde"),
                 adminName = obj.optString("adminName", "Admin"),
+                motto = obj.optString("motto", "🎁 Klassisches Wichteln"),
                 budget = obj.optString("budget", "25 €"),
                 revealDateIso = obj.optString("revealDateIso", "${LocalDate.now().year}-12-24"),
+                reminderDaysBefore = obj.optInt("reminderDaysBefore", 7),
                 excludeCouples = obj.optBoolean("excludeCouples", true),
+                excludeLastYear = obj.optBoolean("excludeLastYear", true),
                 forceRevealed = obj.optBoolean("forceRevealed", false),
                 isDrawn = obj.optBoolean("isDrawn", false),
                 participants = parts
@@ -319,9 +337,12 @@ fun serializeWichtelGroupsJson(groups: List<WichtelGroup>): String {
                 put("id", g.id)
                 put("groupName", g.groupName)
                 put("adminName", g.adminName)
+                put("motto", g.motto)
                 put("budget", g.budget)
                 put("revealDateIso", g.revealDateIso)
+                put("reminderDaysBefore", g.reminderDaysBefore)
                 put("excludeCouples", g.excludeCouples)
+                put("excludeLastYear", g.excludeLastYear)
                 put("forceRevealed", g.forceRevealed)
                 put("isDrawn", g.isDrawn)
                 val pArr = JSONArray()
@@ -333,8 +354,12 @@ fun serializeWichtelGroupsJson(groups: List<WichtelGroup>): String {
                             put("name", p.name)
                             put("phone", p.phone)
                             put("wishText", p.wishText)
+                            put("noGos", p.noGos)
+                            put("address", p.address)
                             put("wishlistUrl", p.wishlistUrl)
+                            put("extraWishUrls", JSONArray(p.extraWishUrls))
                             put("drawnTargetId", p.drawnTargetId ?: -1L)
+                            put("lastYearTargetId", p.lastYearTargetId ?: -1L)
                             put("notifiedVia", p.notifiedVia)
                         }
                     )
@@ -506,7 +531,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.9", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.10", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
@@ -1340,7 +1365,7 @@ fun KontaktChronikApp(
                         val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
                         val rootJson = JSONObject().apply {
                             put("app", "Remember Me")
-                            put("version", "1.0.9")
+                            put("version", "1.0.10")
                             put("createdAt", dateStr)
                             put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
                             val personsArr = JSONArray()
@@ -2791,6 +2816,13 @@ fun WichtelScreen(
     onConfirmDelete: (String, () -> Unit) -> Unit
 ) {
     val context = LocalContext.current
+    val mottos = listOf(
+        "🎁 Klassisches Wichteln",
+        "♻️ Schrottwichteln",
+        "📖 Buch-Wichteln",
+        "🛠️ Selbstgemachtes",
+        "🎲 Würfel-/Räuberwichteln"
+    )
     var selectedGroupId by remember(groups) {
         mutableStateOf(groups.firstOrNull()?.id)
     }
@@ -2798,9 +2830,11 @@ fun WichtelScreen(
     // Dialog-States
     var editingGroup by remember { mutableStateOf<WichtelGroup?>(null) }
     var isCreatingGroup by remember { mutableStateOf(false) }
+    var checklistGroup by remember { mutableStateOf<WichtelGroup?>(null) }
     var editingParticipantGroup by remember { mutableStateOf<WichtelGroup?>(null) }
     var editingParticipant by remember { mutableStateOf<WichtelParticipant?>(null) }
     var secretPeekPair by remember { mutableStateOf<Triple<WichtelGroup, WichtelParticipant, WichtelParticipant>?>(null) }
+    var anonQuestionTarget by remember { mutableStateOf<Pair<WichtelGroup, WichtelParticipant>?>(null) }
 
     val activeGroup = groups.find { it.id == selectedGroupId } ?: groups.firstOrNull()
 
@@ -2810,20 +2844,43 @@ fun WichtelScreen(
         return g.revealDateIso.isNotBlank() && todayStr >= g.revealDateIso
     }
 
-    fun areCouplesInTree(idA: Long?, idB: Long?): Boolean {
-        if (idA == null || idB == null || idA <= 0L || idB <= 0L) return false
-        return relations.any { r ->
-            ((r.fromPersonId == idA && r.toPersonId == idB) ||
-                (r.fromPersonId == idB && r.toPersonId == idA)) &&
+    fun getCouplePartnerForPerson(personId: Long?): PersonEntity? {
+        if (personId == null || personId <= 0L) return null
+        val directRel = relations.find { r ->
+            (r.fromPersonId == personId || r.toPersonId == personId) &&
                 isPartnerRelation(r.relationLabel)
         }
+        if (directRel != null) {
+            val partnerId = if (directRel.fromPersonId == personId) directRel.toPersonId else directRel.fromPersonId
+            return persons.find { it.id == partnerId }
+        }
+        val childIds = relations
+            .filter { r -> r.toPersonId == personId && relationGenerationStep(r.relationLabel) == -1 }
+            .map { it.fromPersonId }
+        for (cid in childIds) {
+            val coParentRel = relations.find { r ->
+                r.fromPersonId == cid && r.toPersonId != personId && relationGenerationStep(r.relationLabel) == -1
+            }
+            if (coParentRel != null) {
+                return persons.find { it.id == coParentRel.toPersonId }
+            }
+        }
+        return null
+    }
+
+    fun areCouplesInTree(idA: Long?, idB: Long?): Boolean {
+        if (idA == null || idB == null || idA <= 0L || idB <= 0L) return false
+        val partner = getCouplePartnerForPerson(idA)
+        return partner?.id == idB
     }
 
     fun rollGroup(g: WichtelGroup) {
-        val parts = g.participants
+        val parts = g.participants.map { p ->
+            if (p.drawnTargetId != null) p.copy(lastYearTargetId = p.drawnTargetId) else p
+        }
         if (parts.size < 2) return
         var chosenMap: Map<Long, Long>? = null
-        for (attempt in 0 until 120) {
+        for (attempt in 0 until 200) {
             val shuffled = parts.shuffled()
             var valid = true
             val map = mutableMapOf<Long, Long>()
@@ -2835,6 +2892,10 @@ fun WichtelScreen(
                     break
                 }
                 if (g.excludeCouples && parts.size > 2 && areCouplesInTree(giver.personId, receiver.personId)) {
+                    valid = false
+                    break
+                }
+                if (g.excludeLastYear && parts.size > 3 && giver.lastYearTargetId != null && giver.lastYearTargetId == receiver.id && attempt < 140) {
                     valid = false
                     break
                 }
@@ -2865,12 +2926,18 @@ fun WichtelScreen(
 
     fun buildSecretMessage(g: WichtelGroup, giver: WichtelParticipant, target: WichtelParticipant): String {
         val revealStr = formatIsoToDdMmYyyy(g.revealDateIso).ifBlank { "Weihnachten" }
+        val allUrls = (listOf(target.wishlistUrl) + target.extraWishUrls).filter { it.isNotBlank() }
         return buildString {
-            append("🎄 Hallo ${giver.name.substringBefore(" ")}! Hier ist dein geheimes Los für unsere Wichtelrunde „${g.groupName}“ (Gruppenadmin: ${g.adminName}):\n\n")
+            append("🎄 Hallo ${giver.name.substringBefore(" ")}! Hier ist dein geheimes Los für unsere Wichtelrunde „${g.groupName}“ (Admin: ${g.adminName}):\n\n")
+            append("🎭 Motto: ${g.motto}\n")
             append("🎁 Du beschenkst: *${target.name}*!\n")
             if (g.budget.isNotBlank()) append("💶 Budget: ${g.budget}\n")
-            if (target.wishText.isNotBlank()) append("📝 Wunschzettel von ${target.name.substringBefore(" ")}: ${target.wishText}\n")
-            if (target.wishlistUrl.isNotBlank()) append("🛒 Amazon-Wunschliste / Link: ${target.wishlistUrl}\n")
+            if (target.wishText.isNotBlank()) append("📝 Wunschzettel: ${target.wishText}\n")
+            if (target.noGos.isNotBlank()) append("🚫 Bitte NICHT / Hinweis: ${target.noGos}\n")
+            if (target.address.isNotBlank()) append("📦 Post-Adresse: ${target.address}\n")
+            allUrls.forEachIndexed { idx, u ->
+                append("🛒 ${if (idx == 0) "Amazon-Wunschliste" else "Wunsch-Link ${idx + 1}"}: $u\n")
+            }
             append("\n🤫 Pssst: Niemand sonst kennt dein Los! Erst ab dem $revealStr wird für alle aufgelöst, wer wen gezogen hat.")
         }
     }
@@ -2901,9 +2968,12 @@ fun WichtelScreen(
                     id = System.currentTimeMillis(),
                     groupName = "Weihnachts-Wichteln ${LocalDate.now().year}",
                     adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
+                    motto = "🎁 Klassisches Wichteln",
                     budget = "25 €",
                     revealDateIso = "${LocalDate.now().year}-12-24",
-                    excludeCouples = true
+                    reminderDaysBefore = 7,
+                    excludeCouples = true,
+                    excludeLastYear = true
                 )
             }
         }
@@ -2919,7 +2989,7 @@ fun WichtelScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("🎄 Noch keine Wichtelrunde erstellt", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Text(
-                        "Erstelle als Gruppenadmin eine Wichtelrunde, lade Namen & Kontakte ein, hinterlege Wunschzettel oder Amazon-Wunschlisten und würfle die geheime Zulosung aus!",
+                        "Erstelle als Gruppenadmin eine Wichtelrunde, kreuze Kontakte (inkl. Paar-Sperre) an, hinterlege Wunschzettel oder Amazon-Wunschlisten und würfle die geheime Zulosung aus!",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
@@ -2929,9 +2999,12 @@ fun WichtelScreen(
                             id = System.currentTimeMillis(),
                             groupName = "Familien-Wichteln ${LocalDate.now().year}",
                             adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
+                            motto = "🎁 Klassisches Wichteln",
                             budget = "25 €",
                             revealDateIso = "${LocalDate.now().year}-12-24",
-                            excludeCouples = true
+                            reminderDaysBefore = 7,
+                            excludeCouples = true,
+                            excludeLastYear = true
                         )
                     }
                 }
@@ -2958,7 +3031,7 @@ fun WichtelScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Top
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
                                     "🎄 ${activeGroup.groupName}",
                                     color = TextPrimary,
@@ -2966,14 +3039,21 @@ fun WichtelScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    "👑 Gruppenadmin: ${activeGroup.adminName}" +
+                                    "👑 Admin: ${activeGroup.adminName}" +
                                         if (activeGroup.budget.isNotBlank()) " • 💶 Budget: ${activeGroup.budget}" else "",
                                     color = TextSecondary,
                                     fontSize = 12.sp
                                 )
                                 Text(
-                                    "📅 Auflösungs-Frist: $revealDateFormatted" +
-                                        if (activeGroup.excludeCouples) " • 💑 Paar-Sperre aktiv" else "",
+                                    "${activeGroup.motto} • ⏰ Wecker: ${activeGroup.reminderDaysBefore}T vorher",
+                                    color = TreeGreen,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    "📅 Frist: $revealDateFormatted" +
+                                        (if (activeGroup.excludeCouples) " • 💑 Paar-Sperre" else "") +
+                                        (if (activeGroup.excludeLastYear) " • 🔄 Vorjahres-Sperre" else ""),
                                     color = AccentSteel,
                                     fontSize = 11.sp
                                 )
@@ -3000,7 +3080,7 @@ fun WichtelScreen(
                                     .padding(8.dp)
                             ) {
                                 Text(
-                                    "🎲 Bereit zum Würfeln: Sobald alle Teilnehmer eingetragen sind, tippe auf „🎲 Jetzt auslosen!“. Vor Ablauf der Frist ($revealDateFormatted) sieht niemand die Gesamtliste.",
+                                    "🎲 Bereit zum Würfeln: Sobald alle Teilnehmer angekreuzt sind, tippe auf „🎲 Jetzt auslosen!“. Vor Ablauf der Frist ($revealDateFormatted) sieht niemand die Gesamtliste.",
                                     color = TextPrimary,
                                     fontSize = 11.5.sp
                                 )
@@ -3053,15 +3133,18 @@ fun WichtelScreen(
                             CompactButton(if (activeGroup.isDrawn) "🎲 Neu würfeln" else "🎲 Jetzt auslosen!") {
                                 rollGroup(activeGroup)
                             }
-                            CompactButton("+ Teilnehmer") {
-                                editingParticipantGroup = activeGroup
-                                editingParticipant = WichtelParticipant(
-                                    id = System.currentTimeMillis(),
-                                    name = ""
-                                )
+                            CompactButton("☑️ Teilnehmer (${activeGroup.participants.size})") {
+                                checklistGroup = activeGroup
+                            }
+                            CompactButton("⏰ Wecker") {
+                                runCatching {
+                                    val msg = "⏰🎄 Erinnerung zur Wichtelrunde „${activeGroup.groupName}“ (${activeGroup.motto}):\nBis zum $revealDateFormatted ist es nicht mehr weit – denk daran, dein Wichtelgeschenk (Budget: ${activeGroup.budget}) rechtzeitig zu besorgen! 🎁"
+                                    val url = "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                }
                             }
                             if (activeGroup.isDrawn) {
-                                CompactButton(if (revealed) "🔒 Verbergen" else "🔓 Frist-Ablauf") {
+                                CompactButton(if (revealed) "🔒" else "🔓") {
                                     val toggled = activeGroup.copy(forceRevealed = !activeGroup.forceRevealed)
                                     onSaveGroups(groups.map { if (it.id == activeGroup.id) toggled else it })
                                 }
@@ -3072,20 +3155,30 @@ fun WichtelScreen(
 
                 items(activeGroup.participants) { part ->
                     val target = activeGroup.participants.find { it.id == part.drawnTargetId }
+                    val partnerContact = getCouplePartnerForPerson(part.personId)
+                    val partnerInGroup = if (partnerContact != null) {
+                        activeGroup.participants.find { it.personId == partnerContact.id }
+                    } else null
+                    val allUrls = (listOf(part.wishlistUrl) + part.extraWishUrls).filter { it.isNotBlank() }
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(CardSlate, RoundedCornerShape(8.dp))
-                            .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                            .border(
+                                1.dp,
+                                if (partnerInGroup != null && activeGroup.excludeCouples) PartnerRose else BorderSlate,
+                                RoundedCornerShape(8.dp)
+                            )
                             .padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -3097,6 +3190,14 @@ fun WichtelScreen(
                                     if (part.notifiedVia.isNotBlank()) {
                                         Text("✓ ${part.notifiedVia}", color = TreeGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                     }
+                                }
+                                if (partnerInGroup != null && activeGroup.excludeCouples) {
+                                    Text(
+                                        "💑 Paar mit ${partnerInGroup.name.substringBefore(" ")} (ziehen sich nicht gegenseitig)",
+                                        color = PartnerRose,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                                 val statusLine = when {
                                     !activeGroup.isDrawn -> "Noch nicht ausgelost"
@@ -3110,27 +3211,53 @@ fun WichtelScreen(
                                     fontWeight = FontWeight.Medium
                                 )
                                 if (part.wishText.isNotBlank()) {
-                                    Text("🎁 Wunsch: ${part.wishText}", color = TextSecondary, fontSize = 11.5.sp)
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("🎁 Wunsch: ${part.wishText}", color = TextSecondary, fontSize = 11.5.sp, modifier = Modifier.weight(1f, fill = false))
+                                        Text(
+                                            "🔎 Amazon ↗",
+                                            color = AccentSteel,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.clickable {
+                                                runCatching {
+                                                    val url = "https://www.amazon.de/s?k=${android.net.Uri.encode(part.wishText)}"
+                                                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
-                                if (part.wishlistUrl.isNotBlank()) {
+                                if (part.noGos.isNotBlank()) {
+                                    Text("🚫 Bitte NICHT / Hinweis: ${part.noGos}", color = WarnAmber, fontSize = 11.sp)
+                                }
+                                if (part.address.isNotBlank()) {
+                                    Text("📦 Adresse: ${part.address}", color = TextMuted, fontSize = 11.sp)
+                                }
+                                allUrls.forEachIndexed { idx, u ->
                                     Text(
-                                        "🛒 Amazon-Wunschliste / Link öffnen ↗",
+                                        "🛒 ${if (idx == 0) "Amazon-Wunschliste öffnen ↗" else "Wunsch-Link ${idx + 1} öffnen ↗"}",
                                         color = AccentSteel,
                                         fontSize = 11.5.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.clickable {
                                             runCatching {
-                                                val url = if (part.wishlistUrl.startsWith("http")) part.wishlistUrl else "https://${part.wishlistUrl}"
+                                                val url = if (u.startsWith("http")) u else "https://$u"
                                                 context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                                             }
                                         }
                                     )
                                 }
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                                 CompactButton("🎁 Wunsch") {
                                     editingParticipantGroup = activeGroup
                                     editingParticipant = part
+                                }
+                                CompactButton("🕵️") {
+                                    anonQuestionTarget = activeGroup to part
                                 }
                                 Text(
                                     "✕",
@@ -3198,9 +3325,12 @@ fun WichtelScreen(
     editingGroup?.let { eg ->
         var gName by remember(eg) { mutableStateOf(eg.groupName) }
         var gAdmin by remember(eg) { mutableStateOf(eg.adminName) }
+        var gMotto by remember(eg) { mutableStateOf(eg.motto) }
         var gBudget by remember(eg) { mutableStateOf(eg.budget) }
         var gReveal by remember(eg) { mutableStateOf(formatIsoToDdMmYyyy(eg.revealDateIso)) }
+        var gReminder by remember(eg) { mutableStateOf(eg.reminderDaysBefore.toString()) }
         var gCouples by remember(eg) { mutableStateOf(eg.excludeCouples) }
+        var gLastYear by remember(eg) { mutableStateOf(eg.excludeLastYear) }
 
         Dialog(onDismissRequest = { editingGroup = null }) {
             Column(
@@ -3220,15 +3350,26 @@ fun WichtelScreen(
                 )
                 OutlinedTextField(value = gName, onValueChange = { gName = it }, label = { Text("Name der Wichtelrunde") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = gAdmin, onValueChange = { gAdmin = it }, label = { Text("👑 Gruppenadmin (Ersteller)") }, modifier = Modifier.fillMaxWidth())
+                Text("🎭 Wichtel-Modus / Motto:", color = TextSecondary, fontSize = 11.sp)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(mottos) { m ->
+                        CompactButton(if (gMotto == m) "✓ $m" else m) { gMotto = m }
+                    }
+                }
                 OutlinedTextField(value = gBudget, onValueChange = { gBudget = it }, label = { Text("💶 Budget / Preisrahmen") }, modifier = Modifier.fillMaxWidth())
                 DateInputWithCalendar(
                     value = gReveal,
                     onValueChange = { gReveal = it },
                     label = "📅 Auflösungs-Frist (TT.MM.JJJJ)"
                 )
+                OutlinedTextField(value = gReminder, onValueChange = { gReminder = it }, label = { Text("⏰ Geschenk-Wecker (Tage vor Frist)") }, modifier = Modifier.fillMaxWidth())
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = gCouples, onCheckedChange = { gCouples = it })
                     Text("💑 Paare aus Stammbaum nicht gegenseitig zulosen", color = TextSecondary, fontSize = 12.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = gLastYear, onCheckedChange = { gLastYear = it })
+                    Text("🔄 Nicht dieselbe Person wie im Vorjahr zulosen", color = TextSecondary, fontSize = 12.sp)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -3240,9 +3381,12 @@ fun WichtelScreen(
                         val finalGroup = eg.copy(
                             groupName = gName.trim().ifBlank { "Wichtelrunde" },
                             adminName = gAdmin.trim().ifBlank { "Admin" },
+                            motto = gMotto,
                             budget = gBudget.trim(),
                             revealDateIso = normalizeDateInputToIso(gReveal).ifBlank { "${LocalDate.now().year}-12-24" },
+                            reminderDaysBefore = gReminder.toIntOrNull() ?: 7,
                             excludeCouples = gCouples,
+                            excludeLastYear = gLastYear,
                             participants = if (isCreatingGroup && eg.participants.isEmpty()) {
                                 val adminContact = persons.find { it.name.equals(gAdmin.trim(), ignoreCase = true) }
                                 listOf(
@@ -3265,16 +3409,198 @@ fun WichtelScreen(
         }
     }
 
-    // Dialog: Teilnehmer & Amazon-Wunschliste hinzufügen / bearbeiten
+    // Dialog: Teilnehmer per Ankreuzliste (Multi-Select) einladen – Paare besonders hervorgehoben!
+    checklistGroup?.let { cg ->
+        var checkedIds by remember(cg) {
+            mutableStateOf(cg.participants.mapNotNull { it.personId }.toSet())
+        }
+        var customName by remember(cg) { mutableStateOf("") }
+        var customPhone by remember(cg) { mutableStateOf("") }
+
+        // Gruppiere Paare zusammen für besondere visuelle Darstellung
+        val groupedContacts = remember(persons, relations) {
+            val result = mutableListOf<List<PersonEntity>>()
+            val visited = mutableSetOf<Long>()
+            for (p in persons) {
+                if (visited.contains(p.id)) continue
+                val partner = getCouplePartnerForPerson(p.id)
+                if (partner != null && !visited.contains(partner.id)) {
+                    visited.add(p.id)
+                    visited.add(partner.id)
+                    result.add(listOf(p, partner))
+                } else {
+                    visited.add(p.id)
+                    result.add(listOf(p))
+                }
+            }
+            result
+        }
+
+        Dialog(onDismissRequest = { checklistGroup = null }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                    .padding(14.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "☑️ Teilnehmer zur Wichtelrunde einladen",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Kontakte zum Mitwichteln ankreuzen:", color = TextSecondary, fontSize = 11.5.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactButton("Alle") { checkedIds = persons.map { it.id }.toSet() }
+                        CompactButton("Keine") { checkedIds = emptySet() }
+                    }
+                }
+
+                groupedContacts.forEach { groupMembers ->
+                    if (groupMembers.size == 2) {
+                        val p1 = groupMembers[0]
+                        val p2 = groupMembers[1]
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BgSlate, RoundedCornerShape(8.dp))
+                                .border(1.5.dp, PartnerRose, RoundedCornerShape(8.dp))
+                                .padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("💑 Ehe-/Lebenspartner (Paar-Sperre)", color = PartnerRose, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("🔒 Ziehen sich nicht gegenseitig!", color = PartnerRose, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            listOf(p1 to p2, p2 to p1).forEach { (member, spouse) ->
+                                val isChecked = checkedIds.contains(member.id)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            checkedIds = if (isChecked) checkedIds - member.id else checkedIds + member.id
+                                        },
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = isChecked,
+                                        onCheckedChange = { ch ->
+                                            checkedIds = if (ch) checkedIds + member.id else checkedIds - member.id
+                                        }
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(member.name, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("💑 Paar mit ${spouse.name.substringBefore(" ")}", color = PartnerRose, fontSize = 10.5.sp)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        val member = groupMembers.first()
+                        val isChecked = checkedIds.contains(member.id)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BgSlate, RoundedCornerShape(6.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                .clickable {
+                                    checkedIds = if (isChecked) checkedIds - member.id else checkedIds + member.id
+                                }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = isChecked,
+                                onCheckedChange = { ch ->
+                                    checkedIds = if (ch) checkedIds + member.id else checkedIds - member.id
+                                }
+                            )
+                            Text(member.name, color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+
+                Divider(color = BorderSlate)
+                Text("Oder weitere Person frei hinzufügen (optional):", color = TextSecondary, fontSize = 11.5.sp)
+                OutlinedTextField(value = customName, onValueChange = { customName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = customPhone, onValueChange = { customPhone = it }, label = { Text("Telefon (WhatsApp)") }, modifier = Modifier.fillMaxWidth())
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    CompactButton("Abbrechen") { checklistGroup = null }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    CompactButton("Teilnehmer übernehmen") {
+                        val keptCustom = cg.participants.filter { it.personId == null }
+                        val nextParticipants = mutableListOf<WichtelParticipant>()
+                        nextParticipants.addAll(keptCustom)
+
+                        checkedIds.forEach { pid ->
+                            val existing = cg.participants.find { it.personId == pid }
+                            if (existing != null) {
+                                nextParticipants.add(existing)
+                            } else {
+                                val contact = persons.find { it.id == pid }
+                                if (contact != null) {
+                                    nextParticipants.add(
+                                        WichtelParticipant(
+                                            id = System.currentTimeMillis() + pid,
+                                            personId = contact.id,
+                                            name = contact.name,
+                                            phone = contact.phone,
+                                            wishText = contact.notes
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        if (customName.isNotBlank()) {
+                            nextParticipants.add(
+                                WichtelParticipant(
+                                    id = System.currentTimeMillis() + 999L,
+                                    personId = null,
+                                    name = customName.trim(),
+                                    phone = customPhone.trim()
+                                )
+                            )
+                        }
+
+                        val updatedGroup = cg.copy(
+                            isDrawn = false,
+                            participants = nextParticipants.map { it.copy(drawnTargetId = null, notifiedVia = "") }
+                        )
+                        onSaveGroups(groups.map { if (it.id == cg.id) updatedGroup else it })
+                        checklistGroup = null
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog: Wunschliste, No-Gos, Post-Adresse & Links für einzelnen Teilnehmer bearbeiten
     val pGroup = editingParticipantGroup
     val pItem = editingParticipant
     if (pGroup != null && pItem != null) {
-        val isExisting = pGroup.participants.any { it.id == pItem.id }
-        var pPersonId by remember(pItem) { mutableStateOf(pItem.personId) }
         var pName by remember(pItem) { mutableStateOf(pItem.name) }
         var pPhone by remember(pItem) { mutableStateOf(pItem.phone) }
         var pWish by remember(pItem) { mutableStateOf(pItem.wishText) }
+        var pNoGos by remember(pItem) { mutableStateOf(pItem.noGos) }
+        var pAddress by remember(pItem) { mutableStateOf(pItem.address) }
         var pUrl by remember(pItem) { mutableStateOf(pItem.wishlistUrl) }
+        var pExtraUrls by remember(pItem) { mutableStateOf(pItem.extraWishUrls) }
 
         Dialog(
             onDismissRequest = {
@@ -3292,30 +3618,77 @@ fun WichtelScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    if (isExisting) "🎁 Teilnehmer & Wunschliste" else "+ Teilnehmer einladen",
+                    "🎁 Wunschliste & Details: ${pItem.name}",
                     color = TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                if (!isExisting && persons.isNotEmpty()) {
-                    Text("Aus Kontakten übernehmen:", color = TextSecondary, fontSize = 11.sp)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(persons) { contact ->
-                            CompactButton(contact.name) {
-                                pPersonId = contact.id
-                                pName = contact.name
-                                pPhone = contact.phone
-                                if (pWish.isBlank() && contact.notes.isNotBlank()) {
-                                    pWish = contact.notes
-                                }
-                            }
+                OutlinedTextField(value = pName, onValueChange = { pName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = pPhone, onValueChange = { pPhone = it }, label = { Text("Telefon (für WhatsApp-Los)") }, modifier = Modifier.fillMaxWidth())
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = pWish,
+                        onValueChange = { pWish = it },
+                        label = { Text("🎁 Wunschzettel / Geschenk-Ideen") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    CompactButton("🔎 Amazon") {
+                        runCatching {
+                            val q = pWish.trim()
+                            val url = if (q.isNotBlank()) "https://www.amazon.de/s?k=${android.net.Uri.encode(q)}" else "https://www.amazon.de"
+                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                         }
                     }
                 }
-                OutlinedTextField(value = pName, onValueChange = { pName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = pPhone, onValueChange = { pPhone = it }, label = { Text("Telefon (für WhatsApp-Los)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = pWish, onValueChange = { pWish = it }, label = { Text("🎁 Wunschzettel / Geschenk-Ideen") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = pUrl, onValueChange = { pUrl = it }, label = { Text("🛒 Amazon-Wunschliste / Link") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = pNoGos,
+                    onValueChange = { pNoGos = it },
+                    label = { Text("🚫 Bitte NICHT schenken / Allergien & Größen") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = pAddress,
+                    onValueChange = { pAddress = it },
+                    label = { Text("📦 Post-Adresse (für Fern-Wichteln)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = pUrl,
+                    onValueChange = { pUrl = it },
+                    label = { Text("🛒 Haupt-Wunschliste (Amazon-Wunschliste)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                pExtraUrls.forEachIndexed { idx, extraUrl ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = extraUrl,
+                            onValueChange = { newVal ->
+                                pExtraUrls = pExtraUrls.toMutableList().also { it[idx] = newVal }
+                            },
+                            label = { Text("🔗 Weiterer Wunsch-Link ${idx + 2}") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "✕",
+                            color = WarnAmber,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable {
+                                pExtraUrls = pExtraUrls.toMutableList().also { it.removeAt(idx) }
+                            }
+                        )
+                    }
+                }
+                CompactButton("+ Weiterer Link") {
+                    pExtraUrls = pExtraUrls + ""
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -3328,22 +3701,17 @@ fun WichtelScreen(
                     CompactButton("Speichern") {
                         if (pName.isNotBlank()) {
                             val updatedPart = pItem.copy(
-                                personId = pPersonId,
                                 name = pName.trim(),
                                 phone = pPhone.trim(),
                                 wishText = pWish.trim(),
-                                wishlistUrl = pUrl.trim()
+                                noGos = pNoGos.trim(),
+                                address = pAddress.trim(),
+                                wishlistUrl = pUrl.trim(),
+                                extraWishUrls = pExtraUrls.map { it.trim() }.filter { it.isNotBlank() }
                             )
-                            val updatedGroup = if (isExisting) {
-                                pGroup.copy(
-                                    participants = pGroup.participants.map { if (it.id == pItem.id) updatedPart else it }
-                                )
-                            } else {
-                                pGroup.copy(
-                                    isDrawn = false,
-                                    participants = (pGroup.participants + updatedPart).map { it.copy(drawnTargetId = null, notifiedVia = "") }
-                                )
-                            }
+                            val updatedGroup = pGroup.copy(
+                                participants = pGroup.participants.map { if (it.id == pItem.id) updatedPart else it }
+                            )
                             onSaveGroups(groups.map { if (it.id == pGroup.id) updatedGroup else it })
                             editingParticipantGroup = null
                             editingParticipant = null
@@ -3354,8 +3722,59 @@ fun WichtelScreen(
         }
     }
 
+    // Dialog: Anonyme Wichtel-Frage („Geheimer Bote“)
+    anonQuestionTarget?.let { (g, target) ->
+        var qText by remember(target) { mutableStateOf("") }
+        Dialog(onDismissRequest = { anonQuestionTarget = null }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("🕵️ Anonyme Wichtel-Frage („Geheimer Bote“)", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Stelle ${target.name} anonym eine Frage (z. B. nach Größe, Lieblingsfarbe oder Buchtitel), ohne deine Identität als Wichtel zu verraten!",
+                    color = TextSecondary,
+                    fontSize = 12.sp
+                )
+                OutlinedTextField(
+                    value = qText,
+                    onValueChange = { qText = it },
+                    label = { Text("Geheime Frage an ${target.name.substringBefore(" ")}") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    CompactButton("Abbrechen") { anonQuestionTarget = null }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    CompactButton("📲 Per WhatsApp fragen") {
+                        if (qText.isNotBlank()) {
+                            runCatching {
+                                val msg = "🕵️🎄 *Geheime Wichtel-Frage* aus der Runde „${g.groupName}“:\n\nDein geheimer Wichtel lässt über Gruppenadmin ${g.adminName} fragen:\n„${qText.trim()}“\n\nAntworte einfach hier – deine Antwort wird anonym weitergeleitet! 🤫"
+                                val cleanPhone = target.phone.replace(Regex("[^0-9]"), "")
+                                val url = if (cleanPhone.isNotBlank()) {
+                                    "https://wa.me/$cleanPhone?text=${android.net.Uri.encode(msg)}"
+                                } else {
+                                    "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+                                }
+                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                            }
+                            anonQuestionTarget = null
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Dialog: Geheimes Einzel-Los für einen Teilnehmer
     secretPeekPair?.let { (g, giver, target) ->
+        val allUrls = (listOf(target.wishlistUrl) + target.extraWishUrls).filter { it.isNotBlank() }
         Dialog(onDismissRequest = { secretPeekPair = null }) {
             Column(
                 modifier = Modifier
@@ -3367,7 +3786,7 @@ fun WichtelScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text("🤫 Geheimes Wichtel-Los für ${giver.name}", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text("Runde: ${g.groupName} • Budget: ${g.budget}", color = TextSecondary, fontSize = 12.sp)
+                Text("${g.groupName} (${g.motto}) • Budget: ${g.budget}", color = TextSecondary, fontSize = 12.sp)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3382,15 +3801,25 @@ fun WichtelScreen(
                     if (target.wishText.isNotBlank()) {
                         Text("📝 Wunschzettel: ${target.wishText}", color = TextPrimary, fontSize = 12.sp, textAlign = TextAlign.Center)
                     }
-                    if (target.wishlistUrl.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        CompactButton("🛒 Amazon-Wunschliste öffnen ↗") {
+                    if (target.noGos.isNotBlank()) {
+                        Text("🚫 Bitte NICHT: ${target.noGos}", color = WarnAmber, fontSize = 11.5.sp, textAlign = TextAlign.Center)
+                    }
+                    if (target.address.isNotBlank()) {
+                        Text("📦 Adresse: ${target.address}", color = TextSecondary, fontSize = 11.sp, textAlign = TextAlign.Center)
+                    }
+                    allUrls.forEachIndexed { idx, u ->
+                        Spacer(modifier = Modifier.height(2.dp))
+                        CompactButton("🛒 ${if (idx == 0) "Amazon-Wunschliste öffnen ↗" else "Wunsch-Link ${idx + 1} öffnen ↗"}") {
                             runCatching {
-                                val url = if (target.wishlistUrl.startsWith("http")) target.wishlistUrl else "https://${target.wishlistUrl}"
+                                val url = if (u.startsWith("http")) u else "https://$u"
                                 context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                             }
                         }
                     }
+                }
+                CompactButton("🕵️ Anonyme Frage an ${target.name.substringBefore(" ")}") {
+                    secretPeekPair = null
+                    anonQuestionTarget = g to target
                 }
                 Text(
                     "🔒 Geheim bis zur Auflösung am ${formatIsoToDdMmYyyy(g.revealDateIso)}!",
