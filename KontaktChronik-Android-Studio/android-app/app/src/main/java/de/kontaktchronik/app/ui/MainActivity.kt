@@ -2509,7 +2509,7 @@ fun FamilyTreeScreen(
                     CompactButton("➖") {
                         treeZoom = (treeZoom - 0.15f).coerceIn(0.35f, 2.2f)
                     }
-                    CompactButton("$zoomPct%", isPrimary = zoomPct == 100) {
+                    CompactButton("$zoomPct%") {
                         treeZoom = 1.0f
                     }
                     CompactButton("➕") {
