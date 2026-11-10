@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.4 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.5 – Interaktiver Testserver</title>
   <style>
     :root {
       --bg-slate: #0F172A;
@@ -1178,7 +1178,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.4</div>
+            <div class="app-title">Remember Me v1.0.5</div>
             <div class="app-subtitle">Geburtstage, Stammbaum & Erinnerungen</div>
           </div>
           <div class="btn-row">
@@ -1691,6 +1691,10 @@
                 </div>
               </div>
               <label class="checkbox-row">
+                <input type="checkbox" id="c-savephone" ${createDraft.saveInDevice !== false ? 'checked' : ''} onchange="createDraft.saveInDevice=this.checked" />
+                <span>In Handykontakten speichern</span>
+              </label>
+              <label class="checkbox-row">
                 <input type="checkbox" id="c-nophone" ${createDraft.noPhone ? 'checked' : ''} onchange="createDraft.noPhone=this.checked" />
                 <span>Keine eigene Nummer</span>
               </label>
@@ -1789,6 +1793,10 @@
                 <label class="field-label">Notiz</label>
                 <input id="d-notes" class="field-input" value="${escapeHtml(dp.notes || '')}" />
               </div>
+              <label class="checkbox-row">
+                <input type="checkbox" id="d-savephone" ${dp.savedInDeviceContacts !== false ? 'checked' : ''} />
+                <span>In Handykontakten speichern</span>
+              </label>
 
               <div id="d-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
                 ${detailExtraInfos.map((info, idx) => `
@@ -2033,6 +2041,7 @@
         name: "",
         bday: formatIsoToDdMmYyyy(todayIso()),
         noPhone: false,
+        saveInDevice: true,
         phone: "",
         email: "",
         timer: "14",
@@ -2147,6 +2156,8 @@
       if (!name) return;
       const bday = normalizeDateInputToIso(document.getElementById("c-bday").value.trim());
       const noPhone = document.getElementById("c-nophone").checked;
+      const savePhoneEl = document.getElementById("c-savephone");
+      const saveInDevice = savePhoneEl ? savePhoneEl.checked : true;
       const phone = document.getElementById("c-phone").value.trim();
       const email = document.getElementById("c-email").value.trim();
       const timerInterval = parseInt(document.getElementById("c-timer").value, 10) || 14;
@@ -2158,6 +2169,7 @@
         name,
         birthdayIso: bday,
         hasNoOwnPhone: noPhone,
+        savedInDeviceContacts: saveInDevice,
         phone,
         email,
         appPeerId: "",
@@ -2181,7 +2193,7 @@
 
       selectedTreeRootId = newId;
       showCreateDialog = false;
-      addLog(`Kontakt "${name}" angelegt.`);
+      addLog(saveInDevice ? `Kontakt "${name}" in App & Handykontakten angelegt.` : `Kontakt "${name}" angelegt.`);
       saveState();
     }
 
@@ -2193,6 +2205,8 @@
       dp.phone = document.getElementById("d-phone").value.trim();
       dp.email = document.getElementById("d-email").value.trim();
       dp.notes = document.getElementById("d-notes").value.trim();
+      const savePhoneEl = document.getElementById("d-savephone");
+      dp.savedInDeviceContacts = savePhoneEl ? savePhoneEl.checked : true;
       dp.extraInfos = detailExtraInfos.filter(x => (x.label && x.label.trim()) || (x.value && x.value.trim()));
 
       const evTitle = document.getElementById("d-evtitle").value.trim();
@@ -2208,7 +2222,7 @@
         });
         addLog(`Erinnerung "${evTitle}" am ${formatIsoToDdMmYyyy(evDate)} für ${dp.name} eingetragen.`);
       } else {
-        addLog(`Details von ${dp.name} aktualisiert.`);
+        addLog(dp.savedInDeviceContacts ? `Kontakt "${dp.name}" in App & Handykontakten aktualisiert.` : `Details von ${dp.name} aktualisiert.`);
       }
       detailPersonId = null;
       saveState();
@@ -2436,7 +2450,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.4 gestartet.");
+      addLog("Remember Me v1.0.5 gestartet.");
       renderAll();
     }
   </script>

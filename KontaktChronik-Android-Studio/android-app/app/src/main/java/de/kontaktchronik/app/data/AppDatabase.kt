@@ -1,6 +1,8 @@
 package de.kontaktchronik.app.data
 
+import android.content.ContentProviderOperation
 import android.content.ContentResolver
+import android.content.ContentUris
 import android.content.Context
 import android.provider.ContactsContract
 import androidx.room.Dao
@@ -217,5 +219,204 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             }
         }
         return importedCount
+    }
+
+    /**
+     * Legt einen Kontakt direkt in den Android-Handykontakten an oder aktualisiert
+     * einen bereits verknüpften Handykontakt (Name, Telefon, E-Mail, Geburtstag, Notiz, Zusatznummern).
+     * Gibt die Android CONTACT_ID zurück.
+     */
+    fun saveOrUpdateDeviceContact(
+        contentResolver: ContentResolver,
+        person: PersonEntity,
+        extraInfos: List<Pair<String, String>> = emptyList()
+    ): String? {
+        return try {
+            var rawContactId: Long? = null
+            val existingContactId = person.importedFromDeviceContactId?.takeIf { it.isNotBlank() }
+
+            if (existingContactId != null) {
+                contentResolver.query(
+                    ContactsContract.RawContacts.CONTENT_URI,
+                    arrayOf(ContactsContract.RawContacts._ID),
+                    "${ContactsContract.RawContacts.CONTACT_ID} = ? AND ${ContactsContract.RawContacts.DELETED} = 0",
+                    arrayOf(existingContactId),
+                    null
+                )?.use { c ->
+                    if (c.moveToFirst()) {
+                        rawContactId = c.getLong(0)
+                    }
+                }
+            }
+
+            val ops = ArrayList<ContentProviderOperation>()
+
+            if (rawContactId != null) {
+                // Bestehende Datenzeilen dieses RawContacts aktualisieren (löschen & neu eintragen)
+                ops.add(
+                    ContentProviderOperation.newDelete(ContactsContract.Data.CONTENT_URI)
+                        .withSelection(
+                            "${ContactsContract.Data.RAW_CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} IN (?, ?, ?, ?, ?)",
+                            arrayOf(
+                                rawContactId.toString(),
+                                ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE,
+                                ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE,
+                                ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE,
+                                ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE,
+                                ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE
+                            )
+                        )
+                        .build()
+                )
+
+                ops.add(
+                    ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, person.name)
+                        .build()
+                )
+                if (person.phone.isNotBlank()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, person.phone)
+                            .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                            .build()
+                    )
+                }
+                extraInfos.forEach { (label, value) ->
+                    if (value.isNotBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, value)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.LABEL, label.ifBlank { "Info" })
+                                .build()
+                        )
+                    }
+                }
+                if (person.email.isNotBlank()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, person.email)
+                            .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                            .build()
+                    )
+                }
+                if (!person.birthdayIso.isNullOrBlank()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Event.START_DATE, person.birthdayIso)
+                            .withValue(ContactsContract.CommonDataKinds.Event.TYPE, ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY)
+                            .build()
+                    )
+                }
+                if (person.notes.isNotBlank()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Note.NOTE, person.notes)
+                            .build()
+                    )
+                }
+                contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+                return existingContactId
+            } else {
+                // Neuen Kontakt in Android Handykontakten anlegen
+                ops.add(
+                    ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                        .build()
+                )
+                ops.add(
+                    ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, person.name)
+                        .build()
+                )
+                if (person.phone.isNotBlank()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, person.phone)
+                            .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                            .build()
+                    )
+                }
+                extraInfos.forEach { (label, value) ->
+                    if (value.isNotBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, value)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.LABEL, label.ifBlank { "Info" })
+                                .build()
+                        )
+                    }
+                }
+                if (person.email.isNotBlank()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, person.email)
+                            .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                            .build()
+                    )
+                }
+                if (!person.birthdayIso.isNullOrBlank()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Event.START_DATE, person.birthdayIso)
+                            .withValue(ContactsContract.CommonDataKinds.Event.TYPE, ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY)
+                            .build()
+                    )
+                }
+                if (person.notes.isNotBlank()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Note.NOTE, person.notes)
+                            .build()
+                    )
+                }
+
+                val results = contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+                val rawUri = results.firstOrNull()?.uri ?: return null
+                val newRawId = ContentUris.parseId(rawUri)
+                var createdContactId: String? = null
+                contentResolver.query(
+                    ContactsContract.RawContacts.CONTENT_URI,
+                    arrayOf(ContactsContract.RawContacts.CONTACT_ID),
+                    "${ContactsContract.RawContacts._ID} = ?",
+                    arrayOf(newRawId.toString()),
+                    null
+                )?.use { c ->
+                    if (c.moveToFirst()) {
+                        createdContactId = c.getLong(0).toString()
+                    }
+                }
+                createdContactId
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }

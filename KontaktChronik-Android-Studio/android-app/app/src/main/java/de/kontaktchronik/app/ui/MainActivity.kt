@@ -263,9 +263,9 @@ fun KontaktChronikApp(
     }
 
     val contactPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        if (perms[Manifest.permission.READ_CONTACTS] == true) {
             scope.launch {
                 val count = syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver)
                 syncStatus = "$count Kontakte synchronisiert"
@@ -323,22 +323,31 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Remember Me v1.0.4", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("Remember Me v1.0.5", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Text(syncStatus, color = TextMuted, fontSize = 11.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 CompactButton("Sync") {
-                    val hasPerm = ContextCompat.checkSelfPermission(
+                    val hasRead = ContextCompat.checkSelfPermission(
                         context,
                         Manifest.permission.READ_CONTACTS
                     ) == PackageManager.PERMISSION_GRANTED
-                    if (hasPerm) {
+                    val hasWrite = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.WRITE_CONTACTS
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasRead && hasWrite) {
                         scope.launch {
                             val count = syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver)
                             syncStatus = "$count Kontakte synchronisiert"
                         }
                     } else {
-                        contactPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                        contactPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.READ_CONTACTS,
+                                Manifest.permission.WRITE_CONTACTS
+                            )
+                        )
                     }
                 }
                 CompactButton("Neu") { showCreateDialog = true }
@@ -988,6 +997,7 @@ fun KontaktChronikApp(
         var name by remember { mutableStateOf("") }
         var bday by remember { mutableStateOf(formatIsoToDdMmYyyy(LocalDate.now().toString())) }
         var noPhone by remember { mutableStateOf(false) }
+        var saveInDeviceContacts by remember { mutableStateOf(true) }
         var phone by remember { mutableStateOf("") }
         var email by remember { mutableStateOf("") }
         var notes by remember { mutableStateOf("") }
@@ -1010,6 +1020,11 @@ fun KontaktChronikApp(
                 Text("Kontakt anlegen", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
                 DateInputWithCalendar(value = bday, onValueChange = { bday = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = saveInDeviceContacts, onCheckedChange = { saveInDeviceContacts = it })
+                    Text("In Handykontakten speichern", color = TextSecondary, fontSize = 12.sp)
+                }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = noPhone, onCheckedChange = { noPhone = it })
@@ -1153,19 +1168,52 @@ fun KontaktChronikApp(
                     CompactButton("Speichern") {
                         if (name.isNotBlank()) {
                             scope.launch {
+                                val basePerson = PersonEntity(
+                                    name = name.trim(),
+                                    birthdayIso = normalizeDateInputToIso(bday),
+                                    hasNoOwnPhone = noPhone,
+                                    phone = phone.trim(),
+                                    email = email.trim(),
+                                    notes = notes.trim(),
+                                    timerEnabled = true,
+                                    timerInterval = timerInterval.toIntOrNull() ?: 14,
+                                    timerUnit = TimerUnit.DAYS.name,
+                                    lastContactedIso = LocalDate.now().toString()
+                                )
+                                var deviceCid: String? = null
+                                if (saveInDeviceContacts) {
+                                    val hasWrite = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.WRITE_CONTACTS
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (hasWrite) {
+                                        deviceCid = syncRepo.saveOrUpdateDeviceContact(
+                                            context.contentResolver,
+                                            basePerson,
+                                            extraInfos
+                                        )
+                                        syncStatus = "Kontakt in App & Handykontakten gespeichert"
+                                    } else {
+                                        contactPermissionLauncher.launch(
+                                            arrayOf(
+                                                Manifest.permission.READ_CONTACTS,
+                                                Manifest.permission.WRITE_CONTACTS
+                                            )
+                                        )
+                                        runCatching {
+                                            val insertIntent = Intent(Intent.ACTION_INSERT).apply {
+                                                type = android.provider.ContactsContract.Contacts.CONTENT_TYPE
+                                                putExtra(android.provider.ContactsContract.Intents.Insert.NAME, basePerson.name)
+                                                putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, basePerson.phone)
+                                                putExtra(android.provider.ContactsContract.Intents.Insert.EMAIL, basePerson.email)
+                                                putExtra(android.provider.ContactsContract.Intents.Insert.NOTES, basePerson.notes)
+                                            }
+                                            context.startActivity(insertIntent)
+                                        }
+                                    }
+                                }
                                 val newId = db.upsertPerson(
-                                    PersonEntity(
-                                        name = name.trim(),
-                                        birthdayIso = normalizeDateInputToIso(bday),
-                                        hasNoOwnPhone = noPhone,
-                                        phone = phone.trim(),
-                                        email = email.trim(),
-                                        notes = notes.trim(),
-                                        timerEnabled = true,
-                                        timerInterval = timerInterval.toIntOrNull() ?: 14,
-                                        timerUnit = TimerUnit.DAYS.name,
-                                        lastContactedIso = LocalDate.now().toString()
-                                    )
+                                    basePerson.copy(importedFromDeviceContactId = deviceCid)
                                 )
                                 if (selectedRelTargetId > 0 && relLabel.isNotBlank()) {
                                     addBidirectionalRelation(newId, selectedRelTargetId, relLabel)
@@ -1191,6 +1239,7 @@ fun KontaktChronikApp(
         var bdayVal by remember(dp) { mutableStateOf(formatIsoToDdMmYyyy(dp.birthdayIso)) }
         var phoneVal by remember(dp) { mutableStateOf(dp.phone) }
         var noPhoneVal by remember(dp) { mutableStateOf(dp.hasNoOwnPhone) }
+        var saveInDeviceVal by remember(dp) { mutableStateOf(true) }
         var emailVal by remember(dp) { mutableStateOf(dp.email) }
         var notesVal by remember(dp) { mutableStateOf(dp.notes) }
         var extraInfos by remember(dp) {
@@ -1257,6 +1306,10 @@ fun KontaktChronikApp(
                     OutlinedTextField(value = nameVal, onValueChange = { nameVal = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
                     DateInputWithCalendar(value = bdayVal, onValueChange = { bdayVal = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
                     OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = saveInDeviceVal, onCheckedChange = { saveInDeviceVal = it })
+                        Text("In Handykontakten speichern", color = TextSecondary, fontSize = 12.sp)
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = noPhoneVal, onCheckedChange = { noPhoneVal = it })
                         Text("Keine eigene Nummer", color = TextSecondary, fontSize = 12.sp)
@@ -1484,7 +1537,7 @@ fun KontaktChronikApp(
                         CompactButton("Schließen") { detailPerson = null }
                         CompactButton("Speichern") {
                             scope.launch {
-                                val updated = dp.copy(
+                                var updated = dp.copy(
                                     name = nameVal.trim().ifBlank { dp.name },
                                     birthdayIso = normalizeDateInputToIso(bdayVal),
                                     phone = phoneVal.trim(),
@@ -1492,6 +1545,30 @@ fun KontaktChronikApp(
                                     email = emailVal.trim(),
                                     notes = notesVal.trim()
                                 )
+                                if (saveInDeviceVal) {
+                                    val hasWrite = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.WRITE_CONTACTS
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (hasWrite) {
+                                        val cid = syncRepo.saveOrUpdateDeviceContact(
+                                            context.contentResolver,
+                                            updated,
+                                            extraInfos
+                                        )
+                                        if (!cid.isNullOrBlank()) {
+                                            updated = updated.copy(importedFromDeviceContactId = cid)
+                                        }
+                                        syncStatus = "Kontakt in App & Handykontakten aktualisiert"
+                                    } else {
+                                        contactPermissionLauncher.launch(
+                                            arrayOf(
+                                                Manifest.permission.READ_CONTACTS,
+                                                Manifest.permission.WRITE_CONTACTS
+                                            )
+                                        )
+                                    }
+                                }
                                 db.updatePerson(updated)
                                 val serializedExtras = extraInfos
                                     .filter { it.first.isNotBlank() || it.second.isNotBlank() }
