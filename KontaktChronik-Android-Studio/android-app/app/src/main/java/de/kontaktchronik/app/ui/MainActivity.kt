@@ -788,15 +788,15 @@ fun KontaktChronikApp(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = noPhone, onCheckedChange = { noPhone = it })
-                    Text("Keine eigene Nummer (z. B. Baby)", color = TextSecondary, fontSize = 12.sp)
+                    Text("Keine eigene Nummer", color = TextSecondary, fontSize = 12.sp)
                 }
 
-                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Telefon (optional)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("E-Mail (aktiviert Mail-Button)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("E-Mail") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = timerInterval, onValueChange = { timerInterval = it }, label = { Text("Melde-Timer (Tage)") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
 
-                // Zusätzliche Informationszeilen (z. B. 2. Telefonnummer)
+                // Zusätzliche Informationszeilen
                 Divider(color = BorderSlate)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -804,7 +804,7 @@ fun KontaktChronikApp(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Zusätzliche Infos (z. B. 2. Telefon):",
+                        "Zusätzliche Infos:",
                         color = AccentSteel,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -1016,12 +1016,12 @@ fun KontaktChronikApp(
                     OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = noPhoneVal, onCheckedChange = { noPhoneVal = it })
-                        Text("Keine eigene Nummer (z. B. Baby)", color = TextSecondary, fontSize = 12.sp)
+                        Text("Keine eigene Nummer", color = TextSecondary, fontSize = 12.sp)
                     }
                     OutlinedTextField(value = emailVal, onValueChange = { emailVal = it }, label = { Text("E-Mail-Adresse") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = notesVal, onValueChange = { notesVal = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
 
-                    // Abschnitt: Zusätzliche Informationszeilen (z. B. 2. Telefonnummer)
+                    // Abschnitt: Zusätzliche Informationszeilen
                     Divider(color = BorderSlate)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1029,7 +1029,7 @@ fun KontaktChronikApp(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Zusätzliche Infos (z. B. 2. Telefon):",
+                            "Zusätzliche Infos:",
                             color = AccentSteel,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -1040,53 +1040,45 @@ fun KontaktChronikApp(
                             extraInfos = extraInfos + (defaultLabel to "")
                         }
                     }
-                    if (extraInfos.isEmpty()) {
-                        Text(
-                            "Tippe auf „＋\", um weitere Zeilen (z. B. 2. Telefonnummer, Adresse) einzufügen.",
-                            color = TextMuted,
-                            fontSize = 11.sp
-                        )
-                    } else {
-                        extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedTextField(
-                                    value = infoLabel,
-                                    onValueChange = { newL ->
-                                        extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
-                                    },
-                                    label = { Text("Bezeichnung") },
-                                    modifier = Modifier.weight(0.9f)
-                                )
-                                OutlinedTextField(
-                                    value = infoValue,
-                                    onValueChange = { newV ->
-                                        extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
-                                    },
-                                    label = { Text("Nummer / Wert") },
-                                    modifier = Modifier.weight(1.1f)
-                                )
-                                Text(
-                                    "✕",
-                                    color = WarnAmber,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .clickable {
-                                            extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
-                                        }
-                                        .padding(horizontal = 4.dp)
-                                )
-                            }
+                    extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = infoLabel,
+                                onValueChange = { newL ->
+                                    extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
+                                },
+                                label = { Text("Bezeichnung") },
+                                modifier = Modifier.weight(0.9f)
+                            )
+                            OutlinedTextField(
+                                value = infoValue,
+                                onValueChange = { newV ->
+                                    extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
+                                },
+                                label = { Text("Nummer / Wert") },
+                                modifier = Modifier.weight(1.1f)
+                            )
+                            Text(
+                                "✕",
+                                color = WarnAmber,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable {
+                                        extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                    }
+                                    .padding(horizontal = 4.dp)
+                            )
                         }
                     }
 
                     // Abschnitt: Beziehungen für Stammbaum
                     Divider(color = BorderSlate)
-                    Text("Beziehungen (Stammbaum):", color = AccentSteel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Beziehungen:", color = AccentSteel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
 
                     if (currentRelations.isEmpty()) {
                         Text("Noch keine Beziehungen verknüpft.", color = TextMuted, fontSize = 11.sp)
