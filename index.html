@@ -1164,12 +1164,30 @@
     function formatIsoToDdMmYyyy(iso) {
       if (!iso || !iso.trim()) return "";
       const clean = iso.trim();
+      if (/^\d{2}\.\d{2}\.\d{4}$/.test(clean)) return clean;
       if (clean.startsWith("--")) {
         const parts = clean.slice(2).split("-");
         if (parts.length === 2) return `${parts[1].padStart(2, "0")}.${parts[0].padStart(2, "0")}.`;
       }
       const parts = clean.split("-");
       return parts.length === 3 ? `${parts[2].padStart(2, "0")}.${parts[1].padStart(2, "0")}.${parts[0]}` : clean;
+    }
+
+    function normalizeDateInputToIso(input) {
+      const clean = (input || "").trim();
+      if (!clean) return "";
+      const dotParts = clean.split(".");
+      if (dotParts.length === 3 && dotParts[2].length === 4) {
+        return `${dotParts[2]}-${dotParts[1].padStart(2, "0")}-${dotParts[0].padStart(2, "0")}`;
+      }
+      if (dotParts.length >= 2 && (!dotParts[2] || dotParts[2] === "")) {
+        return `--${dotParts[1].padStart(2, "0")}-${dotParts[0].padStart(2, "0")}`;
+      }
+      const slashParts = clean.split("/");
+      if (slashParts.length === 3 && slashParts[2].length === 4) {
+        return `${slashParts[2]}-${slashParts[1].padStart(2, "0")}-${slashParts[0].padStart(2, "0")}`;
+      }
+      return clean;
     }
 
     function formatCompactBirthdayLine(birthdayIso) {
@@ -1463,7 +1481,7 @@
           <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
             <div style="cursor:pointer;" onclick="openDetailModal(${p.id})">
               <div class="person-name-link">${escapeHtml(p.name)}</div>
-              <div class="person-sub">Alle ${p.timerInterval} ${p.timerUnit} • Nächste: ${nextDate}</div>
+              <div class="person-sub">Alle ${p.timerInterval} ${p.timerUnit} • Nächste: ${formatIsoToDdMmYyyy(nextDate)}</div>
             </div>
             <button class="compact-btn" onclick="openPopupForPerson(${p.id}, 'Melde-Timer')">Nachricht</button>
           </div>
@@ -1481,7 +1499,7 @@
           days,
           personId: ev.personId,
           title: `Erinnerung: ${ev.title} (${person ? person.name : ""})`,
-          sub: `${ev.dateIso} ${ev.note ? "• " + ev.note : ""}`,
+          sub: `${formatIsoToDdMmYyyy(ev.dateIso)} ${ev.note ? "• " + ev.note : ""}`,
           badge: days === 0 ? "Heute" : `in ${days}T`
         });
       });
@@ -1492,7 +1510,7 @@
             days: days ?? 999,
             personId: p.id,
             title: `Geburtstag: ${p.name}`,
-            sub: `${p.birthdayIso} (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`,
+            sub: `${formatIsoToDdMmYyyy(p.birthdayIso)} (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`,
             badge: days === 0 ? "Heute" : `in ${days}T`
           });
         }
@@ -1553,8 +1571,8 @@
                 <input id="c-name" class="field-input" placeholder="Name" />
               </div>
               <div class="field-group">
-                <label class="field-label">Geburtsdatum (YYYY-MM-DD)</label>
-                <input id="c-bday" class="field-input" value="${todayIso()}" />
+                <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
+                <input id="c-bday" class="field-input" placeholder="TT.MM.JJJJ" value="${formatIsoToDdMmYyyy(todayIso())}" />
               </div>
               <label class="checkbox-row">
                 <input type="checkbox" id="c-nophone" />
@@ -1616,8 +1634,8 @@
                   <input id="d-name" class="field-input" value="${escapeHtml(dp.name)}" />
                 </div>
                 <div class="field-group" style="flex:1;">
-                  <label class="field-label">Geburtstag</label>
-                  <input id="d-bday" class="field-input" value="${escapeHtml(dp.birthdayIso || '')}" />
+                  <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
+                  <input id="d-bday" class="field-input" placeholder="TT.MM.JJJJ" value="${escapeHtml(formatIsoToDdMmYyyy(dp.birthdayIso || ''))}" />
                 </div>
               </div>
               <div style="display:flex; gap:6px;">
@@ -1647,12 +1665,14 @@
                     `).join("")}
                 </div>
                 ${otherPersons.length > 0 ? `
-                  <div style="display:flex; gap:5px; align-items:center; width:100%;">
-                    <select id="d-rellabel" class="field-select" style="flex:1; min-width:0;">${relPresetOptions}</select>
-                    <select id="d-reltarget" class="field-select" style="flex:1; min-width:0;">
-                      ${otherPersons.map(op => `<option value="${op.id}">${escapeHtml(op.name)}</option>`).join("")}
-                    </select>
-                    <button class="compact-btn primary" style="flex-shrink:0; white-space:nowrap; padding:6px 8px;" onclick="addRelationFromDetail(${dp.id})">+ Hinzu</button>
+                  <div style="display:flex; flex-direction:column; gap:5px; width:100%;">
+                    <div style="display:flex; gap:5px; width:100%;">
+                      <select id="d-rellabel" class="field-select" style="flex:1; min-width:0;">${relPresetOptions}</select>
+                      <select id="d-reltarget" class="field-select" style="flex:1; min-width:0;">
+                        ${otherPersons.map(op => `<option value="${op.id}">${escapeHtml(op.name)}</option>`).join("")}
+                      </select>
+                    </div>
+                    <button class="compact-btn primary" style="width:100%; text-align:center;" onclick="addRelationFromDetail(${dp.id})">+ Beziehung hinzufügen</button>
                   </div>
                 ` : ""}
               </div>
@@ -1673,8 +1693,8 @@
                     <input id="d-evtitle" class="field-input" placeholder="z. B. Besuch" />
                   </div>
                   <div class="field-group" style="flex:1;">
-                    <label class="field-label">Datum</label>
-                    <input id="d-evdate" class="field-input" value="${addDaysIso(todayIso(), 3)}" />
+                    <label class="field-label">Datum (TT.MM.JJJJ)</label>
+                    <input id="d-evdate" class="field-input" placeholder="TT.MM.JJJJ" value="${formatIsoToDdMmYyyy(addDaysIso(todayIso(), 3))}" />
                   </div>
                 </div>
               </div>
@@ -1843,7 +1863,7 @@
     function saveNewPerson() {
       const name = document.getElementById("c-name").value.trim();
       if (!name) return;
-      const bday = document.getElementById("c-bday").value.trim();
+      const bday = normalizeDateInputToIso(document.getElementById("c-bday").value.trim());
       const noPhone = document.getElementById("c-nophone").checked;
       const phone = document.getElementById("c-phone").value.trim();
       const email = document.getElementById("c-email").value.trim();
@@ -1886,13 +1906,13 @@
       const dp = state.persons.find(p => p.id === id);
       if (!dp) return;
       dp.name = document.getElementById("d-name").value.trim() || dp.name;
-      dp.birthdayIso = document.getElementById("d-bday").value.trim();
+      dp.birthdayIso = normalizeDateInputToIso(document.getElementById("d-bday").value.trim());
       dp.phone = document.getElementById("d-phone").value.trim();
       dp.email = document.getElementById("d-email").value.trim();
       dp.notes = document.getElementById("d-notes").value.trim();
 
       const evTitle = document.getElementById("d-evtitle").value.trim();
-      const evDate = document.getElementById("d-evdate").value.trim();
+      const evDate = normalizeDateInputToIso(document.getElementById("d-evdate").value.trim());
       if (evTitle) {
         state.specialEvents.push({
           id: state.nextId++,
@@ -1902,7 +1922,7 @@
           leadDays: 1,
           note: ""
         });
-        addLog(`Erinnerung "${evTitle}" am ${evDate} für ${dp.name} eingetragen.`);
+        addLog(`Erinnerung "${evTitle}" am ${formatIsoToDdMmYyyy(evDate)} für ${dp.name} eingetragen.`);
       } else {
         addLog(`Details von ${dp.name} aktualisiert.`);
       }
