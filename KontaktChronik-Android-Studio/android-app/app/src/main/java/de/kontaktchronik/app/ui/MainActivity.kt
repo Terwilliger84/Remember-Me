@@ -3210,30 +3210,26 @@ fun WichtelScreen(
             WichtelHistoryPair(
                 giverName = p.name,
                 giverPersonId = p.personId,
+                giverPhone = p.phone,
                 receiverName = t.name,
                 receiverPersonId = t.personId,
-                phone = p.phone,
                 wishText = p.wishText,
-                wishlistUrl = p.wishlistUrl,
-                extraWishUrls = p.extraWishUrls,
                 noGos = p.noGos,
-                address = p.address
+                address = p.address,
+                wishlistUrl = p.wishlistUrl
             )
         }
         val existingIdx = history.indexOfFirst {
-            it.sourceGroupId == g.id || (it.groupName.equals(g.groupName, ignoreCase = true) && it.year == year)
+            it.groupName.equals(g.groupName, ignoreCase = true) && it.year == year
         }
         val entry = WichtelHistoryEntry(
             id = if (existingIdx >= 0) history[existingIdx].id else System.currentTimeMillis(),
-            sourceGroupId = g.id,
-            groupName = g.groupName,
             year = year,
+            groupName = g.groupName,
             adminName = g.adminName,
             motto = g.motto,
             budget = g.budget,
-            completedAtIso = g.revealDateIso.ifBlank { LocalDate.now().toString() },
-            excludeCouples = g.excludeCouples,
-            excludeLastYear = g.excludeLastYear,
+            completedDateIso = g.revealDateIso.ifBlank { LocalDate.now().toString() },
             pairings = pairings
         )
         val nextHistory = if (existingIdx >= 0) {
@@ -3252,16 +3248,14 @@ fun WichtelScreen(
             put("adminName", entry.adminName)
             put("motto", entry.motto)
             put("budget", entry.budget)
-            put("completedAtIso", entry.completedAtIso)
-            put("excludeCouples", entry.excludeCouples)
-            put("excludeLastYear", entry.excludeLastYear)
+            put("completedDateIso", entry.completedDateIso)
             val arr = JSONArray()
             entry.pairings.forEach { pr ->
                 arr.put(
                     JSONObject().apply {
                         put("giverName", pr.giverName)
                         put("receiverName", pr.receiverName)
-                        put("phone", pr.phone)
+                        put("phone", pr.giverPhone)
                         put("wishText", pr.wishText)
                         put("wishlistUrl", pr.wishlistUrl)
                         put("noGos", pr.noGos)
@@ -3279,7 +3273,7 @@ fun WichtelScreen(
                 append("• ${p.giverName} ➔ ${p.receiverName}\n")
             }
             append("\n♻️ *Für deine eigene Wichtel-Historie in Remember Me:*\n")
-            append("Jeder Teilnehmer kann diesen Eintrag unter „🎄 Wichteln ➔ 📜 Wichtel-Historie ➔ 📥 Historie importieren“ einfügen und künftig selbst als Admin wiederverwenden (inkl. „Keine Wiederholungen“), einsehen oder löschen:\n\n")
+            append("Jeder Teilnehmer kann diesen Eintrag unter „🎄 Wichteln ➔ 📜 Wichtel-Historie ➔ 📥 Importieren“ einfügen und künftig selbst als Admin wiederverwenden (inkl. „Keine Wiederholungen“), einsehen oder löschen:\n\n")
             append("WICHTEL_HISTORY_JSON:$payloadObj")
         }
         runCatching {
@@ -3300,10 +3294,9 @@ fun WichtelScreen(
                 id = System.currentTimeMillis() + idx + 10L,
                 personId = matchedPerson?.id ?: pr.giverPersonId,
                 name = matchedPerson?.name ?: pr.giverName,
-                phone = matchedPerson?.phone?.ifBlank { pr.phone } ?: pr.phone,
+                phone = matchedPerson?.phone?.ifBlank { pr.giverPhone } ?: pr.giverPhone,
                 wishText = pr.wishText,
                 wishlistUrl = pr.wishlistUrl,
-                extraWishUrls = pr.extraWishUrls,
                 noGos = pr.noGos,
                 address = pr.address
             )
@@ -3318,7 +3311,7 @@ fun WichtelScreen(
             budget = entry.budget.ifBlank { "25 €" },
             revealDateIso = "$nextYear-12-24",
             reminderDaysBefore = 7,
-            excludeCouples = entry.excludeCouples,
+            excludeCouples = true,
             excludeLastYear = true,
             isDrawn = false,
             forceRevealed = false,
@@ -4015,8 +4008,8 @@ fun WichtelScreen(
                                 pairings.add(
                                     WichtelHistoryPair(
                                         giverName = p.optString("giverName", ""),
+                                        giverPhone = p.optString("phone", p.optString("giverPhone", "")),
                                         receiverName = p.optString("receiverName", ""),
-                                        phone = p.optString("phone", ""),
                                         wishText = p.optString("wishText", ""),
                                         wishlistUrl = p.optString("wishlistUrl", ""),
                                         noGos = p.optString("noGos", ""),
@@ -4027,14 +4020,12 @@ fun WichtelScreen(
                             if (pairings.isNotEmpty()) {
                                 val imported = WichtelHistoryEntry(
                                     id = System.currentTimeMillis(),
-                                    groupName = obj.optString("groupName", "Importierte Wichtelrunde"),
                                     year = obj.optInt("year", LocalDate.now().year - 1),
+                                    groupName = obj.optString("groupName", "Importierte Wichtelrunde"),
                                     adminName = obj.optString("adminName", "Admin"),
                                     motto = obj.optString("motto", "🎁 Klassisches Wichteln"),
                                     budget = obj.optString("budget", "25 €"),
-                                    completedAtIso = obj.optString("completedAtIso", LocalDate.now().toString()),
-                                    excludeCouples = obj.optBoolean("excludeCouples", true),
-                                    excludeLastYear = obj.optBoolean("excludeLastYear", true),
+                                    completedDateIso = obj.optString("completedDateIso", obj.optString("completedAtIso", LocalDate.now().toString())),
                                     pairings = pairings
                                 )
                                 onSaveHistory(listOf(imported) + history)
