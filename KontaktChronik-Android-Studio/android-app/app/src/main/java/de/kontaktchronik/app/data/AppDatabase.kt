@@ -4,7 +4,11 @@ import android.content.ContentProviderOperation
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.provider.ContactsContract
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -84,7 +88,7 @@ interface KontaktChronikDao {
         SpecialEventEntity::class,
         DirectMessageEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -100,6 +104,12 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE persons ADD COLUMN photoBase64 TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
@@ -107,7 +117,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "kontakt_chronik.db"
                 )
-                    .addMigrations(MIGRATION_2_3)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }
@@ -118,9 +128,80 @@ abstract class AppDatabase : RoomDatabase() {
 
 /**
  * Durchsucht die Android-Telefonkontakte (ContactsContract) nach Geburtstagen,
- * Telefonnummern und E-Mail-Adressen und synchronisiert sie in die lokale Datenbank.
+ * Telefonnummern, E-Mail-Adressen und Kontaktfotos und synchronisiert sie in die lokale Datenbank.
  */
 class ContactsSyncRepository(private val dao: KontaktChronikDao) {
+
+    private fun bitmapToBase64Jpeg(bmp: Bitmap, maxDim: Int = 256): String {
+        val w = bmp.width.coerceAtLeast(1)
+        val h = bmp.height.coerceAtLeast(1)
+        val scale = (maxDim.toFloat() / maxOf(w, h).toFloat()).coerceAtMost(1f)
+        val scaled = if (scale < 1f) {
+            Bitmap.createScaledBitmap(
+                bmp,
+                (w * scale).toInt().coerceAtLeast(1),
+                (h * scale).toInt().coerceAtLeast(1),
+                true
+            )
+        } else {
+            bmp
+        }
+        val out = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 85, out)
+        return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    }
+
+    private fun readContactPhotoAsBase64(contentResolver: ContentResolver, contactId: String): String {
+        return try {
+            val idLong = contactId.toLongOrNull() ?: return ""
+            val contactUri = ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, idLong)
+            ContactsContract.Contacts.openContactPhotoInputStream(contentResolver, contactUri, true)?.use { stream ->
+                val bmp = BitmapFactory.decodeStream(stream)
+                if (bmp != null) {
+                    return bitmapToBase64Jpeg(bmp)
+                }
+            }
+            // Fallback: Direkt aus CommonDataKinds.Photo.PHOTO lesen
+            contentResolver.query(
+                ContactsContract.Data.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Photo.PHOTO),
+                "${ContactsContract.Data.CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} = ?",
+                arrayOf(contactId, ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE),
+                null
+            )?.use { c ->
+                if (c.moveToFirst()) {
+                    val blob = c.getBlob(0)
+                    if (blob != null && blob.isNotEmpty()) {
+                        val bmp = BitmapFactory.decodeByteArray(blob, 0, blob.size)
+                        if (bmp != null) {
+                            return bitmapToBase64Jpeg(bmp)
+                        }
+                    }
+                }
+            }
+            ""
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    private fun decodePhotoBase64ToBytes(photoBase64: String): ByteArray? {
+        if (photoBase64.isBlank()) return null
+        return try {
+            val clean = photoBase64.substringAfter("base64,", photoBase64).trim()
+            val rawBytes = Base64.decode(clean, Base64.DEFAULT)
+            val bmp = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size)
+            if (bmp != null) {
+                val out = ByteArrayOutputStream()
+                bmp.compress(Bitmap.CompressFormat.JPEG, 88, out)
+                out.toByteArray()
+            } else {
+                rawBytes
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     suspend fun syncDeviceContactsWithBirthdays(contentResolver: ContentResolver): Int {
         val existing = dao.getAllPersonsOnce().associateBy { it.importedFromDeviceContactId }
@@ -231,6 +312,7 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             val bday = birthdaysByContactId[cid]
             val phone = phonesByContactId[cid].orEmpty()
             val email = emailsByContactId[cid].orEmpty()
+            val photoBase64 = readContactPhotoAsBase64(contentResolver, cid)
             val current = existing[cid]
             if (current == null) {
                 dao.upsertPerson(
@@ -241,7 +323,8 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                         phone = phone,
                         email = email,
                         timerEnabled = !bday.isNullOrBlank(),
-                        importedFromDeviceContactId = cid
+                        importedFromDeviceContactId = cid,
+                        photoBase64 = photoBase64
                     )
                 )
                 importedCount++
@@ -250,7 +333,8 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                     current.copy(
                         birthdayIso = if (!bday.isNullOrBlank()) bday else current.birthdayIso,
                         phone = if (current.phone.isBlank()) phone else current.phone,
-                        email = if (current.email.isBlank()) email else current.email
+                        email = if (current.email.isBlank()) email else current.email,
+                        photoBase64 = if (photoBase64.isNotBlank()) photoBase64 else current.photoBase64
                     )
                 )
             }
@@ -287,20 +371,22 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             }
 
             val ops = ArrayList<ContentProviderOperation>()
+            val photoBytes = decodePhotoBase64ToBytes(person.photoBase64)
 
             if (rawContactId != null) {
                 // Bestehende Datenzeilen dieses RawContacts aktualisieren (löschen & neu eintragen)
                 ops.add(
                     ContentProviderOperation.newDelete(ContactsContract.Data.CONTENT_URI)
                         .withSelection(
-                            "${ContactsContract.Data.RAW_CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} IN (?, ?, ?, ?, ?)",
+                            "${ContactsContract.Data.RAW_CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} IN (?, ?, ?, ?, ?, ?)",
                             arrayOf(
                                 rawContactId.toString(),
                                 ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE,
                                 ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE,
                                 ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE,
                                 ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE,
-                                ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE
+                                ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE,
+                                ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE
                             )
                         )
                         .build()
@@ -313,6 +399,15 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                         .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, person.name)
                         .build()
                 )
+                if (photoBytes != null && photoBytes.isNotEmpty()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Photo.PHOTO, photoBytes)
+                            .build()
+                    )
+                }
                 if (person.phone.isNotBlank()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
@@ -382,6 +477,15 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                         .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, person.name)
                         .build()
                 )
+                if (photoBytes != null && photoBytes.isNotEmpty()) {
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.Photo.PHOTO, photoBytes)
+                            .build()
+                    )
+                }
                 if (person.phone.isNotBlank()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)

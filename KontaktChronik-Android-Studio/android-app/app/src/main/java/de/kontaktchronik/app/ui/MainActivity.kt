@@ -4,12 +4,16 @@ import android.Manifest
 import android.app.DatePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,9 +43,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -200,8 +206,57 @@ fun getPersonInitials(name: String): String {
     return "${parts.first().first()}${parts.last().first()}".uppercase()
 }
 
+fun encodeUriToBase64Jpeg(context: android.content.Context, uri: android.net.Uri, maxDim: Int = 256): String {
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+            val bmp = BitmapFactory.decodeStream(stream) ?: return ""
+            val w = bmp.width.coerceAtLeast(1)
+            val h = bmp.height.coerceAtLeast(1)
+            val scale = (maxDim.toFloat() / maxOf(w, h).toFloat()).coerceAtMost(1f)
+            val scaled = if (scale < 1f) {
+                Bitmap.createScaledBitmap(
+                    bmp,
+                    (w * scale).toInt().coerceAtLeast(1),
+                    (h * scale).toInt().coerceAtLeast(1),
+                    true
+                )
+            } else {
+                bmp
+            }
+            val out = java.io.ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, 85, out)
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        }.orEmpty()
+    } catch (e: Exception) {
+        ""
+    }
+}
+
 @Composable
-fun PersonAvatar(name: String, sizeDp: Int = 36) {
+fun PersonAvatar(name: String, photoBase64: String = "", sizeDp: Int = 36) {
+    val imageBitmap = remember(photoBase64) {
+        if (photoBase64.isBlank()) {
+            null
+        } else {
+            runCatching {
+                val clean = photoBase64.substringAfter("base64,", photoBase64).trim()
+                val bytes = Base64.decode(clean, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    if (imageBitmap != null) {
+        Image(
+            bitmap = imageBitmap,
+            contentDescription = name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(sizeDp.dp)
+                .clip(CircleShape)
+                .border(1.dp, BorderSlate, CircleShape)
+        )
+        return
+    }
     val initials = remember(name) { getPersonInitials(name) }
     val gradColors = remember(name) {
         val hash = abs(name.fold(0) { acc, ch -> ch.code + ((acc shl 5) - acc) })
@@ -915,7 +970,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.15", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.16", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1255,7 +1310,7 @@ fun KontaktChronikApp(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                PersonAvatar(name = person.name)
+                                PersonAvatar(name = person.name, photoBase64 = person.photoBase64)
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column(
                                     modifier = Modifier
@@ -1344,7 +1399,7 @@ fun KontaktChronikApp(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            PersonAvatar(name = p.name)
+                            PersonAvatar(name = p.name, photoBase64 = p.photoBase64)
                             Spacer(modifier = Modifier.width(10.dp))
                             Column(
                                 modifier = Modifier
@@ -1423,7 +1478,7 @@ fun KontaktChronikApp(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            PersonAvatar(name = p?.name ?: "?")
+                            PersonAvatar(name = p?.name ?: "?", photoBase64 = p?.photoBase64.orEmpty())
                             Spacer(modifier = Modifier.width(10.dp))
                             Column(
                                 modifier = Modifier
@@ -1464,7 +1519,7 @@ fun KontaktChronikApp(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            PersonAvatar(name = p.name)
+                            PersonAvatar(name = p.name, photoBase64 = p.photoBase64)
                             Spacer(modifier = Modifier.width(10.dp))
                             Column(
                                 modifier = Modifier
@@ -1611,7 +1666,7 @@ fun KontaktChronikApp(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                PersonAvatar(name = person.name)
+                                PersonAvatar(name = person.name, photoBase64 = person.photoBase64)
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column(
                                     modifier = Modifier
@@ -1720,7 +1775,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.15")
+                put("version", "1.0.16")
                 put("createdAt", dateStr)
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
                 put("wichtelHistory", JSONArray(serializeWichtelHistoryJson(wichtelHistory)))
@@ -1736,6 +1791,7 @@ fun KontaktChronikApp(
                             put("phone", p.phone)
                             put("email", p.email)
                             put("notes", p.notes)
+                            put("photoBase64", p.photoBase64)
                             put("extraInfos", appPrefs.getString("extra_infos_${p.id}", "").orEmpty())
                             put("timerEnabled", p.timerEnabled)
                             put("timerInterval", p.timerInterval)
@@ -1947,7 +2003,8 @@ fun KontaktChronikApp(
                                                 timerEnabled = po.optBoolean("timerEnabled", true),
                                                 timerInterval = po.optInt("timerInterval", 14),
                                                 timerUnit = po.optString("timerUnit", TimerUnit.DAYS.name),
-                                                isHidden = isHid
+                                                isHidden = isHid,
+                                                photoBase64 = po.optString("photoBase64", "")
                                             )
                                         )
                                         if (isHid) setPersonHidden(newId, true)
@@ -1973,7 +2030,7 @@ fun KontaktChronikApp(
         }
     }
 
-    // Dialog: Neuen Kontakt anlegen (inkl. Beziehungen für den Stammbaum)
+    // Dialog: Neuen Kontakt anlegen (inkl. Beziehungen für den Stammbaum & Kontaktfoto)
     if (showCreateDialog) {
         val prefs = remember { context.getSharedPreferences("remember_me_prefs", android.content.Context.MODE_PRIVATE) }
         var name by remember { mutableStateOf("") }
@@ -1983,11 +2040,23 @@ fun KontaktChronikApp(
         var phone by remember { mutableStateOf("") }
         var email by remember { mutableStateOf("") }
         var notes by remember { mutableStateOf("") }
+        var photoVal by remember { mutableStateOf("") }
         var extraInfos by remember { mutableStateOf(listOf<Pair<String, String>>()) }
         var timerInterval by remember { mutableStateOf("14") }
         var relLabel by remember { mutableStateOf("Kind von") }
         var selectedRelTargetId by remember { mutableStateOf(-1L) }
         var createRelExpanded by remember { mutableStateOf(false) }
+
+        val createPhotoPickerLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.GetContent()
+        ) { uri ->
+            if (uri != null) {
+                val encoded = encodeUriToBase64Jpeg(context, uri)
+                if (encoded.isNotBlank()) {
+                    photoVal = encoded
+                }
+            }
+        }
 
         Dialog(onDismissRequest = { showCreateDialog = false }) {
             Column(
@@ -2000,6 +2069,33 @@ fun KontaktChronikApp(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text("Kontakt anlegen", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(BgSlate, RoundedCornerShape(10.dp))
+                        .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PersonAvatar(name = name.ifBlank { "?" }, photoBase64 = photoVal, sizeDp = 44)
+                        Column {
+                            Text("Kontaktfoto", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Wird auch mit Handykontakten synchronisiert", color = TextMuted, fontSize = 10.5.sp)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CompactButton("📷 Foto") {
+                            createPhotoPickerLauncher.launch("image/*")
+                        }
+                        if (photoVal.isNotBlank()) {
+                            CompactButton("✕") {
+                                photoVal = ""
+                            }
+                        }
+                    }
+                }
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
                 DateInputWithCalendar(value = bday, onValueChange = { bday = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
 
@@ -2160,7 +2256,8 @@ fun KontaktChronikApp(
                                     timerEnabled = true,
                                     timerInterval = timerInterval.toIntOrNull() ?: 14,
                                     timerUnit = TimerUnit.DAYS.name,
-                                    lastContactedIso = LocalDate.now().toString()
+                                    lastContactedIso = LocalDate.now().toString(),
+                                    photoBase64 = photoVal
                                 )
                                 var deviceCid: String? = null
                                 if (saveInDeviceContacts) {
@@ -2225,6 +2322,17 @@ fun KontaktChronikApp(
         var isHiddenVal by remember(dp, hiddenPersonIds) { mutableStateOf(dp.isHidden || hiddenPersonIds.contains(dp.id)) }
         var emailVal by remember(dp) { mutableStateOf(dp.email) }
         var notesVal by remember(dp) { mutableStateOf(dp.notes) }
+        var photoVal by remember(dp) { mutableStateOf(dp.photoBase64) }
+        val detailPhotoPickerLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.GetContent()
+        ) { uri ->
+            if (uri != null) {
+                val encoded = encodeUriToBase64Jpeg(context, uri)
+                if (encoded.isNotBlank()) {
+                    photoVal = encoded
+                }
+            }
+        }
         var extraInfos by remember(dp) {
             val raw = prefs.getString("extra_infos_${dp.id}", "").orEmpty()
             val parsed = raw.lines().filter { it.isNotBlank() }.map { line ->
@@ -2289,6 +2397,37 @@ fun KontaktChronikApp(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BgSlate, RoundedCornerShape(10.dp))
+                            .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            PersonAvatar(name = nameVal.ifBlank { dp.name }, photoBase64 = photoVal, sizeDp = 44)
+                            Column {
+                                Text("Kontaktfoto", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    if (photoVal.isNotBlank()) "Foto vorhanden (Handy & App)" else "Aus Galerie wählen oder Sync",
+                                    color = TextMuted,
+                                    fontSize = 10.5.sp
+                                )
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            CompactButton("📷 Foto") {
+                                detailPhotoPickerLauncher.launch("image/*")
+                            }
+                            if (photoVal.isNotBlank()) {
+                                CompactButton("✕") {
+                                    photoVal = ""
+                                }
+                            }
+                        }
+                    }
                     OutlinedTextField(value = nameVal, onValueChange = { nameVal = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
                     DateInputWithCalendar(value = bdayVal, onValueChange = { bdayVal = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
                     OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
@@ -2623,7 +2762,8 @@ fun KontaktChronikApp(
                                     hasNoOwnPhone = noPhoneVal,
                                     email = emailVal.trim(),
                                     notes = notesVal.trim(),
-                                    isHidden = isHiddenVal
+                                    isHidden = isHiddenVal,
+                                    photoBase64 = photoVal
                                 )
                                 if (saveInDeviceVal) {
                                     val hasWrite = ContextCompat.checkSelfPermission(
@@ -3198,6 +3338,14 @@ fun FamilyTreeScreen(
                                     .padding(horizontal = padH, vertical = padV),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+                                if (member.photoBase64.isNotBlank()) {
+                                    PersonAvatar(
+                                        name = member.name,
+                                        photoBase64 = member.photoBase64,
+                                        sizeDp = (22f * z).roundToInt().coerceAtLeast(14)
+                                    )
+                                    Spacer(modifier = Modifier.height((2f * z).coerceAtLeast(1f).dp))
+                                }
                                 Text(
                                     text = member.name,
                                     color = TextPrimary,
@@ -4073,12 +4221,16 @@ fun WichtelScreen(
                             .padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
+                        val contactPhoto = persons.find {
+                            (part.personId != null && it.id == part.personId) ||
+                                it.name.equals(part.name, ignoreCase = true)
+                        }?.photoBase64.orEmpty()
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Top
                         ) {
-                            PersonAvatar(name = part.name, sizeDp = 34)
+                            PersonAvatar(name = part.name, photoBase64 = contactPhoto, sizeDp = 34)
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(

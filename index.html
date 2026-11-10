@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.15 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.16 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Warm & Persönlich ("Family & Cozy") */
     :root,
@@ -735,6 +735,7 @@
   <div id="modal-root"></div>
   <div id="calendar-root"></div>
   <input type="file" id="backup-file-input" accept=".json" style="display:none;" onchange="importBackupFile(event)" />
+  <input type="file" id="contact-photo-file-input" accept="image/*" style="display:none;" onchange="handleContactPhotoFile(event)" />
 
   <script>
     const RELATION_PRESETS = [
@@ -1208,9 +1209,30 @@
       saveState();
     }
 
+    function makePortraitSvgDataUrl(bg1, bg2, emoji) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient></defs><rect width="128" height="128" rx="64" fill="url(#g)"/><text x="64" y="82" font-size="64" text-anchor="middle">${emoji}</text></svg>`;
+      return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+    }
+
     function syncDeviceContacts() {
       const today = todayIso();
       const existingNames = new Set(state.persons.map(p => p.name));
+      // Vorhandenen Kontakten aus dem Adressbuch ebenfalls Kontaktfotos synchronisieren (falls noch kein eigenes Foto gesetzt ist)
+      const familyPhotoMap = {
+        "Helga Weber (Oma)": makePortraitSvgDataUrl("#D96B43", "#9E3B18", "👵"),
+        "Anna Weber": makePortraitSvgDataUrl("#D6336C", "#9C1949", "👩"),
+        "Thomas Weber": makePortraitSvgDataUrl("#2E7D5B", "#1B523A", "👨"),
+        "Markus Weber": makePortraitSvgDataUrl("#3B82F6", "#1D4ED8", "🧑"),
+        "Leo Weber (Baby)": makePortraitSvgDataUrl("#F59E0B", "#B45309", "👶")
+      };
+      let photoUpdatedCount = 0;
+      state.persons.forEach(p => {
+        if (!p.photoBase64 && familyPhotoMap[p.name]) {
+          p.photoBase64 = familyPhotoMap[p.name];
+          photoUpdatedCount++;
+        }
+      });
+
       const deviceMocks = [
         {
           name: "Sabine Wagner",
@@ -1218,7 +1240,8 @@
           phone: "+491609876543",
           email: "sabine.wagner@beispiel.de",
           appPeerId: "",
-          notes: "Aus Telefonkontakten synchronisiert",
+          notes: "Aus Telefonkontakten synchronisiert (inkl. Kontaktfoto)",
+          photoBase64: makePortraitSvgDataUrl("#8B5CF6", "#5B21B6", "👩‍🦰"),
           timerEnabled: true,
           timerInterval: 30,
           timerUnit: "DAYS",
@@ -1230,7 +1253,8 @@
           phone: "+4915122334455",
           email: "max.berger@beispiel.de",
           appPeerId: "",
-          notes: "Nachbar (ohne Geburtsdatum)",
+          notes: "Nachbar (ohne Geburtsdatum, mit Kontaktfoto)",
+          photoBase64: makePortraitSvgDataUrl("#0EA5E9", "#0369A1", "🧔"),
           timerEnabled: false,
           timerInterval: 30,
           timerUnit: "DAYS",
@@ -1243,6 +1267,7 @@
           email: "",
           appPeerId: "",
           notes: "Hausarzt (ohne Datum)",
+          photoBase64: makePortraitSvgDataUrl("#10B981", "#047857", "🩺"),
           timerEnabled: false,
           timerInterval: 30,
           timerUnit: "DAYS",
@@ -1254,10 +1279,16 @@
         if (!existingNames.has(m.name)) {
           state.persons.push({ id: state.nextId++, hasNoOwnPhone: false, isHidden: false, ...m });
           count++;
+        } else {
+          const ex = state.persons.find(p => p.name === m.name);
+          if (ex && !ex.photoBase64 && m.photoBase64) {
+            ex.photoBase64 = m.photoBase64;
+            photoUpdatedCount++;
+          }
         }
       });
-      syncStatus = `${count} Kontakte synchronisiert`;
-      addLog(`${count} Telefonkontakte (inkl. Kontakte ohne Datum) synchronisiert.`);
+      syncStatus = `${count} Kontakte & ${count + photoUpdatedCount} Fotos synchronisiert`;
+      addLog(`Kontakt-Sync abgeschlossen: ${count} neue Telefonkontakte und ${count + photoUpdatedCount} Kontaktfotos aus Handykontakten übernommen.`);
       saveState();
     }
 
@@ -1374,10 +1405,27 @@
       return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length];
     }
 
-    function renderPersonAvatarHtml(name) {
+    function normalizePhotoSrc(photoBase64) {
+      if (!photoBase64 || typeof photoBase64 !== "string" || !photoBase64.trim()) return "";
+      const s = photoBase64.trim();
+      if (s.startsWith("data:") || s.startsWith("http") || s.startsWith("blob:")) return s;
+      return `data:image/jpeg;base64,${s}`;
+    }
+
+    function renderPersonAvatarHtml(name, photoOverride = null, sizePx = 36) {
+      let rawPhoto = photoOverride;
+      if (rawPhoto === null && Array.isArray(state.persons)) {
+        const found = state.persons.find(p => p.name === name && p.photoBase64);
+        if (found) rawPhoto = found.photoBase64;
+      }
+      const src = normalizePhotoSrc(rawPhoto);
+      const sizeStyle = sizePx !== 36 ? `width:${sizePx}px; height:${sizePx}px; font-size:${Math.round(sizePx * 0.36)}px;` : "";
+      if (src) {
+        return `<div class="person-avatar" style="${sizeStyle} background:var(--btn-bg); overflow:hidden; padding:0;"><img src="${escapeHtml(src)}" alt="${escapeHtml(name)}" style="width:100%; height:100%; object-fit:cover; display:block; border-radius:50%;" /></div>`;
+      }
       const initials = escapeHtml(getInitials(name));
       const bg = getAvatarGradient(name);
-      return `<div class="person-avatar" style="background:${bg};">${initials}</div>`;
+      return `<div class="person-avatar" style="${sizeStyle} background:${bg};">${initials}</div>`;
     }
 
     function renderBirthdayCountdownPill(birthdayIso, isPastMode = false) {
@@ -1584,7 +1632,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.15</div>
+            <div class="app-title">Remember Me v1.0.16</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2227,10 +2275,15 @@
               ? `<span style="color:var(--partner-rose); font-size:${connFont}px; font-weight:700; padding:0 2px;">❤️</span>`
               : `<span style="width:${Math.max(2, Math.round(4 * z))}px; display:inline-block;"></span>`;
           }
+          const avatarSize = Math.max(16, Math.round(24 * z));
+          const photoHtml = m.photoBase64
+            ? `<div style="display:flex; justify-content:center; margin-bottom:${Math.max(1, Math.round(2 * z))}px;">${renderPersonAvatarHtml(m.name, m.photoBase64, avatarSize)}</div>`
+            : "";
           return `
             <div class="tree-node ${isRoot ? 'root' : ''} ${isPartner ? 'partner' : ''}"
                  style="min-width:${nodeMinW}px; max-width:${nodeMaxW}px; padding:${nodePadV}px ${nodePadH}px; border-radius:10px;"
                  onclick="openDetailModal(${m.id})">
+              ${photoHtml}
               <div style="font-size:${nameFont}px; font-weight:700; color:var(--text-primary); line-height:1.2;">${escapeHtml(m.name)}</div>
               <div style="font-size:${roleFont}px; color:${isRoot ? 'var(--accent-steel)' : (isPartner ? 'var(--partner-rose)' : 'var(--tree-green)')}; margin-top:2px; line-height:1.1; font-weight:600;">
                 ${escapeHtml(role)}
@@ -2926,6 +2979,17 @@
           <div class="modal-backdrop" onclick="closeModals(event)">
             <div class="modal" onclick="event.stopPropagation()">
               <div class="modal-title">Kontakt anlegen</div>
+              <div style="display:flex; align-items:center; gap:10px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:10px; padding:8px 10px;">
+                ${renderPersonAvatarHtml(createDraft.name || "?", createDraft.photoBase64 || "", 46)}
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:12px; font-weight:700; color:var(--text-primary);">Kontaktfoto</div>
+                  <div style="font-size:10.5px; color:var(--text-muted);">Wird auch bei Kontakt-Sync übernommen</div>
+                </div>
+                <div class="btn-row">
+                  <button class="compact-btn" onclick="triggerContactPhotoPicker('create')">📷 Foto</button>
+                  ${createDraft.photoBase64 ? `<button class="compact-btn danger" style="padding:4px 7px;" onclick="removeContactPhoto('create')" title="Foto entfernen">✕</button>` : ""}
+                </div>
+              </div>
               <div class="field-group">
                 <label class="field-label">Name</label>
                 <input id="c-name" class="field-input" placeholder="Name" value="${escapeHtml(createDraft.name)}" oninput="createDraft.name=this.value" />
@@ -3015,6 +3079,17 @@
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                 <div class="modal-title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Details: ${escapeHtml(dp.name)}</div>
                 ${treeActive ? `<button class="compact-btn" style="flex-shrink:0;" onclick="selectedTreeRootId=${dp.id}; detailPersonId=null; setTab('Stammbaum'); renderModals();">🌳 Stammbaum</button>` : ""}
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:10px; padding:8px 10px;">
+                ${renderPersonAvatarHtml(dp.name, detailDraftPhotoBase64 || "", 46)}
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:12px; font-weight:700; color:var(--text-primary);">Kontaktfoto</div>
+                  <div style="font-size:10.5px; color:var(--text-muted);">${detailDraftPhotoBase64 ? "Foto vorhanden (Handykontakte & App)" : "Aus Galerie wählen oder per Sync laden"}</div>
+                </div>
+                <div class="btn-row">
+                  <button class="compact-btn" onclick="triggerContactPhotoPicker('detail')">📷 Foto</button>
+                  ${detailDraftPhotoBase64 ? `<button class="compact-btn danger" style="padding:4px 7px;" onclick="removeContactPhoto('detail')" title="Foto entfernen">✕</button>` : ""}
+                </div>
               </div>
               <div style="display:flex; gap:6px;">
                 <div class="field-group" style="flex:1.2;">
@@ -3596,11 +3671,63 @@
 
     let createExtraInfos = [];
     let detailExtraInfos = [];
+    let detailDraftPhotoBase64 = "";
+    let photoPickerTargetMode = "create"; // "create" | "detail"
     let pendingDeleteConfirm = null;
     let showOptionsDialog = false;
     let detailRelationsExpanded = false;
     let createRelationsExpanded = false;
-    let createDraft = { name: "", bday: "", noPhone: false, phone: "", email: "", timer: "14", notes: "" };
+    let createDraft = { name: "", bday: "", noPhone: false, phone: "", email: "", timer: "14", notes: "", photoBase64: "" };
+
+    function triggerContactPhotoPicker(mode) {
+      if (mode === "detail") syncDetailDraftBeforeRerender();
+      photoPickerTargetMode = mode;
+      const inp = document.getElementById("contact-photo-file-input");
+      if (inp) inp.click();
+    }
+
+    function removeContactPhoto(mode) {
+      if (mode === "create") {
+        createDraft.photoBase64 = "";
+      } else {
+        syncDetailDraftBeforeRerender();
+        detailDraftPhotoBase64 = "";
+      }
+      renderModals();
+    }
+
+    function handleContactPhotoFile(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 256;
+          let w = img.width || maxDim;
+          let h = img.height || maxDim;
+          const scale = Math.min(1, maxDim / Math.max(w, h));
+          w = Math.max(1, Math.round(w * scale));
+          h = Math.max(1, Math.round(h * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          if (photoPickerTargetMode === "create") {
+            createDraft.photoBase64 = dataUrl;
+          } else {
+            detailDraftPhotoBase64 = dataUrl;
+          }
+          addLog(`📷 Kontaktfoto ("${file.name}") geladen & auf ${w}×${h}px optimiert.`);
+          renderModals();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+      event.target.value = "";
+    }
 
     function openOptionsModal() {
       showOptionsDialog = true;
@@ -4427,7 +4554,8 @@
         phone: "",
         email: "",
         timer: "14",
-        notes: ""
+        notes: "",
+        photoBase64: ""
       };
       renderModals();
     }
@@ -4436,6 +4564,7 @@
       detailPersonId = id;
       detailRelationsExpanded = false;
       const dp = state.persons.find(p => p.id === id);
+      detailDraftPhotoBase64 = dp ? (dp.photoBase64 || "") : "";
       detailExtraInfos = dp && Array.isArray(dp.extraInfos)
         ? dp.extraInfos.map(x => ({ label: x.label || "", value: x.value || "" }))
         : [];
@@ -4561,6 +4690,7 @@
         email,
         appPeerId: "",
         notes,
+        photoBase64: createDraft.photoBase64 || "",
         extraInfos: createExtraInfos.filter(x => (x.label && x.label.trim()) || (x.value && x.value.trim())),
         timerEnabled: true,
         timerInterval,
@@ -4608,6 +4738,7 @@
       dp.phone = document.getElementById("d-phone").value.trim();
       dp.email = document.getElementById("d-email").value.trim();
       dp.notes = document.getElementById("d-notes").value.trim();
+      dp.photoBase64 = detailDraftPhotoBase64 || "";
       const savePhoneEl = document.getElementById("d-savephone");
       dp.savedInDeviceContacts = savePhoneEl ? savePhoneEl.checked : true;
       const hiddenEl = document.getElementById("d-hidden");
@@ -4788,7 +4919,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.15",
+        version: "1.0.16",
         createdAt: dateStr,
         state
       };
@@ -4806,7 +4937,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.15",
+        version: "1.0.16",
         createdAt: dateStr,
         state
       };
@@ -4882,7 +5013,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.15 gestartet.");
+      addLog("Remember Me v1.0.16 gestartet.");
       renderAll();
     }
   </script>

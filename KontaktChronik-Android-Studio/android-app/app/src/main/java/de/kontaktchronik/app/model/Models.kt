@@ -32,7 +32,8 @@ data class PersonEntity(
     val timerUnit: String = TimerUnit.DAYS.name,
     val lastContactedIso: String? = null, // YYYY-MM-DD
     val importedFromDeviceContactId: String? = null,
-    val isHidden: Boolean = false
+    val isHidden: Boolean = false,
+    val photoBase64: String = ""
 )
 
 @Entity(tableName = "relations")
