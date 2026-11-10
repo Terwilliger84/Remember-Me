@@ -758,6 +758,39 @@ fun KontaktChronikApp(
         }
     }
 
+    var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
+    var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    if (pendingConfirmMessage != null) {
+        AlertDialog(
+            onDismissRequest = {
+                pendingConfirmMessage = null
+                pendingConfirmAction = null
+            },
+            containerColor = CardSlate,
+            title = {
+                Text("Sicherheitsabfrage", color = WarnAmber, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(pendingConfirmMessage.orEmpty(), color = TextPrimary, fontSize = 13.sp)
+            },
+            dismissButton = {
+                CompactButton("Abbrechen") {
+                    pendingConfirmMessage = null
+                    pendingConfirmAction = null
+                }
+            },
+            confirmButton = {
+                CompactButton("Ja, löschen") {
+                    val action = pendingConfirmAction
+                    pendingConfirmMessage = null
+                    pendingConfirmAction = null
+                    action?.invoke()
+                }
+            }
+        )
+    }
+
     // Dialog: Neuen Kontakt anlegen (inkl. Beziehungen für den Stammbaum)
     if (showCreateDialog) {
         val prefs = remember { context.getSharedPreferences("remember_me_prefs", android.content.Context.MODE_PRIVATE) }
@@ -957,38 +990,6 @@ fun KontaktChronikApp(
         }
         var newEvTitle by remember { mutableStateOf("") }
         var newEvDate by remember { mutableStateOf(formatIsoToDdMmYyyy(LocalDate.now().plusDays(3).toString())) }
-        var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
-        var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-
-        if (pendingConfirmMessage != null) {
-            AlertDialog(
-                onDismissRequest = {
-                    pendingConfirmMessage = null
-                    pendingConfirmAction = null
-                },
-                containerColor = CardSlate,
-                title = {
-                    Text("Sicherheitsabfrage", color = WarnAmber, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                },
-                text = {
-                    Text(pendingConfirmMessage.orEmpty(), color = TextPrimary, fontSize = 13.sp)
-                },
-                dismissButton = {
-                    CompactButton("Abbrechen") {
-                        pendingConfirmMessage = null
-                        pendingConfirmAction = null
-                    }
-                },
-                confirmButton = {
-                    CompactButton("Ja, löschen") {
-                        val action = pendingConfirmAction
-                        pendingConfirmMessage = null
-                        pendingConfirmAction = null
-                        action?.invoke()
-                    }
-                }
-            )
-        }
 
         // Neue Beziehung hinzufügen
         val otherPersons = persons.filter { it.id != dp.id }
