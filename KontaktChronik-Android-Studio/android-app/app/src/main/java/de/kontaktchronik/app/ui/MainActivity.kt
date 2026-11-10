@@ -912,8 +912,7 @@ fun KontaktChronikApp(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                    .padding(14.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
@@ -921,7 +920,14 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Details: ${dp.name}", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Details: ${dp.name}",
+                        color = TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     CompactButton("🌳 Stammbaum") {
                         selectedTreeRootId = dp.id
                         detailPerson = null
@@ -929,24 +935,115 @@ fun KontaktChronikApp(
                     }
                 }
 
-                OutlinedTextField(value = nameVal, onValueChange = { nameVal = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = bdayVal, onValueChange = { bdayVal = it }, label = { Text("Geburtsdatum (TT.MM.JJJJ)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = noPhoneVal, onCheckedChange = { noPhoneVal = it })
-                    Text("Keine eigene Nummer (z. B. Baby)", color = TextSecondary, fontSize = 12.sp)
-                }
-                OutlinedTextField(value = emailVal, onValueChange = { emailVal = it }, label = { Text("E-Mail-Adresse") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = notesVal, onValueChange = { notesVal = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(value = nameVal, onValueChange = { nameVal = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = bdayVal, onValueChange = { bdayVal = it }, label = { Text("Geburtsdatum (TT.MM.JJJJ)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = noPhoneVal, onCheckedChange = { noPhoneVal = it })
+                        Text("Keine eigene Nummer (z. B. Baby)", color = TextSecondary, fontSize = 12.sp)
+                    }
+                    OutlinedTextField(value = emailVal, onValueChange = { emailVal = it }, label = { Text("E-Mail-Adresse") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = notesVal, onValueChange = { notesVal = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
 
-                // Abschnitt: Beziehungen für Stammbaum
-                Divider(color = BorderSlate)
-                Text("Beziehungen (Stammbaum):", color = AccentSteel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    // Abschnitt: Beziehungen für Stammbaum
+                    Divider(color = BorderSlate)
+                    Text("Beziehungen (Stammbaum):", color = AccentSteel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
 
-                if (currentRelations.isEmpty()) {
-                    Text("Noch keine Beziehungen verknüpft.", color = TextMuted, fontSize = 11.sp)
-                } else {
-                    currentRelations.forEach { (rel, targetPerson) ->
+                    if (currentRelations.isEmpty()) {
+                        Text("Noch keine Beziehungen verknüpft.", color = TextMuted, fontSize = 11.sp)
+                    } else {
+                        currentRelations.forEach { (rel, targetPerson) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(BgSlate, RoundedCornerShape(6.dp))
+                                    .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "${rel.relationLabel} ${targetPerson.name}",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    "✕",
+                                    color = WarnAmber,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .clickable {
+                                            scope.launch {
+                                                db.deleteRelation(rel)
+                                            }
+                                        }
+                                        .padding(horizontal = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (otherPersons.isNotEmpty()) {
+                        Text("Beziehung hinzufügen:", color = TextSecondary, fontSize = 11.sp)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(RELATION_PRESETS) { preset ->
+                                val isSel = newRelLabel == preset
+                                Box(
+                                    modifier = Modifier
+                                        .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
+                                        .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable { newRelLabel = preset }
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                ) {
+                                    Text(
+                                        preset,
+                                        color = if (isSel) BgSlate else TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(otherPersons) { op ->
+                                val isSel = newRelTargetId == op.id
+                                Box(
+                                    modifier = Modifier
+                                        .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
+                                        .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable { newRelTargetId = op.id }
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                ) {
+                                    Text(
+                                        op.name,
+                                        color = if (isSel) BgSlate else TextPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+                        CompactButton("+ Beziehung speichern") {
+                            if (newRelTargetId > 0) {
+                                scope.launch {
+                                    addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
+                                }
+                            }
+                        }
+                    }
+
+                    // Abschnitt: Erinnerungen
+                    Divider(color = BorderSlate)
+                    Text("Erinnerungen:", color = AccentSteel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    currentReminders.forEach { ev ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -957,9 +1054,10 @@ fun KontaktChronikApp(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "${rel.relationLabel} ${targetPerson.name}",
+                                "${ev.title} (${formatIsoToDdMmYyyy(ev.dateIso)})",
                                 color = TextPrimary,
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                modifier = Modifier.weight(1f)
                             )
                             Text(
                                 "✕",
@@ -968,97 +1066,19 @@ fun KontaktChronikApp(
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier
                                     .clickable {
-                                        scope.launch {
-                                            db.deleteRelation(rel)
-                                        }
+                                        scope.launch { db.deleteSpecialEvent(ev) }
                                     }
                                     .padding(horizontal = 6.dp)
                             )
                         }
                     }
+
+                    Text("Neue Erinnerung eintragen:", color = TextSecondary, fontSize = 12.sp)
+                    OutlinedTextField(value = newEvTitle, onValueChange = { newEvTitle = it }, label = { Text("Erinnerung (z.B. Operation, Besuch)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = newEvDate, onValueChange = { newEvDate = it }, label = { Text("Datum (TT.MM.JJJJ)") }, modifier = Modifier.fillMaxWidth())
                 }
 
-                if (otherPersons.isNotEmpty()) {
-                    Text("Beziehung hinzufügen:", color = TextSecondary, fontSize = 11.sp)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(RELATION_PRESETS) { preset ->
-                            val isSel = newRelLabel == preset
-                            Box(
-                                modifier = Modifier
-                                    .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                    .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                    .clickable { newRelLabel = preset }
-                                    .padding(horizontal = 8.dp, vertical = 5.dp)
-                            ) {
-                                Text(
-                                    preset,
-                                    color = if (isSel) BgSlate else TextSecondary,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-                    }
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(otherPersons) { op ->
-                            val isSel = newRelTargetId == op.id
-                            Box(
-                                modifier = Modifier
-                                    .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                    .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                    .clickable { newRelTargetId = op.id }
-                                    .padding(horizontal = 8.dp, vertical = 5.dp)
-                            ) {
-                                Text(
-                                    op.name,
-                                    color = if (isSel) BgSlate else TextPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-                    }
-                    CompactButton("+ Beziehung speichern") {
-                        if (newRelTargetId > 0) {
-                            scope.launch {
-                                addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
-                            }
-                        }
-                    }
-                }
-
-                // Abschnitt: Erinnerungen
                 Divider(color = BorderSlate)
-                Text("Erinnerungen:", color = AccentSteel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                currentReminders.forEach { ev ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(BgSlate, RoundedCornerShape(6.dp))
-                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("${ev.title} (${formatIsoToDdMmYyyy(ev.dateIso)})", color = TextPrimary, fontSize = 12.sp)
-                        Text(
-                            "✕",
-                            color = WarnAmber,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clickable {
-                                    scope.launch { db.deleteSpecialEvent(ev) }
-                                }
-                                .padding(horizontal = 6.dp)
-                        )
-                    }
-                }
-
-                Text("Neue Erinnerung eintragen:", color = TextSecondary, fontSize = 12.sp)
-                OutlinedTextField(value = newEvTitle, onValueChange = { newEvTitle = it }, label = { Text("Erinnerung (z.B. Operation, Besuch)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = newEvDate, onValueChange = { newEvDate = it }, label = { Text("Datum (TT.MM.JJJJ)") }, modifier = Modifier.fillMaxWidth())
-
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     CompactButton("Löschen") {
                         scope.launch {

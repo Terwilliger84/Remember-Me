@@ -420,26 +420,29 @@
       align-items: center;
       justify-content: center;
       z-index: 100;
-      padding: 16px;
+      padding: 12px;
     }
 
     .modal {
       width: 100%;
-      max-width: 460px;
+      max-width: 358px;
       background: var(--card-slate);
       border: 1px solid var(--border-slate);
       border-radius: 10px;
-      padding: 16px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      max-height: 90vh;
+      gap: 8px;
+      max-height: 82vh;
+      max-height: 82dvh;
       overflow-y: auto;
+      overflow-x: hidden;
+      box-sizing: border-box;
       box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7);
     }
 
     .modal-title {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 700;
       color: var(--text-primary);
     }
@@ -447,7 +450,8 @@
     .field-group {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
+      min-width: 0;
     }
 
     .field-label {
@@ -456,12 +460,16 @@
     }
 
     .field-input, .field-select {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
       background: var(--bg-slate);
       border: 1px solid var(--border-slate);
       border-radius: 6px;
-      padding: 8px 10px;
+      padding: 6px 8px;
       color: var(--text-primary);
-      font-size: 13px;
+      font-size: 12.5px;
       outline: none;
     }
 
@@ -489,10 +497,17 @@
     }
 
     .modal-footer {
+      position: sticky;
+      bottom: -12px;
+      background: var(--card-slate);
+      border-top: 1px solid var(--border-slate);
+      padding: 8px 0 4px 0;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-top: 6px;
+      gap: 6px;
+      margin-top: 4px;
+      z-index: 5;
     }
 
     .rel-item-row {
@@ -1591,25 +1606,29 @@
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
             <div class="modal" onclick="event.stopPropagation()">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div class="modal-title">Details: ${escapeHtml(dp.name)}</div>
-                <button class="compact-btn" onclick="selectedTreeRootId=${dp.id}; detailPersonId=null; setTab('Stammbaum'); renderModals();">🌳 Stammbaum</button>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div class="modal-title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Details: ${escapeHtml(dp.name)}</div>
+                <button class="compact-btn" style="flex-shrink:0;" onclick="selectedTreeRootId=${dp.id}; detailPersonId=null; setTab('Stammbaum'); renderModals();">🌳 Stammbaum</button>
               </div>
-              <div class="field-group">
-                <label class="field-label">Name</label>
-                <input id="d-name" class="field-input" value="${escapeHtml(dp.name)}" />
+              <div style="display:flex; gap:6px;">
+                <div class="field-group" style="flex:1.2;">
+                  <label class="field-label">Name</label>
+                  <input id="d-name" class="field-input" value="${escapeHtml(dp.name)}" />
+                </div>
+                <div class="field-group" style="flex:1;">
+                  <label class="field-label">Geburtstag</label>
+                  <input id="d-bday" class="field-input" value="${escapeHtml(dp.birthdayIso || '')}" />
+                </div>
               </div>
-              <div class="field-group">
-                <label class="field-label">Geburtsdatum (YYYY-MM-DD)</label>
-                <input id="d-bday" class="field-input" value="${escapeHtml(dp.birthdayIso || '')}" />
-              </div>
-              <div class="field-group">
-                <label class="field-label">Telefon</label>
-                <input id="d-phone" class="field-input" value="${escapeHtml(dp.phone || '')}" />
-              </div>
-              <div class="field-group">
-                <label class="field-label">E-Mail-Adresse</label>
-                <input id="d-email" class="field-input" value="${escapeHtml(dp.email || '')}" />
+              <div style="display:flex; gap:6px;">
+                <div class="field-group" style="flex:1;">
+                  <label class="field-label">Telefon</label>
+                  <input id="d-phone" class="field-input" value="${escapeHtml(dp.phone || '')}" />
+                </div>
+                <div class="field-group" style="flex:1;">
+                  <label class="field-label">E-Mail</label>
+                  <input id="d-email" class="field-input" value="${escapeHtml(dp.email || '')}" />
+                </div>
               </div>
               <div class="field-group">
                 <label class="field-label">Notiz</label>
@@ -1618,7 +1637,7 @@
 
               <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
                 <div style="font-size:12px; font-weight:600; color:var(--accent-steel); margin-bottom:6px;">Beziehungen (Stammbaum):</div>
-                <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
+                <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:6px;">
                   ${currentRels.length === 0 ? `<div style="font-size:11px; color:var(--text-muted);">Noch keine Beziehungen verknüpft.</div>` :
                     currentRels.map(r => `
                       <div class="rel-item-row">
@@ -1628,33 +1647,35 @@
                     `).join("")}
                 </div>
                 ${otherPersons.length > 0 ? `
-                  <div style="display:flex; gap:6px; align-items:center;">
-                    <select id="d-rellabel" class="field-select" style="flex:1;">${relPresetOptions}</select>
-                    <select id="d-reltarget" class="field-select" style="flex:1;">
+                  <div style="display:flex; gap:5px; align-items:center; width:100%;">
+                    <select id="d-rellabel" class="field-select" style="flex:1; min-width:0;">${relPresetOptions}</select>
+                    <select id="d-reltarget" class="field-select" style="flex:1; min-width:0;">
                       ${otherPersons.map(op => `<option value="${op.id}">${escapeHtml(op.name)}</option>`).join("")}
                     </select>
-                    <button class="compact-btn primary" onclick="addRelationFromDetail(${dp.id})">+ Hinzu</button>
+                    <button class="compact-btn primary" style="flex-shrink:0; white-space:nowrap; padding:6px 8px;" onclick="addRelationFromDetail(${dp.id})">+ Hinzu</button>
                   </div>
                 ` : ""}
               </div>
 
               <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
                 <div style="font-size:12px; font-weight:600; color:var(--accent-steel); margin-bottom:6px;">Erinnerungen:</div>
-                <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
+                <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:6px;">
                   ${currentEvs.map(ev => `
                     <div class="rel-item-row">
-                      <span>${escapeHtml(ev.title)} (${escapeHtml(ev.dateIso)})</span>
+                      <span>${escapeHtml(ev.title)} (${escapeHtml(formatIsoToDdMmYyyy(ev.dateIso))})</span>
                       <span style="color:var(--warn-amber); cursor:pointer; font-weight:700;" onclick="removeEvent(${ev.id})">✕</span>
                     </div>
                   `).join("")}
                 </div>
-                <div class="field-group">
-                  <label class="field-label">Neue Erinnerung (z. B. Operation, Besuch)</label>
-                  <input id="d-evtitle" class="field-input" placeholder="Erinnerung" />
-                </div>
-                <div class="field-group" style="margin-top:4px;">
-                  <label class="field-label">Datum (YYYY-MM-DD)</label>
-                  <input id="d-evdate" class="field-input" value="${addDaysIso(todayIso(), 3)}" />
+                <div style="display:flex; gap:6px;">
+                  <div class="field-group" style="flex:1.2;">
+                    <label class="field-label">Neue Erinnerung</label>
+                    <input id="d-evtitle" class="field-input" placeholder="z. B. Besuch" />
+                  </div>
+                  <div class="field-group" style="flex:1;">
+                    <label class="field-label">Datum</label>
+                    <input id="d-evdate" class="field-input" value="${addDaysIso(todayIso(), 3)}" />
+                  </div>
                 </div>
               </div>
 
