@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.19 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.20 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1686,9 +1686,11 @@
           <div class="card" style="margin-bottom: 10px;">
             <div style="font-size:14px; font-weight:600; margin-bottom:6px;">Noch keine Kontakte vorhanden</div>
             <div style="font-size:12px; color:var(--text-secondary); margin-bottom:10px; line-height:1.4;">
-              Tippe auf 'Beispieldaten mit Stammbaum anlegen' oder oben auf 'Neu'.
+              Tippe oben auf 'Sync', um deine Telefonkontakte zu übernehmen, oder auf '+ Kontakt anlegen'.
             </div>
-            <button class="compact-btn primary" onclick="seedSampleData()">Beispieldaten mit Stammbaum anlegen</button>
+            <div class="btn-row">
+              <button class="compact-btn primary" onclick="openCreateModal()">+ Kontakt anlegen</button>
+            </div>
           </div>
         `;
       }
@@ -1712,7 +1714,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.19</div>
+            <div class="app-title">Remember Me v1.0.20</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -5003,7 +5005,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.19",
+        version: "1.0.20",
         createdAt: dateStr,
         state
       };
@@ -5021,7 +5023,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.19",
+        version: "1.0.20",
         createdAt: dateStr,
         state
       };
@@ -5093,13 +5095,11 @@
         .replace(/'/g, "&#039;");
     }
 
-    if (state.persons.length === 0) {
-      seedSampleData();
-    } else {
+    if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.19 gestartet.");
-      renderAll();
     }
+    addLog("Remember Me v1.0.20 gestartet.");
+    renderAll();
   </script>
 </body>
 </html>

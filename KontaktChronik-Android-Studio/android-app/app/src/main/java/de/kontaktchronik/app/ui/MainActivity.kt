@@ -959,13 +959,53 @@ fun KontaktChronikApp(
     }
 
     LaunchedEffect(persons, initialPopupPersonId) {
+        // Entferne automatisch evtl. vorhandene Dummy-/Beispieldaten aus früheren Versionen
+        val dummyNames = setOf(
+            "helga weber (oma)",
+            "anna weber",
+            "thomas weber",
+            "markus weber",
+            "leo weber (baby)",
+            "sabine wagner",
+            "max berger",
+            "praxis dr. klein"
+        )
+        val dummyPhones = setOf(
+            "+491701112233",
+            "+491712345678",
+            "+491719988776",
+            "+491605544332",
+            "+491609876543",
+            "+4915122334455",
+            "+4930123456"
+        )
+        val dummyPersons = persons.filter { p ->
+            p.importedFromDeviceContactId.isNullOrBlank() &&
+                (dummyNames.contains(p.name.trim().lowercase()) || dummyPhones.contains(p.phone.trim()))
+        }
+        if (dummyPersons.isNotEmpty()) {
+            val dummyIds = dummyPersons.map { it.id }.toSet()
+            relations.filter { dummyIds.contains(it.fromPersonId) || dummyIds.contains(it.toPersonId) }
+                .forEach { db.deleteRelation(it) }
+            specialEvents.filter { dummyIds.contains(it.personId) }
+                .forEach { db.deleteSpecialEvent(it) }
+            dummyPersons.forEach { db.deletePerson(it) }
+        }
+        if (wichtelGroups.any { it.id == 1001L }) {
+            saveWichtelGroups(wichtelGroups.filterNot { it.id == 1001L })
+        }
+        if (wichtelHistory.any { it.id == 3001L }) {
+            saveWichtelHistory(wichtelHistory.filterNot { it.id == 3001L })
+        }
+
         if (initialPopupPersonId > 0 && popupPerson == null) {
             popupPerson = persons.find { it.id == initialPopupPersonId }
         }
         if (selectedTreeRootId == null && persons.isNotEmpty()) {
             selectedTreeRootId = persons.first().id
         }
-        if (persons.any { it.photoBase64.isBlank() }) {
+        val remainingPersons = persons.filterNot { dummyPersons.contains(it) }
+        if (remainingPersons.any { it.photoBase64.isBlank() }) {
             val hasRead = ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.READ_CONTACTS
@@ -1038,7 +1078,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.19", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.20", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1124,171 +1164,36 @@ fun KontaktChronikApp(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Noch keine Kontakte vorhanden", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Tippe oben auf 'Sync', um deine Telefonkontakte nach Geburtstagen zu durchsuchen, auf 'Neu' zum Anlegen, oder lade Beispielkontakte mit komplettem Familien-Stammbaum.",
+                        "Tippe auf '📲 Handykontakte synchronisieren' oder oben auf 'Sync', um deine Telefonkontakte samt Geburtstagen und Kontaktfotos zu übernehmen, oder auf '+ Kontakt anlegen'.",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
-                    CompactButton("Beispieldaten mit Stammbaum anlegen") {
-                        scope.launch {
-                            val omaId = db.upsertPerson(
-                                PersonEntity(
-                                    name = "Helga Weber (Oma)",
-                                    birthdayIso = LocalDate.now().plusDays(18).withYear(1958).toString(),
-                                    phone = "+491701112233",
-                                    notes = "Mag Gartenarbeit & Apfelkuchen",
-                                    timerEnabled = true,
-                                    timerInterval = 7,
-                                    timerUnit = TimerUnit.DAYS.name,
-                                    lastContactedIso = LocalDate.now().minusDays(6).toString()
-                                )
-                            )
-                            val annaId = db.upsertPerson(
-                                PersonEntity(
-                                    name = "Anna Weber",
-                                    birthdayIso = LocalDate.now().plusDays(4).withYear(1992).toString(),
-                                    phone = "+491712345678",
-                                    email = "anna.weber@beispiel.de",
-                                    appPeerId = "KC-ANNA-92",
-                                    notes = "Lieblingsblumen: Pfingstrosen",
-                                    timerEnabled = true,
-                                    timerInterval = 14,
-                                    timerUnit = TimerUnit.DAYS.name,
-                                    lastContactedIso = LocalDate.now().minusDays(15).toString()
-                                )
-                            )
-                            val thomasId = db.upsertPerson(
-                                PersonEntity(
-                                    name = "Thomas Weber",
-                                    birthdayIso = LocalDate.now().minusDays(12).withYear(1990).toString(),
-                                    phone = "+491719988776",
-                                    email = "thomas.weber@beispiel.de",
-                                    notes = "Trinkt gerne Espresso",
-                                    timerEnabled = true,
-                                    timerInterval = 14,
-                                    timerUnit = TimerUnit.DAYS.name,
-                                    lastContactedIso = LocalDate.now().minusDays(8).toString()
-                                )
-                            )
-                            val markusId = db.upsertPerson(
-                                PersonEntity(
-                                    name = "Markus Weber",
-                                    birthdayIso = LocalDate.now().minusDays(5).withYear(1995).toString(),
-                                    phone = "+491605544332",
-                                    notes = "Annas Bruder",
-                                    timerEnabled = true,
-                                    timerInterval = 30,
-                                    timerUnit = TimerUnit.DAYS.name,
-                                    lastContactedIso = LocalDate.now().minusDays(20).toString()
-                                )
-                            )
-                            val leoId = db.upsertPerson(
-                                PersonEntity(
-                                    name = "Leo Weber (Baby)",
-                                    birthdayIso = LocalDate.now().withYear(2026).toString(),
-                                    hasNoOwnPhone = true,
-                                    notes = "Kleidergröße 68, mag Holzrasseln",
-                                    timerEnabled = true,
-                                    timerInterval = 1,
-                                    timerUnit = TimerUnit.MONTHS.name,
-                                    lastContactedIso = LocalDate.now().minusDays(10).toString()
-                                )
-                            )
-
-                            // Beziehungen für den Stammbaum
-                            addBidirectionalRelation(annaId, omaId, "Kind von")
-                            addBidirectionalRelation(markusId, omaId, "Kind von")
-                            addBidirectionalRelation(markusId, annaId, "Bruder von")
-                            addBidirectionalRelation(thomasId, annaId, "Ehe-Partner von")
-                            addBidirectionalRelation(leoId, annaId, "Kind von")
-                            addBidirectionalRelation(leoId, thomasId, "Kind von")
-
-                            db.insertSpecialEvent(
-                                SpecialEventEntity(
-                                    personId = annaId,
-                                    title = "Kommt zu Besuch",
-                                    dateIso = LocalDate.now().plusDays(7).toString(),
-                                    leadDays = 2,
-                                    note = "Mit Baby Leo übers Wochenende"
-                                )
-                            )
-                            db.insertSpecialEvent(
-                                SpecialEventEntity(
-                                    personId = omaId,
-                                    title = "Anrufen",
-                                    dateIso = "WEEKLY:3",
-                                    leadDays = 0,
-                                    note = "Wöchentlicher Mittwochs-Anruf"
-                                )
-                            )
-                            val xmasYear = LocalDate.now().year
-                            saveWichtelGroups(
-                                listOf(
-                                    WichtelGroup(
-                                        id = 1001L,
-                                        groupName = "Familien-Wichteln $xmasYear",
-                                        adminName = "Anna Weber",
-                                        budget = "25 €",
-                                        revealDateIso = "$xmasYear-12-24",
-                                        excludeCouples = true,
-                                        forceRevealed = false,
-                                        isDrawn = false,
-                                        participants = listOf(
-                                            WichtelParticipant(
-                                                id = 2001L,
-                                                personId = omaId,
-                                                name = "Helga Weber (Oma)",
-                                                phone = "+491701112233",
-                                                wishText = "Gartenhandschuhe, Kräutertee-Set",
-                                                wishlistUrl = "https://www.amazon.de/hz/wishlist/ls/OMA-GARTEN"
-                                            ),
-                                            WichtelParticipant(
-                                                id = 2002L,
-                                                personId = annaId,
-                                                name = "Anna Weber",
-                                                phone = "+491712345678",
-                                                wishText = "Krimi-Taschenbuch, Duftkerze Vanille",
-                                                wishlistUrl = "https://www.amazon.de/hz/wishlist/ls/ANNA-WISHES"
-                                            ),
-                                            WichtelParticipant(
-                                                id = 2003L,
-                                                personId = thomasId,
-                                                name = "Thomas Weber",
-                                                phone = "+491719988776",
-                                                wishText = "Ganze Espresso-Bohnen (100% Arabica)",
-                                                wishlistUrl = "https://www.amazon.de/hz/wishlist/ls/THOMAS-COFFEE"
-                                            ),
-                                            WichtelParticipant(
-                                                id = 2004L,
-                                                personId = markusId,
-                                                name = "Markus Weber",
-                                                phone = "+491605544332",
-                                                wishText = "Warme Laufsocken (Gr. 43), dunkle Schokolade",
-                                                wishlistUrl = "https://www.amazon.de/hz/wishlist/ls/MARKUS-SPORT"
-                                            )
-                                        )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CompactButton("📲 Handykontakte synchronisieren") {
+                            val hasRead = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.READ_CONTACTS
+                            ) == PackageManager.PERMISSION_GRANTED
+                            val hasWrite = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.WRITE_CONTACTS
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (hasRead && hasWrite) {
+                                scope.launch {
+                                    val count = syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver)
+                                    syncStatus = "$count Kontakte synchronisiert"
+                                }
+                            } else {
+                                contactPermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.READ_CONTACTS,
+                                        Manifest.permission.WRITE_CONTACTS
                                     )
                                 )
-                            )
-                            saveWichtelHistory(
-                                listOf(
-                                    WichtelHistoryEntry(
-                                        id = 3001L,
-                                        year = xmasYear - 1,
-                                        groupName = "Familien-Wichteln ${xmasYear - 1}",
-                                        adminName = "Helga Weber (Oma)",
-                                        motto = "🎁 Klassisches Wichteln",
-                                        budget = "25 €",
-                                        completedDateIso = "${xmasYear - 1}-12-24",
-                                        pairings = listOf(
-                                            WichtelHistoryPair(giverName = "Helga Weber (Oma)", giverPersonId = omaId, giverPhone = "+491701112233", receiverName = "Anna Weber", receiverPersonId = annaId, wishText = "Gartenhandschuhe, Kräutertee-Set"),
-                                            WichtelHistoryPair(giverName = "Anna Weber", giverPersonId = annaId, giverPhone = "+491712345678", receiverName = "Markus Weber", receiverPersonId = markusId, wishText = "Krimi-Taschenbuch, Duftkerze Vanille"),
-                                            WichtelHistoryPair(giverName = "Markus Weber", giverPersonId = markusId, giverPhone = "+491605544332", receiverName = "Thomas Weber", receiverPersonId = thomasId, wishText = "Warme Laufsocken (Gr. 43)"),
-                                            WichtelHistoryPair(giverName = "Thomas Weber", giverPersonId = thomasId, giverPhone = "+491719988776", receiverName = "Helga Weber (Oma)", receiverPersonId = omaId, wishText = "Ganze Espresso-Bohnen")
-                                        )
-                                    )
-                                )
-                            )
-                            selectedTreeRootId = annaId
+                            }
+                        }
+                        CompactButton("+ Kontakt anlegen") {
+                            showCreateDialog = true
                         }
                     }
                 }
@@ -1857,7 +1762,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.19")
+                put("version", "1.0.20")
                 put("createdAt", dateStr)
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
                 put("wichtelHistory", JSONArray(serializeWichtelHistoryJson(wichtelHistory)))
