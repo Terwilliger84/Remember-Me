@@ -1215,7 +1215,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.7</div>
+          <div class="app-title">Remember Me v1.0.8</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
@@ -2009,7 +2009,7 @@
               </label>
               <label class="checkbox-row">
                 <input type="checkbox" id="d-hidden" ${dp.isHidden ? 'checked' : ''} />
-                <span>Kontakt dauerhaft ausblenden (nur in „Alle Kontakte“ sichtbar)</span>
+                <span>Kontakt ausblenden</span>
               </label>
 
               <div id="d-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
@@ -2607,7 +2607,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.7",
+        version: "1.0.8",
         createdAt: dateStr,
         state
       };
@@ -2683,7 +2683,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.7 gestartet.");
+      addLog("Remember Me v1.0.8 gestartet.");
       renderAll();
     }
   </script>

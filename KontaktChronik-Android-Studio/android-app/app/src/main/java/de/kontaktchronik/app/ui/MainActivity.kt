@@ -404,7 +404,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.7", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.8", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
@@ -1148,7 +1148,7 @@ fun KontaktChronikApp(
                         val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
                         val rootJson = JSONObject().apply {
                             put("app", "Remember Me")
-                            put("version", "1.0.7")
+                            put("version", "1.0.8")
                             put("createdAt", dateStr)
                             val personsArr = JSONArray()
                             persons.forEach { p ->
@@ -1559,7 +1559,7 @@ fun KontaktChronikApp(
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = isHiddenVal, onCheckedChange = { isHiddenVal = it })
-                        Text("Kontakt dauerhaft ausblenden (nur in „Alle Kontakte“)", color = TextSecondary, fontSize = 12.sp)
+                        Text("Kontakt ausblenden", color = TextSecondary, fontSize = 12.sp)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = noPhoneVal, onCheckedChange = { noPhoneVal = it })
