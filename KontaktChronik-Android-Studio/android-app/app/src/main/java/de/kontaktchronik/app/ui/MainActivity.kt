@@ -535,7 +535,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.11", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.12", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
@@ -947,8 +947,15 @@ fun KontaktChronikApp(
                                     .clickable { detailPerson = p }
                             ) {
                                 Text(p.name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                val unitDe = when (p.timerUnit.uppercase()) {
+                                    "DAYS" -> "Tage"
+                                    "WEEKS" -> "Wochen"
+                                    "MONTHS" -> "Monate"
+                                    "YEARS" -> "Jahre"
+                                    else -> p.timerUnit
+                                }
                                 Text(
-                                    "Intervall: alle ${p.timerInterval} ${p.timerUnit} • Zuletzt: ${formatIsoToDdMmYyyy(p.lastContactedIso).ifBlank { "-" }}",
+                                    "Alle ${p.timerInterval} $unitDe • Nächste: $nextTimerStr",
                                     color = TextSecondary,
                                     fontSize = 12.sp
                                 )
