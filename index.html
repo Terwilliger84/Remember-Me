@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.13 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.14 – Interaktiver Testserver</title>
   <style>
     :root {
       --bg-slate: #0F172A;
@@ -1042,6 +1042,24 @@
         }
       ];
 
+      state.wichtelHistory = [
+        {
+          id: state.nextId++,
+          year: xmasYear - 1,
+          groupName: `Familien-Wichteln ${xmasYear - 1}`,
+          adminName: "Helga Weber (Oma)",
+          motto: "🎁 Klassisches Wichteln",
+          budget: "25 €",
+          completedDateIso: `${xmasYear - 1}-12-24`,
+          pairings: [
+            { giverName: "Helga Weber (Oma)", giverPersonId: omaId, giverPhone: "+491701112233", receiverName: "Anna Weber", receiverPersonId: annaId, wishText: "Gartenhandschuhe, Kräutertee-Set", noGos: "Keine Staubfänger-Figuren", address: "Rosenweg 4, 80331 München", wishlistUrl: "https://www.amazon.de/hz/wishlist/ls/OMA-GARTEN" },
+            { giverName: "Anna Weber", giverPersonId: annaId, giverPhone: "+491712345678", receiverName: "Markus Weber", receiverPersonId: markusId, wishText: "Krimi-Taschenbuch, Duftkerze Vanille", noGos: "Kein Marzipan", address: "Lindenallee 12, 80333 München", wishlistUrl: "https://www.amazon.de/hz/wishlist/ls/ANNA-WISHES" },
+            { giverName: "Markus Weber", giverPersonId: markusId, giverPhone: "+491605544332", receiverName: "Thomas Weber", receiverPersonId: thomasId, wishText: "Warme Laufsocken (Gr. 43)", noGos: "Nussallergie!", address: "Bergstraße 8, 80335 München", wishlistUrl: "https://www.amazon.de/hz/wishlist/ls/MARKUS-SPORT" },
+            { giverName: "Thomas Weber", giverPersonId: thomasId, giverPhone: "+491719988776", receiverName: "Helga Weber (Oma)", receiverPersonId: omaId, wishText: "Ganze Espresso-Bohnen", noGos: "Keine Krawatten", address: "Lindenallee 12, 80333 München", wishlistUrl: "https://www.amazon.de/hz/wishlist/ls/THOMAS-COFFEE" }
+          ]
+        }
+      ];
+
       selectedTreeRootId = annaId;
       addLog("Beispieldaten mit 3-Generationen-Stammbaum & Weihnachts-Wichtelrunde angelegt.");
       saveState();
@@ -1303,7 +1321,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.13</div>
+          <div class="app-title">Remember Me v1.0.14</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
@@ -2041,10 +2059,12 @@
     }
 
     let selectedWichtelGroupId = null;
-    let wichtelGroupModalState = null; // { mode: 'create'|'edit', groupId, groupName, adminName, motto, budget, revealDate, reminderDaysBefore, excludeCouples, excludeLastYear }
+    let wichtelGroupModalState = null; // { mode: 'create'|'edit'|'reuse', groupId, historyId, groupName, adminName, motto, budget, revealDate, reminderDaysBefore, excludeCouples, excludeLastYear, reusedParticipants }
     let wichtelParticipantModalState = null; // { mode: 'add'|'edit', groupId, participantId, checkedPersonIds, customName, customPhone, personId, name, phone, wishText, noGos, address, wishlistUrl, extraWishUrls }
     let wichtelSecretPeekState = null; // { groupId, participantId }
     let wichtelAnonQuestionState = null; // { groupId, targetParticipantId, questionText }
+    let wichtelHistoryImportModalOpen = false;
+    let wichtelHistoryShareState = null; // { historyId }
 
     const WICHTEL_MOTTOS = [
       "🎁 Klassisches Wichteln",
@@ -2089,6 +2109,9 @@
       if (!Array.isArray(state.wichtelGroups)) {
         state.wichtelGroups = [];
       }
+      if (!Array.isArray(state.wichtelHistory)) {
+        state.wichtelHistory = [];
+      }
       if (state.wichtelGroups.length === 0 && state.persons.length > 0) {
         const today = todayIso();
         const xmasYear = parseInt(today.slice(0, 4), 10);
@@ -2123,9 +2146,70 @@
           }))
         });
       }
+      if (state.wichtelHistory.length === 0 && state.persons.length >= 2) {
+        const today = todayIso();
+        const xmasYear = parseInt(today.slice(0, 4), 10);
+        const adultPersons = state.persons.filter(p => !p.isHidden && !p.name.toLowerCase().includes("baby")).slice(0, 4);
+        if (adultPersons.length >= 2) {
+          state.wichtelHistory.push({
+            id: state.nextId++,
+            year: xmasYear - 1,
+            groupName: `Familien-Wichteln ${xmasYear - 1}`,
+            adminName: adultPersons[0].name,
+            motto: "🎁 Klassisches Wichteln",
+            budget: "25 €",
+            completedDateIso: `${xmasYear - 1}-12-24`,
+            pairings: adultPersons.map((p, idx) => {
+              const target = adultPersons[(idx + 1) % adultPersons.length];
+              return {
+                giverName: p.name,
+                giverPersonId: p.id,
+                giverPhone: p.phone || "",
+                receiverName: target.name,
+                receiverPersonId: target.id,
+                wishText: p.notes || "",
+                noGos: "",
+                address: extractAddressFromPerson(p),
+                wishlistUrl: `https://www.amazon.de/hz/wishlist/ls/${p.name.split(" ")[0].toUpperCase()}-WISH`
+              };
+            })
+          });
+        }
+      }
       if (selectedWichtelGroupId === null || !state.wichtelGroups.some(g => g.id === selectedWichtelGroupId)) {
         selectedWichtelGroupId = state.wichtelGroups[0] ? state.wichtelGroups[0].id : null;
       }
+    }
+
+    function getHistoricalTargetsForParticipant(part) {
+      if (!part || !Array.isArray(state.wichtelHistory)) return [];
+      const results = [];
+      const pNameLower = (part.name || "").trim().toLowerCase();
+      for (const h of state.wichtelHistory) {
+        for (const pair of (h.pairings || [])) {
+          const sameId = part.personId && pair.giverPersonId && part.personId === pair.giverPersonId;
+          const sameName = (pair.giverName || "").trim().toLowerCase() === pNameLower;
+          if (sameId || sameName) {
+            results.push({
+              year: h.year || (h.completedDateIso ? h.completedDateIso.slice(0, 4) : ""),
+              groupName: h.groupName,
+              receiverName: pair.receiverName,
+              receiverPersonId: pair.receiverPersonId
+            });
+          }
+        }
+      }
+      return results;
+    }
+
+    function hasDrawnTargetInHistory(giverPart, receiverPart) {
+      if (!giverPart || !receiverPart) return false;
+      const pastList = getHistoricalTargetsForParticipant(giverPart);
+      const rNameLower = (receiverPart.name || "").trim().toLowerCase();
+      return pastList.some(item =>
+        (receiverPart.personId && item.receiverPersonId && receiverPart.personId === item.receiverPersonId) ||
+        (item.receiverName || "").trim().toLowerCase() === rNameLower
+      );
     }
 
     function isWichtelGroupRevealed(group) {
@@ -2210,7 +2294,7 @@
               <div style="font-size:11px; color:var(--accent-steel); margin-top:2px;">
                 📅 Auflösungs-Frist: <b>${escapeHtml(revealDateFormatted)}</b>
                 ${group.excludeCouples ? ` • 💑 Paar-Sperre` : ""}
-                ${group.excludeLastYear !== false ? ` • 🔄 Vorjahres-Sperre` : ""}
+                ${group.excludeLastYear !== false ? ` • 📜 Keine Wiederholungen (Historie aktiv)` : ""}
               </div>
             </div>
             <div class="btn-row">
@@ -2235,6 +2319,9 @@
               <button class="compact-btn" onclick="toggleWichtelForceReveal(${group.id})" title="Auflösung nach Fristablauf simulieren">
                 ${revealed ? "🔒 Verbergen" : "🔓 Frist-Ablauf"}
               </button>
+              <button class="compact-btn" onclick="archiveAndShareWichtelGroup(${group.id})" title="Wichtelperiode abschließen, in Historie speichern & an alle Teilnehmer senden">
+                📜 In Historie abschließen
+              </button>
             ` : ""}
           </div>
         </div>
@@ -2243,6 +2330,7 @@
       const participantsHtml = group.participants.map(part => {
         const target = group.participants.find(x => x.id === part.drawnTargetId);
         const lastYearTarget = group.participants.find(x => x.id === part.lastYearTargetId);
+        const pastHistoryTargets = getHistoricalTargetsForParticipant(part);
         const partnerPerson = getCouplePartnerForPerson(part.personId);
         const partnerInGroup = partnerPerson ? group.participants.find(x => x.personId === partnerPerson.id) : null;
         const allUrls = [part.wishlistUrl, ...(Array.isArray(part.extraWishUrls) ? part.extraWishUrls : [])].filter(u => u && u.trim());
@@ -2252,6 +2340,16 @@
           : (revealed && target
             ? `<span style="color:var(--warn-amber); font-weight:700;">🎁 Hat gezogen: ${escapeHtml(target.name)}</span>`
             : `<span style="color:var(--tree-green); font-weight:600;">🎲 Zugelost • 🔒 Geheim bis ${escapeHtml(revealDateFormatted)}</span>`);
+
+        const historyExclusionBadges = [];
+        if (lastYearTarget && !pastHistoryTargets.some(h => h.receiverName === lastYearTarget.name)) {
+          historyExclusionBadges.push(`≠ ${lastYearTarget.name.split(" ")[0]}`);
+        }
+        pastHistoryTargets.forEach(h => {
+          const shortR = (h.receiverName || "").split(" ")[0];
+          const label = h.year ? `≠ ${shortR} (${h.year})` : `≠ ${shortR}`;
+          if (!historyExclusionBadges.includes(label)) historyExclusionBadges.push(label);
+        });
 
         return `
           <div class="card" style="padding:10px 12px; ${partnerInGroup && group.excludeCouples ? 'border-left: 3px solid var(--partner-rose);' : ''}">
@@ -2265,8 +2363,12 @@
                 </div>
                 <div style="font-size:11.5px; margin-top:3px;">
                   ${secretLine}
-                  ${lastYearTarget && group.excludeLastYear !== false ? ` <span style="font-size:10.5px; color:var(--text-muted);">• 🔄 Vorjahr: ≠ ${escapeHtml(lastYearTarget.name.split(" ")[0])}</span>` : ""}
                 </div>
+                ${group.excludeLastYear !== false && historyExclusionBadges.length > 0 ? `
+                  <div style="font-size:10.5px; color:var(--accent-steel); margin-top:2px;">
+                    📜 <b>Keine Wiederholung (Historie):</b> ${escapeHtml(historyExclusionBadges.join(", "))}
+                  </div>
+                ` : ""}
                 ${part.wishText ? `
                   <div style="font-size:11.5px; color:var(--text-secondary); margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                     <span>🎁 <b>Wunsch:</b> ${escapeHtml(part.wishText)}</span>
@@ -2309,7 +2411,65 @@
         `;
       }).join("");
 
-      return topBar + groupHeaderCard + participantsHtml;
+      const historyHtml = renderWichtelHistorySection();
+      return topBar + groupHeaderCard + participantsHtml + historyHtml;
+    }
+
+    function renderWichtelHistorySection() {
+      const historyList = Array.isArray(state.wichtelHistory) ? state.wichtelHistory : [];
+      const itemsHtml = historyList.length === 0
+        ? `<div style="font-size:12px; color:var(--text-muted);">Noch keine abgeschlossenen Wichtelrunden in der Historie.</div>`
+        : historyList.map(h => `
+            <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+                <div>
+                  <div style="font-size:13.5px; font-weight:700; color:var(--text-primary);">
+                    📜 ${escapeHtml(h.groupName)} ${h.year ? `<span class="badge-app">${escapeHtml(String(h.year))}</span>` : ""}
+                  </div>
+                  <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">
+                    👑 Admin: <b>${escapeHtml(h.adminName || "Admin")}</b> • ${escapeHtml(h.motto || "🎁 Klassisches Wichteln")} ${h.budget ? `• 💶 ${escapeHtml(h.budget)}` : ""}
+                  </div>
+                </div>
+                <button class="compact-btn danger" style="padding:3px 7px; font-size:11px;" onclick="deleteWichtelHistoryEntry(${h.id})" title="Diesen Wichtel-Historie-Eintrag einzeln löschen">🗑️</button>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:3px; padding:6px 8px; background:var(--card-slate); border-radius:6px; border:1px solid var(--border-slate);">
+                ${(h.pairings || []).map((pair, pIdx) => `
+                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--text-primary);">
+                    <span>🎁 <b>${escapeHtml(pair.giverName)}</b> ➔ hat <b>${escapeHtml(pair.receiverName)}</b> gezogen</span>
+                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="deleteSingleWichtelHistoryPairing(${h.id}, ${pIdx})" title="Einzelne Paarung aus Historie löschen">✕</span>
+                  </div>
+                `).join("")}
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;">
+                <button class="compact-btn primary" style="padding:4px 9px; font-size:11px; font-weight:700;" onclick="reuseWichtelHistoryEntry(${h.id})" title="Altes Wichteln für neues Jahr als Admin wiederverwenden & vor Neustart bearbeiten">
+                  ♻️ Wiederverwenden & Bearbeiten
+                </button>
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="shareWichtelHistoryToParticipants(${h.id}, 'WhatsApp')" title="Wichtel-Historie nach Abschluss an alle Teilnehmer per WhatsApp verteilen">
+                  📲 Historie an Teilnehmer
+                </button>
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="shareWichtelHistoryToParticipants(${h.id}, 'In-App')" title="Wichtel-Historie In-App an alle Teilnehmer senden">
+                  💬 In-App verteilen
+                </button>
+              </div>
+            </div>
+          `).join("");
+
+      return `
+        <div class="card" style="margin-top:8px; border-color:var(--border-slate); display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+            <div>
+              <div style="font-size:14.5px; font-weight:700; color:var(--accent-steel);">📜 Wichtel-Historie (${historyList.length})</div>
+              <div style="font-size:11px; color:var(--text-secondary);">
+                Vergangene Jahre für „Keine Wiederholungen“ • Einzeln löschbar • Als Admin wiederverwendbar & vor Neustart bearbeitbar
+              </div>
+            </div>
+            <button class="compact-btn" style="padding:4px 8px; font-size:11px;" onclick="wichtelHistoryImportModalOpen=true; renderModals();" title="Empfangene Wichtel-Historie von einem anderen Gruppenadmin importieren">
+              📥 Historie importieren
+            </button>
+          </div>
+          ${itemsHtml}
+        </div>
+      `;
     }
 
     function renderWidget() {
@@ -2775,11 +2935,16 @@
               </label>
               <label class="checkbox-row">
                 <input type="checkbox" id="wg-lastyear" ${wg.excludeLastYear !== false ? 'checked' : ''} onchange="wichtelGroupModalState.excludeLastYear=this.checked" />
-                <span>🔄 Nicht dieselbe Person wie im Vorjahr / letzten Lauf zulosen</span>
+                <span>📜 Keine Wiederholungen (Wichtel-Historie der letzten Jahre einbeziehen)</span>
               </label>
+              ${wg.mode === 'reuse' ? `
+                <div style="font-size:11.5px; color:var(--tree-green); background:rgba(16,185,129,0.12); border:1px solid var(--tree-green); border-radius:6px; padding:7px 9px;">
+                  ♻️ <b>Aus Wichtel-Historie übernommen:</b> ${(wg.reusedParticipants || []).length} Teilnehmer werden übernommen. Nach dem Klick auf „Speichern“ kannst du Teilnehmer & Wünsche noch frei bearbeiten, bevor neu gewürfelt wird!
+                </div>
+              ` : ""}
               <div class="modal-footer">
                 <button class="compact-btn" onclick="wichtelGroupModalState=null; renderModals();">Abbrechen</button>
-                <button class="compact-btn primary" onclick="saveWichtelGroupModal()">Speichern</button>
+                <button class="compact-btn primary" onclick="saveWichtelGroupModal()">${wg.mode === 'reuse' ? 'Runde übernehmen & bearbeiten' : 'Speichern'}</button>
               </div>
             </div>
           </div>
@@ -2987,6 +3152,25 @@
         return;
       }
 
+      if (wichtelHistoryImportModalOpen) {
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+              <div class="modal-title">📥 Empfangene Wichtel-Historie importieren</div>
+              <div style="font-size:12px; color:var(--text-secondary); line-height:1.4;">
+                Jeder Teilnehmer erhält nach Abschluss der Wichtelperiode seine Wichtel-Historie. Füge hier den empfangenen Historie-Code oder Text ein, um das alte Wichteln selbst als Admin einzusehen, zu löschen oder für das neue Jahr wiederzuverwenden:
+              </div>
+              <textarea id="wh-import-text" class="field-input" rows="5" placeholder='Hier empfangenen Wichtel-Historie-Code oder JSON einfügen...'></textarea>
+              <div class="modal-footer">
+                <button class="compact-btn" onclick="wichtelHistoryImportModalOpen=false; renderModals();">Abbrechen</button>
+                <button class="compact-btn primary" onclick="importWichtelHistoryFromText()">📥 Importieren</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       if (wichtelAnonQuestionState !== null) {
         const group = (state.wichtelGroups || []).find(g => g.id === wichtelAnonQuestionState.groupId);
         const target = group ? group.participants.find(p => p.id === wichtelAnonQuestionState.targetParticipantId) : null;
@@ -3132,21 +3316,26 @@
         }
       } else {
         const newGroupId = state.nextId++;
-        const adminPerson = state.persons.find(p => p.name.toLowerCase() === adminName.toLowerCase());
-        state.wichtelGroups.push({
-          id: newGroupId,
-          groupName,
-          adminName,
-          motto,
-          budget,
-          revealDateIso,
-          reminderDaysBefore,
-          excludeCouples,
-          excludeLastYear,
-          forceRevealed: false,
-          isDrawn: false,
-          drawnAt: "",
-          participants: [
+        let initialParticipants = [];
+        if (wichtelGroupModalState.mode === "reuse" && Array.isArray(wichtelGroupModalState.reusedParticipants) && wichtelGroupModalState.reusedParticipants.length > 0) {
+          initialParticipants = wichtelGroupModalState.reusedParticipants.map(rp => ({
+            id: state.nextId++,
+            personId: rp.personId || null,
+            name: rp.name,
+            phone: rp.phone || "",
+            appPeerId: rp.appPeerId || "",
+            wishText: rp.wishText || "",
+            noGos: rp.noGos || "",
+            address: rp.address || "",
+            wishlistUrl: rp.wishlistUrl || "",
+            extraWishUrls: Array.isArray(rp.extraWishUrls) ? [...rp.extraWishUrls] : [],
+            drawnTargetId: null,
+            lastYearTargetId: null,
+            notifiedVia: ""
+          }));
+        } else {
+          const adminPerson = state.persons.find(p => p.name.toLowerCase() === adminName.toLowerCase());
+          initialParticipants = [
             {
               id: state.nextId++,
               personId: adminPerson ? adminPerson.id : null,
@@ -3162,10 +3351,25 @@
               lastYearTargetId: null,
               notifiedVia: ""
             }
-          ]
+          ];
+        }
+        state.wichtelGroups.push({
+          id: newGroupId,
+          groupName,
+          adminName,
+          motto,
+          budget,
+          revealDateIso,
+          reminderDaysBefore,
+          excludeCouples,
+          excludeLastYear,
+          forceRevealed: false,
+          isDrawn: false,
+          drawnAt: "",
+          participants: initialParticipants
         });
         selectedWichtelGroupId = newGroupId;
-        addLog(`Neue Wichtelrunde "${groupName}" (${motto}) von Gruppenadmin "${adminName}" angelegt.`);
+        addLog(`Wichtelrunde "${groupName}" (${motto}) mit Admin "${adminName}" bereitgestellt (${initialParticipants.length} Teilnehmer – vor Neustart frei bearbeitbar).`);
       }
       wichtelGroupModalState = null;
       saveState();
@@ -3390,9 +3594,15 @@
             valid = false;
             break;
           }
-          if (g.excludeLastYear !== false && parts.length > 3 && giver.lastYearTargetId && giver.lastYearTargetId === receiver.id && attempt < 140) {
-            valid = false;
-            break;
+          if (g.excludeLastYear !== false && parts.length > 2 && attempt < 170) {
+            if (giver.lastYearTargetId && giver.lastYearTargetId === receiver.id) {
+              valid = false;
+              break;
+            }
+            if (hasDrawnTargetInHistory(giver, receiver)) {
+              valid = false;
+              break;
+            }
           }
           candidateMap.set(giver.id, receiver.id);
         }
@@ -3521,10 +3731,206 @@
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
       if (!g) return;
       g.forceRevealed = !g.forceRevealed;
+      if (g.forceRevealed && g.isDrawn) {
+        saveWichtelGroupToHistory(g, false);
+      }
       addLog(g.forceRevealed
-        ? `🔓 Auflösungs-Frist für "${g.groupName}" freigegeben – alle sehen jetzt, wer wen gezogen hatte!`
+        ? `🔓 Auflösungs-Frist für "${g.groupName}" freigegeben – alle sehen jetzt, wer wen gezogen hatte (und Eintrag in Wichtel-Historie gesichert)!`
         : `🔒 Wichtel-Zuordnungen für "${g.groupName}" wieder verborgen.`);
       saveState();
+    }
+
+    function saveWichtelGroupToHistory(g, notifyAll = false) {
+      if (!g || !g.isDrawn) return null;
+      if (!Array.isArray(state.wichtelHistory)) state.wichtelHistory = [];
+      const yearNum = parseInt((g.revealDateIso || todayIso()).slice(0, 4), 10) || new Date().getFullYear();
+      const pairings = g.participants.map(p => {
+        const target = g.participants.find(x => x.id === p.drawnTargetId);
+        return {
+          giverName: p.name,
+          giverPersonId: p.personId || null,
+          giverPhone: p.phone || "",
+          receiverName: target ? target.name : "?",
+          receiverPersonId: target ? (target.personId || null) : null,
+          wishText: p.wishText || "",
+          noGos: p.noGos || "",
+          address: p.address || "",
+          wishlistUrl: p.wishlistUrl || ""
+        };
+      });
+      let existing = state.wichtelHistory.find(h => h.groupName === g.groupName && h.year === yearNum);
+      if (existing) {
+        existing.adminName = g.adminName;
+        existing.motto = g.motto;
+        existing.budget = g.budget;
+        existing.completedDateIso = g.revealDateIso || todayIso();
+        existing.pairings = pairings;
+      } else {
+        existing = {
+          id: state.nextId++,
+          year: yearNum,
+          groupName: g.groupName,
+          adminName: g.adminName,
+          motto: g.motto || "🎁 Klassisches Wichteln",
+          budget: g.budget || "",
+          completedDateIso: g.revealDateIso || todayIso(),
+          pairings
+        };
+        state.wichtelHistory.unshift(existing);
+      }
+      if (notifyAll) {
+        shareWichtelHistoryToParticipants(existing.id, "In-App");
+      }
+      return existing;
+    }
+
+    function archiveAndShareWichtelGroup(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g || !g.isDrawn) return;
+      g.forceRevealed = true;
+      const entry = saveWichtelGroupToHistory(g, true);
+      if (entry) {
+        addLog(`📜 Wichtelperiode "${g.groupName}" abgeschlossen, in der Wichtel-Historie gespeichert & an alle Teilnehmer verteilt!`);
+      }
+      saveState();
+    }
+
+    function deleteWichtelHistoryEntry(historyId) {
+      const h = (state.wichtelHistory || []).find(x => x.id === historyId);
+      if (!h) return;
+      askDeleteConfirm(`Wichtel-Historie „${h.groupName} (${h.year || ''})“ wirklich löschen?`, () => {
+        state.wichtelHistory = (state.wichtelHistory || []).filter(x => x.id !== historyId);
+        addLog(`🗑️ Wichtel-Historie "${h.groupName}" gelöscht.`);
+        saveState();
+      });
+    }
+
+    function deleteSingleWichtelHistoryPairing(historyId, pairingIndex) {
+      const h = (state.wichtelHistory || []).find(x => x.id === historyId);
+      if (!h || !Array.isArray(h.pairings) || !h.pairings[pairingIndex]) return;
+      const pair = h.pairings[pairingIndex];
+      askDeleteConfirm(`Historien-Eintrag „${pair.giverName} ➔ ${pair.receiverName}“ wirklich löschen?`, () => {
+        h.pairings.splice(pairingIndex, 1);
+        if (h.pairings.length === 0) {
+          state.wichtelHistory = state.wichtelHistory.filter(x => x.id !== historyId);
+        }
+        addLog(`🗑️ Einzelne Wichtel-Historien-Paarung (${pair.giverName} ➔ ${pair.receiverName}) gelöscht.`);
+        saveState();
+      });
+    }
+
+    function reuseWichtelHistoryEntry(historyId) {
+      const h = (state.wichtelHistory || []).find(x => x.id === historyId);
+      if (!h) return;
+      const currentYear = parseInt(todayIso().slice(0, 4), 10);
+      const nextYear = (h.year && h.year >= currentYear) ? h.year + 1 : currentYear;
+      const baseTitle = (h.groupName || "Familien-Wichteln").replace(/\s*\d{4}\s*$/, "").trim();
+      const reusedParticipants = (h.pairings || []).map(pair => {
+        const contact = state.persons.find(p =>
+          (pair.giverPersonId && p.id === pair.giverPersonId) ||
+          p.name.toLowerCase() === (pair.giverName || "").toLowerCase()
+        );
+        return {
+          personId: contact ? contact.id : (pair.giverPersonId || null),
+          name: contact ? contact.name : pair.giverName,
+          phone: contact ? (contact.phone || pair.giverPhone || "") : (pair.giverPhone || ""),
+          appPeerId: contact ? (contact.appPeerId || "") : "",
+          wishText: pair.wishText || (contact ? contact.notes : "") || "",
+          noGos: pair.noGos || "",
+          address: pair.address || (contact ? extractAddressFromPerson(contact) : "") || "",
+          wishlistUrl: pair.wishlistUrl || "",
+          extraWishUrls: []
+        };
+      });
+
+      wichtelGroupModalState = {
+        mode: "reuse",
+        groupId: null,
+        historyId: h.id,
+        groupName: `${baseTitle} ${nextYear}`,
+        adminName: h.adminName || "Ich (Admin)",
+        motto: h.motto || "🎁 Klassisches Wichteln",
+        budget: h.budget || "25 €",
+        revealDate: `24.12.${nextYear}`,
+        reminderDaysBefore: 7,
+        excludeCouples: true,
+        excludeLastYear: true,
+        reusedParticipants
+      };
+      renderModals();
+    }
+
+    function buildPortableWichtelHistoryMessage(h) {
+      const pairLines = (h.pairings || []).map(p => `🎁 ${p.giverName} ➔ hat ${p.receiverName} beschenkt`).join("\n");
+      const exportPayload = JSON.stringify({
+        year: h.year,
+        groupName: h.groupName,
+        adminName: h.adminName,
+        motto: h.motto,
+        budget: h.budget,
+        completedDateIso: h.completedDateIso,
+        pairings: h.pairings
+      });
+      return `📜🎄 *Wichtel-Historie zum Abschluss von „${h.groupName}“ (${h.year || ''})*\n` +
+        `👑 Admin: ${h.adminName} • ${h.motto || '🎁 Klassisches Wichteln'}\n\n` +
+        `🔓 *Auflösung – Wer hatte wen:*\n${pairLines}\n\n` +
+        `♻️ *Für deine eigene Wichtel-Historie (zum Einsehen, Löschen oder Wiederverwenden als Admin im nächsten Jahr):*\n` +
+        `WICHTEL_HISTORY_JSON:${exportPayload}`;
+    }
+
+    function shareWichtelHistoryToParticipants(historyId, channel) {
+      const h = (state.wichtelHistory || []).find(x => x.id === historyId);
+      if (!h) return;
+      const msg = buildPortableWichtelHistoryMessage(h);
+      if (channel === "WhatsApp") {
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+        addLog(`📲 Wichtel-Historie "${h.groupName}" per WhatsApp für alle Teilnehmer bereitgestellt.`);
+      } else {
+        const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
+        (h.pairings || []).forEach(pair => {
+          state.directMessages.push({
+            id: state.nextId++,
+            personId: pair.giverPersonId || 0,
+            targetPeerId: "KC-WICHTEL-HIST",
+            senderDisplayName: h.adminName || "Gruppenadmin",
+            direction: "OUTGOING",
+            text: msg,
+            timestampIso: nowStr,
+            isRead: true
+          });
+        });
+        addLog(`💬 Jeder Teilnehmer (${(h.pairings || []).length} Personen) hat seine eigene Wichtel-Historie für "${h.groupName}" erhalten!`);
+        saveState();
+      }
+    }
+
+    function importWichtelHistoryFromText() {
+      const el = document.getElementById("wh-import-text");
+      const raw = (el ? el.value : "").trim();
+      if (!raw) return;
+      try {
+        const jsonPart = raw.includes("WICHTEL_HISTORY_JSON:")
+          ? raw.substring(raw.indexOf("WICHTEL_HISTORY_JSON:") + "WICHTEL_HISTORY_JSON:".length).trim()
+          : raw;
+        const parsed = JSON.parse(jsonPart);
+        if (!parsed || !Array.isArray(parsed.pairings)) throw new Error("Ungültiges Format");
+        if (!Array.isArray(state.wichtelHistory)) state.wichtelHistory = [];
+        state.wichtelHistory.unshift({
+          id: state.nextId++,
+          year: parsed.year || new Date().getFullYear(),
+          groupName: parsed.groupName || "Importierte Wichtelrunde",
+          adminName: parsed.adminName || "Admin",
+          motto: parsed.motto || "🎁 Klassisches Wichteln",
+          budget: parsed.budget || "25 €",
+          completedDateIso: parsed.completedDateIso || todayIso(),
+          pairings: parsed.pairings
+        });
+        wichtelHistoryImportModalOpen = false;
+        addLog(`📥 Wichtel-Historie "${parsed.groupName}" erfolgreich importiert! Du kannst sie jetzt einsehen, löschen oder als Admin wiederverwenden.`);
+        saveState();
+      } catch (e) {
+        addLog("⚠️ Konnte Wichtel-Historie nicht lesen. Bitte den vollständigen WICHTEL_HISTORY_JSON-Text einfügen.");
+      }
     }
 
     function setThemeMode(mode) {

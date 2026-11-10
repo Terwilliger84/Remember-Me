@@ -438,6 +438,99 @@ fun serializeWichtelGroupsJson(groups: List<WichtelGroup>): String {
     return arr.toString()
 }
 
+data class WichtelHistoryPair(
+    val giverName: String,
+    val giverPersonId: Long? = null,
+    val giverPhone: String = "",
+    val receiverName: String,
+    val receiverPersonId: Long? = null,
+    val wishText: String = "",
+    val noGos: String = "",
+    val address: String = "",
+    val wishlistUrl: String = ""
+)
+
+data class WichtelHistoryEntry(
+    val id: Long,
+    val year: Int,
+    val groupName: String,
+    val adminName: String,
+    val motto: String = "🎁 Klassisches Wichteln",
+    val budget: String = "25 €",
+    val completedDateIso: String = "",
+    val pairings: List<WichtelHistoryPair> = emptyList()
+)
+
+fun parseWichtelHistoryJson(raw: String?): List<WichtelHistoryEntry> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return runCatching {
+        val arr = JSONArray(raw)
+        (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            val pairArr = obj.optJSONArray("pairings") ?: JSONArray()
+            val pairs = (0 until pairArr.length()).map { j ->
+                val pObj = pairArr.getJSONObject(j)
+                WichtelHistoryPair(
+                    giverName = pObj.optString("giverName", ""),
+                    giverPersonId = pObj.optLong("giverPersonId", -1L).takeIf { it > 0 },
+                    giverPhone = pObj.optString("giverPhone", ""),
+                    receiverName = pObj.optString("receiverName", ""),
+                    receiverPersonId = pObj.optLong("receiverPersonId", -1L).takeIf { it > 0 },
+                    wishText = pObj.optString("wishText", ""),
+                    noGos = pObj.optString("noGos", ""),
+                    address = pObj.optString("address", ""),
+                    wishlistUrl = pObj.optString("wishlistUrl", "")
+                )
+            }
+            WichtelHistoryEntry(
+                id = obj.optLong("id", System.nanoTime() + i),
+                year = obj.optInt("year", LocalDate.now().year - 1),
+                groupName = obj.optString("groupName", "Wichtelrunde"),
+                adminName = obj.optString("adminName", "Admin"),
+                motto = obj.optString("motto", "🎁 Klassisches Wichteln"),
+                budget = obj.optString("budget", "25 €"),
+                completedDateIso = obj.optString("completedDateIso", ""),
+                pairings = pairs
+            )
+        }
+    }.getOrElse { emptyList() }
+}
+
+fun serializeWichtelHistoryJson(history: List<WichtelHistoryEntry>): String {
+    val arr = JSONArray()
+    history.forEach { h ->
+        arr.put(
+            JSONObject().apply {
+                put("id", h.id)
+                put("year", h.year)
+                put("groupName", h.groupName)
+                put("adminName", h.adminName)
+                put("motto", h.motto)
+                put("budget", h.budget)
+                put("completedDateIso", h.completedDateIso)
+                val pArr = JSONArray()
+                h.pairings.forEach { p ->
+                    pArr.put(
+                        JSONObject().apply {
+                            put("giverName", p.giverName)
+                            put("giverPersonId", p.giverPersonId ?: -1L)
+                            put("giverPhone", p.giverPhone)
+                            put("receiverName", p.receiverName)
+                            put("receiverPersonId", p.receiverPersonId ?: -1L)
+                            put("wishText", p.wishText)
+                            put("noGos", p.noGos)
+                            put("address", p.address)
+                            put("wishlistUrl", p.wishlistUrl)
+                        }
+                    )
+                }
+                put("pairings", pArr)
+            }
+        )
+    }
+    return arr.toString()
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -493,11 +586,17 @@ fun KontaktChronikApp(
     var treeEnabled by remember { mutableStateOf(appPrefs.getBoolean("tree_enabled", true)) }
     var wichtelEnabled by remember { mutableStateOf(appPrefs.getBoolean("wichtel_enabled", true)) }
     var wichtelGroups by remember { mutableStateOf(parseWichtelGroupsJson(appPrefs.getString("wichtel_groups_json", null))) }
+    var wichtelHistory by remember { mutableStateOf(parseWichtelHistoryJson(appPrefs.getString("wichtel_history_json", null))) }
     var showOptionsDialog by remember { mutableStateOf(false) }
 
     fun saveWichtelGroups(updated: List<WichtelGroup>) {
         wichtelGroups = updated
         appPrefs.edit().putString("wichtel_groups_json", serializeWichtelGroupsJson(updated)).apply()
+    }
+
+    fun saveWichtelHistory(updated: List<WichtelHistoryEntry>) {
+        wichtelHistory = updated
+        appPrefs.edit().putString("wichtel_history_json", serializeWichtelHistoryJson(updated)).apply()
     }
     var showPastDates by remember { mutableStateOf(false) }
     var contactSortMode by remember { mutableStateOf("birthday") } // "birthday" | "firstname" | "lastname"
@@ -598,7 +697,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.13", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.14", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
@@ -827,6 +926,25 @@ fun KontaktChronikApp(
                                                 wishText = "Warme Laufsocken (Gr. 43), dunkle Schokolade",
                                                 wishlistUrl = "https://www.amazon.de/hz/wishlist/ls/MARKUS-SPORT"
                                             )
+                                        )
+                                    )
+                                )
+                            )
+                            saveWichtelHistory(
+                                listOf(
+                                    WichtelHistoryEntry(
+                                        id = 3001L,
+                                        year = xmasYear - 1,
+                                        groupName = "Familien-Wichteln ${xmasYear - 1}",
+                                        adminName = "Helga Weber (Oma)",
+                                        motto = "🎁 Klassisches Wichteln",
+                                        budget = "25 €",
+                                        completedDateIso = "${xmasYear - 1}-12-24",
+                                        pairings = listOf(
+                                            WichtelHistoryPair(giverName = "Helga Weber (Oma)", giverPersonId = omaId, giverPhone = "+491701112233", receiverName = "Anna Weber", receiverPersonId = annaId, wishText = "Gartenhandschuhe, Kräutertee-Set"),
+                                            WichtelHistoryPair(giverName = "Anna Weber", giverPersonId = annaId, giverPhone = "+491712345678", receiverName = "Markus Weber", receiverPersonId = markusId, wishText = "Krimi-Taschenbuch, Duftkerze Vanille"),
+                                            WichtelHistoryPair(giverName = "Markus Weber", giverPersonId = markusId, giverPhone = "+491605544332", receiverName = "Thomas Weber", receiverPersonId = thomasId, wishText = "Warme Laufsocken (Gr. 43)"),
+                                            WichtelHistoryPair(giverName = "Thomas Weber", giverPersonId = thomasId, giverPhone = "+491719988776", receiverName = "Helga Weber (Oma)", receiverPersonId = omaId, wishText = "Ganze Espresso-Bohnen")
                                         )
                                     )
                                 )
@@ -1154,9 +1272,11 @@ fun KontaktChronikApp(
             "🎄 Wichteln" -> {
                 WichtelScreen(
                     groups = wichtelGroups,
+                    history = wichtelHistory,
                     persons = persons,
                     relations = relations,
                     onSaveGroups = { saveWichtelGroups(it) },
+                    onSaveHistory = { saveWichtelHistory(it) },
                     onConfirmDelete = { msg, act ->
                         pendingConfirmMessage = msg
                         pendingConfirmAction = act
@@ -3013,9 +3133,11 @@ fun DateInputWithCalendar(
 @Composable
 fun WichtelScreen(
     groups: List<WichtelGroup>,
+    history: List<WichtelHistoryEntry>,
     persons: List<PersonEntity>,
     relations: List<RelationEntity>,
     onSaveGroups: (List<WichtelGroup>) -> Unit,
+    onSaveHistory: (List<WichtelHistoryEntry>) -> Unit,
     onConfirmDelete: (String, () -> Unit) -> Unit
 ) {
     val context = LocalContext.current
@@ -3033,11 +3155,13 @@ fun WichtelScreen(
     // Dialog-States
     var editingGroup by remember { mutableStateOf<WichtelGroup?>(null) }
     var isCreatingGroup by remember { mutableStateOf(false) }
+    var isReusingHistory by remember { mutableStateOf(false) }
     var checklistGroup by remember { mutableStateOf<WichtelGroup?>(null) }
     var editingParticipantGroup by remember { mutableStateOf<WichtelGroup?>(null) }
     var editingParticipant by remember { mutableStateOf<WichtelParticipant?>(null) }
     var secretPeekPair by remember { mutableStateOf<Triple<WichtelGroup, WichtelParticipant, WichtelParticipant>?>(null) }
     var anonQuestionTarget by remember { mutableStateOf<Pair<WichtelGroup, WichtelParticipant>?>(null) }
+    var showImportHistoryDialog by remember { mutableStateOf(false) }
 
     val activeGroup = groups.find { it.id == selectedGroupId } ?: groups.firstOrNull()
 
@@ -3045,6 +3169,161 @@ fun WichtelScreen(
         if (g.forceRevealed) return true
         val todayStr = LocalDate.now().toString()
         return g.revealDateIso.isNotBlank() && todayStr >= g.revealDateIso
+    }
+
+    fun getHistoricalTargetsForParticipant(part: WichtelParticipant): List<Pair<Int, String>> {
+        val normName = part.name.trim().lowercase()
+        val result = mutableListOf<Pair<Int, String>>()
+        for (h in history) {
+            for (pr in h.pairings) {
+                val matchById = part.personId != null && pr.giverPersonId != null && part.personId == pr.giverPersonId
+                val matchByName = pr.giverName.trim().lowercase() == normName
+                if (matchById || matchByName) {
+                    result.add(h.year to pr.receiverName)
+                }
+            }
+        }
+        return result
+    }
+
+    fun hasDrawnTargetInHistory(giver: WichtelParticipant, receiver: WichtelParticipant): Boolean {
+        val giverNorm = giver.name.trim().lowercase()
+        val recvNorm = receiver.name.trim().lowercase()
+        for (h in history) {
+            for (pr in h.pairings) {
+                val giverMatch = (giver.personId != null && pr.giverPersonId != null && giver.personId == pr.giverPersonId) ||
+                    pr.giverName.trim().lowercase() == giverNorm
+                val recvMatch = (receiver.personId != null && pr.receiverPersonId != null && receiver.personId == pr.receiverPersonId) ||
+                    pr.receiverName.trim().lowercase() == recvNorm
+                if (giverMatch && recvMatch) return true
+            }
+        }
+        return false
+    }
+
+    fun archiveGroupToHistory(g: WichtelGroup): WichtelHistoryEntry? {
+        if (!g.isDrawn) return null
+        val yearMatch = Regex("20\\d{2}").find("${g.groupName} ${g.revealDateIso}")
+        val year = yearMatch?.value?.toIntOrNull() ?: LocalDate.now().year
+        val pairings = g.participants.mapNotNull { p ->
+            val t = g.participants.find { it.id == p.drawnTargetId } ?: return@mapNotNull null
+            WichtelHistoryPair(
+                giverName = p.name,
+                giverPersonId = p.personId,
+                receiverName = t.name,
+                receiverPersonId = t.personId,
+                phone = p.phone,
+                wishText = p.wishText,
+                wishlistUrl = p.wishlistUrl,
+                extraWishUrls = p.extraWishUrls,
+                noGos = p.noGos,
+                address = p.address
+            )
+        }
+        val existingIdx = history.indexOfFirst {
+            it.sourceGroupId == g.id || (it.groupName.equals(g.groupName, ignoreCase = true) && it.year == year)
+        }
+        val entry = WichtelHistoryEntry(
+            id = if (existingIdx >= 0) history[existingIdx].id else System.currentTimeMillis(),
+            sourceGroupId = g.id,
+            groupName = g.groupName,
+            year = year,
+            adminName = g.adminName,
+            motto = g.motto,
+            budget = g.budget,
+            completedAtIso = g.revealDateIso.ifBlank { LocalDate.now().toString() },
+            excludeCouples = g.excludeCouples,
+            excludeLastYear = g.excludeLastYear,
+            pairings = pairings
+        )
+        val nextHistory = if (existingIdx >= 0) {
+            history.mapIndexed { idx, item -> if (idx == existingIdx) entry else item }
+        } else {
+            listOf(entry) + history
+        }
+        onSaveHistory(nextHistory)
+        return entry
+    }
+
+    fun shareHistoryEntry(entry: WichtelHistoryEntry) {
+        val payloadObj = JSONObject().apply {
+            put("groupName", entry.groupName)
+            put("year", entry.year)
+            put("adminName", entry.adminName)
+            put("motto", entry.motto)
+            put("budget", entry.budget)
+            put("completedAtIso", entry.completedAtIso)
+            put("excludeCouples", entry.excludeCouples)
+            put("excludeLastYear", entry.excludeLastYear)
+            val arr = JSONArray()
+            entry.pairings.forEach { pr ->
+                arr.put(
+                    JSONObject().apply {
+                        put("giverName", pr.giverName)
+                        put("receiverName", pr.receiverName)
+                        put("phone", pr.phone)
+                        put("wishText", pr.wishText)
+                        put("wishlistUrl", pr.wishlistUrl)
+                        put("noGos", pr.noGos)
+                        put("address", pr.address)
+                    }
+                )
+            }
+            put("pairings", arr)
+        }
+        val msg = buildString {
+            append("📜🎄 *Wichtel-Historie abgeschlossen: ${entry.groupName} (${entry.year})*\n")
+            append("👑 Admin: ${entry.adminName} • ${entry.motto} • Budget: ${entry.budget}\n\n")
+            append("🎁 *Auflösung – Wer hat wen beschenkt:*\n")
+            entry.pairings.forEach { p ->
+                append("• ${p.giverName} ➔ ${p.receiverName}\n")
+            }
+            append("\n♻️ *Für deine eigene Wichtel-Historie in Remember Me:*\n")
+            append("Jeder Teilnehmer kann diesen Eintrag unter „🎄 Wichteln ➔ 📜 Wichtel-Historie ➔ 📥 Historie importieren“ einfügen und künftig selbst als Admin wiederverwenden (inkl. „Keine Wiederholungen“), einsehen oder löschen:\n\n")
+            append("WICHTEL_HISTORY_JSON:$payloadObj")
+        }
+        runCatching {
+            val url = "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+        }
+    }
+
+    fun reuseHistoryEntry(entry: WichtelHistoryEntry) {
+        val nextYear = maxOf(LocalDate.now().year, entry.year + 1)
+        val baseName = entry.groupName.replace(Regex("\\b20\\d{2}\\b"), "").trim().ifBlank { "Familien-Wichteln" }
+        val newParticipants = entry.pairings.mapIndexed { idx, pr ->
+            val matchedPerson = persons.find { p ->
+                (pr.giverPersonId != null && p.id == pr.giverPersonId) ||
+                    p.name.equals(pr.giverName.trim(), ignoreCase = true)
+            }
+            WichtelParticipant(
+                id = System.currentTimeMillis() + idx + 10L,
+                personId = matchedPerson?.id ?: pr.giverPersonId,
+                name = matchedPerson?.name ?: pr.giverName,
+                phone = matchedPerson?.phone?.ifBlank { pr.phone } ?: pr.phone,
+                wishText = pr.wishText,
+                wishlistUrl = pr.wishlistUrl,
+                extraWishUrls = pr.extraWishUrls,
+                noGos = pr.noGos,
+                address = pr.address
+            )
+        }
+        isCreatingGroup = true
+        isReusingHistory = true
+        editingGroup = WichtelGroup(
+            id = System.currentTimeMillis(),
+            groupName = "$baseName $nextYear",
+            adminName = entry.adminName.ifBlank { "Ich (Admin)" },
+            motto = entry.motto.ifBlank { "🎁 Klassisches Wichteln" },
+            budget = entry.budget.ifBlank { "25 €" },
+            revealDateIso = "$nextYear-12-24",
+            reminderDaysBefore = 7,
+            excludeCouples = entry.excludeCouples,
+            excludeLastYear = true,
+            isDrawn = false,
+            forceRevealed = false,
+            participants = newParticipants
+        )
     }
 
     fun getCouplePartnerForPerson(personId: Long?): PersonEntity? {
@@ -3083,7 +3362,7 @@ fun WichtelScreen(
         }
         if (parts.size < 2) return
         var chosenMap: Map<Long, Long>? = null
-        for (attempt in 0 until 200) {
+        for (attempt in 0 until 260) {
             val shuffled = parts.shuffled()
             var valid = true
             val map = mutableMapOf<Long, Long>()
@@ -3098,9 +3377,13 @@ fun WichtelScreen(
                     valid = false
                     break
                 }
-                if (g.excludeLastYear && parts.size > 3 && giver.lastYearTargetId != null && giver.lastYearTargetId == receiver.id && attempt < 140) {
-                    valid = false
-                    break
+                if (g.excludeLastYear && parts.size > 2 && attempt < 200) {
+                    val sameAsLast = giver.lastYearTargetId != null && giver.lastYearTargetId == receiver.id
+                    val sameInHistory = hasDrawnTargetInHistory(giver, receiver)
+                    if (sameAsLast || sameInHistory) {
+                        valid = false
+                        break
+                    }
                 }
                 map[giver.id] = receiver.id
             }
@@ -3167,6 +3450,7 @@ fun WichtelScreen(
             Spacer(modifier = Modifier.width(6.dp))
             CompactButton("+ Neue Runde") {
                 isCreatingGroup = true
+                isReusingHistory = false
                 editingGroup = WichtelGroup(
                     id = System.currentTimeMillis(),
                     groupName = "Weihnachts-Wichteln ${LocalDate.now().year}",
@@ -3181,45 +3465,48 @@ fun WichtelScreen(
             }
         }
 
-        if (activeGroup == null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(CardSlate, RoundedCornerShape(8.dp))
-                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                    .padding(14.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("🎄 Noch keine Wichtelrunde erstellt", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Erstelle als Gruppenadmin eine Wichtelrunde, kreuze Kontakte (inkl. Paar-Sperre) an, hinterlege Wunschzettel oder Amazon-Wunschlisten und würfle die geheime Zulosung aus!",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
-                    CompactButton("🎄 Erste Wichtelrunde starten") {
-                        isCreatingGroup = true
-                        editingGroup = WichtelGroup(
-                            id = System.currentTimeMillis(),
-                            groupName = "Familien-Wichteln ${LocalDate.now().year}",
-                            adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
-                            motto = "🎁 Klassisches Wichteln",
-                            budget = "25 €",
-                            revealDateIso = "${LocalDate.now().year}-12-24",
-                            reminderDaysBefore = 7,
-                            excludeCouples = true,
-                            excludeLastYear = true
-                        )
+        val revealed = activeGroup?.let { isGroupRevealed(it) } ?: false
+        val revealDateFormatted = activeGroup?.let { formatIsoToDdMmYyyy(it.revealDateIso).ifBlank { "24.12." } } ?: "24.12."
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (activeGroup == null) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(CardSlate, RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                            .padding(14.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("🎄 Noch keine Wichtelrunde erstellt", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Erstelle als Gruppenadmin eine Wichtelrunde, kreuze Kontakte (inkl. Paar-Sperre) an oder verwende unten einen Eintrag aus deiner 📜 Wichtel-Historie wieder!",
+                                color = TextSecondary,
+                                fontSize = 12.sp
+                            )
+                            CompactButton("🎄 Erste Wichtelrunde starten") {
+                                isCreatingGroup = true
+                                isReusingHistory = false
+                                editingGroup = WichtelGroup(
+                                    id = System.currentTimeMillis(),
+                                    groupName = "Familien-Wichteln ${LocalDate.now().year}",
+                                    adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
+                                    motto = "🎁 Klassisches Wichteln",
+                                    budget = "25 €",
+                                    revealDateIso = "${LocalDate.now().year}-12-24",
+                                    reminderDaysBefore = 7,
+                                    excludeCouples = true,
+                                    excludeLastYear = true
+                                )
+                            }
+                        }
                     }
                 }
-            }
-        } else {
-            val revealed = isGroupRevealed(activeGroup)
-            val revealDateFormatted = formatIsoToDdMmYyyy(activeGroup.revealDateIso).ifBlank { "24.12." }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            } else {
                 item {
                     Column(
                         modifier = Modifier
@@ -3256,7 +3543,7 @@ fun WichtelScreen(
                                 Text(
                                     "📅 Frist: $revealDateFormatted" +
                                         (if (activeGroup.excludeCouples) " • 💑 Paar-Sperre" else "") +
-                                        (if (activeGroup.excludeLastYear) " • 🔄 Vorjahres-Sperre" else ""),
+                                        (if (activeGroup.excludeLastYear) " • 🔄 Keine Wiederholungen (inkl. Historie)" else ""),
                                     color = AccentSteel,
                                     fontSize = 11.sp
                                 )
@@ -3264,6 +3551,7 @@ fun WichtelScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 CompactButton("✏️") {
                                     isCreatingGroup = false
+                                    isReusingHistory = false
                                     editingGroup = activeGroup
                                 }
                                 CompactButton("🗑️") {
@@ -3348,8 +3636,27 @@ fun WichtelScreen(
                             }
                             if (activeGroup.isDrawn) {
                                 CompactButton(if (revealed) "🔒" else "🔓") {
-                                    val toggled = activeGroup.copy(forceRevealed = !activeGroup.forceRevealed)
+                                    val nextForce = !activeGroup.forceRevealed
+                                    val toggled = activeGroup.copy(forceRevealed = nextForce)
                                     onSaveGroups(groups.map { if (it.id == activeGroup.id) toggled else it })
+                                    if (nextForce) {
+                                        archiveGroupToHistory(toggled)
+                                    }
+                                }
+                            }
+                        }
+                        if (activeGroup.isDrawn) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                CompactButton("📜 In Historie abschließen & an Teilnehmer senden") {
+                                    val revealedGroup = activeGroup.copy(forceRevealed = true)
+                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) revealedGroup else it })
+                                    val entry = archiveGroupToHistory(revealedGroup)
+                                    if (entry != null) {
+                                        shareHistoryEntry(entry)
+                                    }
                                 }
                             }
                         }
@@ -3362,6 +3669,7 @@ fun WichtelScreen(
                     val partnerInGroup = if (partnerContact != null) {
                         activeGroup.participants.find { it.personId == partnerContact.id }
                     } else null
+                    val pastDraws = getHistoricalTargetsForParticipant(part)
                     val allUrls = (listOf(part.wishlistUrl) + part.extraWishUrls).filter { it.isNotBlank() }
 
                     Column(
@@ -3400,6 +3708,13 @@ fun WichtelScreen(
                                         color = PartnerRose,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (activeGroup.excludeLastYear && pastDraws.isNotEmpty()) {
+                                    Text(
+                                        "📜 Keine Wiederholung (Historie): " + pastDraws.joinToString(", ") { "${it.second} (${it.first})" },
+                                        color = AccentSteel,
+                                        fontSize = 11.sp
                                     )
                                 }
                                 val statusLine = when {
@@ -3521,10 +3836,218 @@ fun WichtelScreen(
                     }
                 }
             }
+
+            // 📜 Wichtel-Historie unter dem Wichteln
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp)
+                        .background(CardSlate, RoundedCornerShape(8.dp))
+                        .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "📜 Wichtel-Historie (${history.size})",
+                                color = TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Vergangene Jahre werden bei „🔄 Keine Wiederholungen“ automatisch berücksichtigt. Jeder Teilnehmer kann seine Historie als Admin wiederverwenden, vor Neustart bearbeiten, einsehen oder einzeln löschen.",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        CompactButton("📥 Importieren") {
+                            showImportHistoryDialog = true
+                        }
+                    }
+
+                    if (history.isEmpty()) {
+                        Text(
+                            "Noch keine abgeschlossenen Wichtelrunden in der Historie.",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                    } else {
+                        history.sortedByDescending { it.year }.forEach { h ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(BgSlate, RoundedCornerShape(8.dp))
+                                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "🎄 ${h.groupName} (${h.year})",
+                                            color = TextPrimary,
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "👑 Admin: ${h.adminName} • ${h.motto}" +
+                                                if (h.budget.isNotBlank()) " • 💶 ${h.budget}" else "",
+                                            color = TextSecondary,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    CompactButton("🗑️") {
+                                        onConfirmDelete("Wichtel-Historie „${h.groupName} (${h.year})“ wirklich löschen?") {
+                                            onSaveHistory(history.filter { it.id != h.id })
+                                        }
+                                    }
+                                }
+
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    h.pairings.forEachIndexed { idx, pr ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(CardSlate, RoundedCornerShape(6.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "🎁 ${pr.giverName} ➔ ${pr.receiverName}",
+                                                color = TextPrimary,
+                                                fontSize = 11.5.sp,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                "✕",
+                                                color = WarnAmber,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .clickable {
+                                                        onConfirmDelete("Einzelnen Historieneintrag „${pr.giverName} ➔ ${pr.receiverName}“ (${h.year}) löschen?") {
+                                                            val nextPairings = h.pairings.filterIndexed { i, _ -> i != idx }
+                                                            val nextHist = if (nextPairings.isEmpty()) {
+                                                                history.filter { it.id != h.id }
+                                                            } else {
+                                                                history.map { if (it.id == h.id) it.copy(pairings = nextPairings) else it }
+                                                            }
+                                                            onSaveHistory(nextHist)
+                                                        }
+                                                    }
+                                                    .padding(horizontal = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    CompactButton("♻️ Wiederverwenden & Bearbeiten") {
+                                        reuseHistoryEntry(h)
+                                    }
+                                    CompactButton("📲 An Teilnehmer") {
+                                        shareHistoryEntry(h)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
-    // Dialog: Wichtelrunde erstellen / bearbeiten
+    // Dialog: Wichtel-Historie importieren (für Teilnehmer nach Abschluss der Wichtelperiode)
+    if (showImportHistoryDialog) {
+        var rawImport by remember { mutableStateOf("") }
+        Dialog(onDismissRequest = { showImportHistoryDialog = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("📥 Eigene Wichtel-Historie importieren", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Füge hier die vom Gruppenadmin geteilte Nachricht (mit WICHTEL_HISTORY_JSON:...) ein. Danach kannst du den alten Wichteleintrag selbst als Admin wiederverwenden, vor Neustart bearbeiten, einsehen oder löschen.",
+                    color = TextSecondary,
+                    fontSize = 11.5.sp
+                )
+                OutlinedTextField(
+                    value = rawImport,
+                    onValueChange = { rawImport = it },
+                    label = { Text("Nachricht oder WICHTEL_HISTORY_JSON einfügen") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    CompactButton("Abbrechen") { showImportHistoryDialog = false }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    CompactButton("Importieren") {
+                        runCatching {
+                            val marker = "WICHTEL_HISTORY_JSON:"
+                            val jsonPart = if (rawImport.contains(marker)) {
+                                rawImport.substringAfter(marker).trim()
+                            } else {
+                                rawImport.trim()
+                            }
+                            val obj = JSONObject(jsonPart)
+                            val pairingsArr = obj.optJSONArray("pairings") ?: JSONArray()
+                            val pairings = mutableListOf<WichtelHistoryPair>()
+                            for (i in 0 until pairingsArr.length()) {
+                                val p = pairingsArr.optJSONObject(i) ?: continue
+                                pairings.add(
+                                    WichtelHistoryPair(
+                                        giverName = p.optString("giverName", ""),
+                                        receiverName = p.optString("receiverName", ""),
+                                        phone = p.optString("phone", ""),
+                                        wishText = p.optString("wishText", ""),
+                                        wishlistUrl = p.optString("wishlistUrl", ""),
+                                        noGos = p.optString("noGos", ""),
+                                        address = p.optString("address", "")
+                                    )
+                                )
+                            }
+                            if (pairings.isNotEmpty()) {
+                                val imported = WichtelHistoryEntry(
+                                    id = System.currentTimeMillis(),
+                                    groupName = obj.optString("groupName", "Importierte Wichtelrunde"),
+                                    year = obj.optInt("year", LocalDate.now().year - 1),
+                                    adminName = obj.optString("adminName", "Admin"),
+                                    motto = obj.optString("motto", "🎁 Klassisches Wichteln"),
+                                    budget = obj.optString("budget", "25 €"),
+                                    completedAtIso = obj.optString("completedAtIso", LocalDate.now().toString()),
+                                    excludeCouples = obj.optBoolean("excludeCouples", true),
+                                    excludeLastYear = obj.optBoolean("excludeLastYear", true),
+                                    pairings = pairings
+                                )
+                                onSaveHistory(listOf(imported) + history)
+                                showImportHistoryDialog = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog: Wichtelrunde erstellen / bearbeiten / aus Historie wiederverwenden
     editingGroup?.let { eg ->
         var gName by remember(eg) { mutableStateOf(eg.groupName) }
         var gAdmin by remember(eg) { mutableStateOf(eg.adminName) }
@@ -3546,11 +4069,22 @@ fun WichtelScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    if (isCreatingGroup) "🎄 Neue Wichtelrunde erstellen" else "🎄 Wichtelrunde bearbeiten",
+                    when {
+                        isReusingHistory -> "♻️ Altes Wichteln wiederverwenden & bearbeiten"
+                        isCreatingGroup -> "🎄 Neue Wichtelrunde erstellen"
+                        else -> "🎄 Wichtelrunde bearbeiten"
+                    },
                     color = TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
+                if (isReusingHistory) {
+                    Text(
+                        "✨ ${eg.participants.size} Teilnehmer & Wunschzettel aus der Historie wurden übernommen. Du kannst alle Angaben vor dem Neustart frei anpassen und danach auch die Teilnehmerliste bearbeiten.",
+                        color = TreeGreen,
+                        fontSize = 11.5.sp
+                    )
+                }
                 OutlinedTextField(value = gName, onValueChange = { gName = it }, label = { Text("Name der Wichtelrunde") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = gAdmin, onValueChange = { gAdmin = it }, label = { Text("👑 Gruppenadmin (Ersteller)") }, modifier = Modifier.fillMaxWidth())
                 Text("🎭 Wichtel-Modus / Motto:", color = TextSecondary, fontSize = 11.sp)
@@ -3572,7 +4106,7 @@ fun WichtelScreen(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = gLastYear, onCheckedChange = { gLastYear = it })
-                    Text("🔄 Nicht dieselbe Person wie im Vorjahr zulosen", color = TextSecondary, fontSize = 12.sp)
+                    Text("🔄 Keine Wiederholungen (Vorjahre aus Wichtel-Historie mit einbeziehen)", color = TextSecondary, fontSize = 12.sp)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -3580,7 +4114,7 @@ fun WichtelScreen(
                 ) {
                     CompactButton("Abbrechen") { editingGroup = null }
                     Spacer(modifier = Modifier.width(6.dp))
-                    CompactButton("Speichern") {
+                    CompactButton(if (isReusingHistory) "♻️ Übernehmen & Runde anlegen" else "Speichern") {
                         val finalGroup = eg.copy(
                             groupName = gName.trim().ifBlank { "Wichtelrunde" },
                             adminName = gAdmin.trim().ifBlank { "Admin" },
@@ -3605,6 +4139,7 @@ fun WichtelScreen(
                         val nextList = if (isCreatingGroup) groups + finalGroup else groups.map { if (it.id == eg.id) finalGroup else it }
                         onSaveGroups(nextList)
                         selectedGroupId = finalGroup.id
+                        isReusingHistory = false
                         editingGroup = null
                     }
                 }
