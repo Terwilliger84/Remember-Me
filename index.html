@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.20 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.21 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -824,6 +824,139 @@
     let syncStatus = `App-Code: ${state.ownPairingCode}`;
     let logs = [];
 
+    const DEFAULT_BIRTHDAY_GREETINGS = [
+      "Alles Liebe und Gute zum Geburtstag, {Name}! 🎂🎉 Hab einen wunderschönen Tag!",
+      "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🥳 Ich wünsche dir Gesundheit, Glück und ganz viel Freude!",
+      "Happy Birthday, {Name}! 🎈 Lass dich heute ordentlich feiern und reich beschenken!",
+      "Liebe/r {Name}, zu deinem Geburtstag wünsche ich dir von Herzen nur das Allerbeste! 🍀🎂",
+      "Hoch sollst du leben, {Name}! 🥂 Alles Gute für dein neues Lebensjahr!",
+      "Zum Geburtstag viel Glück, {Name}! 🎶🎂 Genieße deinen Ehrentag in vollen Zügen!",
+      "Alles Gute zum Geburtstag, {Name}! ☀️ Mögen all deine Wünsche im neuen Lebensjahr in Erfüllung gehen!",
+      "Hallo {Name}, ich wünsche dir einen fantastischen Geburtstag voller schöner Momente! 🎉🎁",
+      "Herzlichen Glückwunsch, {Name}! 🎂 Bleib so wunderbar, wie du bist, und hab einen tollen Tag!",
+      "Ein Prosit auf dein neues Lebensjahr, {Name}! 🥂✨ Alles Liebe zum Geburtstag!",
+      "Liebe/r {Name}, ich schicke dir sonnige Geburtstagsgrüße und wünsche dir 365 glückliche Tage! ☀️🍀",
+      "Alles, alles Gute zum Geburtstag, {Name}! 🎊 Lass heute mal fünfe gerade sein und feier schön!",
+      "Happy Birthday, {Name}! 🎂 Viel Gesundheit, Erfolg und unzählige schöne Augenblicke für dich!",
+      "Zu deinem Ehrentag wünsche ich dir beste Gesundheit, viel Lachen und tolle Menschen um dich herum, {Name}! 🥳",
+      "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🎁 Möge dein neues Lebensjahr noch schöner werden als das letzte!",
+      "Hallo {Name}! 🎈 Heute ist dein Tag – lass dich feiern, verwöhnen und hochleben!",
+      "Für dein neues Lebensjahr wünsche ich dir eine Extraportion Glück, Gesundheit und Lebensfreude, {Name}! 🍀🎂",
+      "Alles Liebe zum Geburtstag, {Name}! 🌸 Schön, dass es dich gibt!",
+      "Herzlichen Glückwunsch, {Name}! 🎉 Ich hoffe, du hast heute einen richtig schönen Tag mit deinen Liebsten!",
+      "Happy Birthday, {Name}! 🍰 Iss heute ein großes Stück Kuchen für mich mit!",
+      "Liebe/r {Name}, alles erdenklich Gute zum Geburtstag! 🥂 Auf viele weitere glückliche und gesunde Jahre!",
+      "Ich wünsche dir zum Geburtstag viel Sonnenschein im Herzen und immer einen Grund zum Lächeln, {Name}! ☀️😊",
+      "Alles Gute zum Geburtstag, {Name}! 🎯 Möge dir im neuen Lebensjahr alles gelingen, was du dir vornimmst!",
+      "Herzlichen Glückwunsch, {Name}! 🎂 Gesundheit, Glück und Zufriedenheit sollen dich das ganze Jahr begleiten!",
+      "Ein neues Lebensjahr, ein neues Kapitel: Alles Liebe und Gute zum Geburtstag, {Name}! 📖✨",
+      "Hallo {Name}, von Herzen alles Gute zum Geburtstag! 🥳 Lass die Korken knallen!",
+      "Zu deinem Geburtstag wünsche ich dir Zeit für die schönen Dinge im Leben, {Name}! 🎂🌿",
+      "Happy Birthday, {Name}! 🎉 Bleib gesund, munter und genauso herzlich wie bisher!",
+      "Alles Liebe zum Geburtstag, {Name}! 🎁 Ich wünsche dir einen Tag voller Überraschungen und Freude!",
+      "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍀 Möge das Glück heute und an jedem Tag an deiner Seite sein!",
+      "Auf dich, {Name}! 🥂 Hab einen grandiosen Geburtstag und ein wundervolles neues Lebensjahr!",
+      "Liebe/r {Name}, zu deinem Wiegenfest wünsche ich dir von Herzen alles Gute und beste Gesundheit! 🎂💐",
+      "Alles Gute zum Geburtstag, {Name}! 🌟 Strahle heute mit der Sonne um die Wette!",
+      "Happy Birthday, {Name}! 🎈 Genieße jede Sekunde deines heutigen Ehrentages!",
+      "Herzlichen Glückwunsch, {Name}! 🎊 Ich wünsche dir wunderbare Stunden im Kreis deiner Familie und Freunde!",
+      "Hallo {Name}, alles Liebe zum Geburtstag! 🎂 Möge dein neues Lebensjahr voller unvergesslicher Momente sein!",
+      "Für dich zum Geburtstag nur die besten Wünsche: Gesundheit, Frohsinn und ganz viel Glück, {Name}! 🍀🥳",
+      "Alles Gute zum Geburtstag, {Name}! 🎁 Heute dreht sich alles nur um dich – genieße es!",
+      "Liebe/r {Name}, herzlichen Glückwunsch! 🥂 Bleib so lebensfroh und positiv wie du bist!",
+      "Happy Birthday, {Name}! 🎂 Ein Jahr älter, ein Jahr weiser und noch genauso sympathisch!",
+      "Zu deinem Geburtstag schicke ich dir die herzlichsten Glückwünsche, {Name}! 🎉🌸",
+      "Alles Liebe und Gute, {Name}! 🎈 Ich wünsche dir für das kommende Lebensjahr Rückenwind bei all deinen Plänen!",
+      "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍰 Lass es dir heute richtig gutgehen!",
+      "Hallo {Name}! 🥳 Wieder ein Jahr geschafft – feier deinen Geburtstag heute gebührend!",
+      "Ich wünsche dir zu deinem Geburtstag von Herzen Gesundheit, Ruhe, Freude und viele glückliche Tage, {Name}! 🍀🎂",
+      "Happy Birthday, {Name}! ✨ Möge das neue Lebensjahr dir jeden Tag ein Lächeln ins Gesicht zaubern!",
+      "Alles Gute zum Geburtstag, {Name}! 🎊 Lass dich heute von deinen Liebsten auf Händen tragen!",
+      "Liebe/r {Name}, die allerbesten Glückwünsche zu deinem Geburtstag! 🥂🎁 Hab einen traumhaften Tag!",
+      "Herzlichen Glückwunsch, {Name}! 🎂 Viel Kraft, Gesundheit und tolle Erlebnisse im neuen Lebensjahr!",
+      "Zum Geburtstag wünsche ich dir so viel Glück, wie der Regen Tropfen hat, {Name}! 🍀☀️",
+      "Hallo {Name}, alles Liebe zum Geburtstag! 🎈 Mach dir heute einen unvergesslich schönen Tag!",
+      "Happy Birthday, {Name}! 🥳 Auf dass deine kleinen und großen Träume im neuen Lebensjahr wahr werden!",
+      "Alles Gute zum Geburtstag, {Name}! 🎂 Gesundheit ist das größte Geschenk – davon wünsche ich dir reichlich!",
+      "Herzlichen Glückwunsch, {Name}! 🎉 Genieße deinen Tag mit gutem Essen, lieben Menschen und bester Laune!",
+      "Liebe/r {Name}, zum Geburtstag wünsche ich dir 12 Monate Gesundheit, 52 Wochen Glück und 365 Tage Freude! 🍀🥂",
+      "Ein herzliches Happy Birthday an dich, {Name}! 🎂🎁 Lass dich heute schön feiern!",
+      "Alles Liebe zum Geburtstag, {Name}! ☀️ Behalte deinen Humor und deine Lebensfreude!",
+      "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🎊 Auf ein spannendes, gesundes und glückliches neues Lebensjahr!",
+      "Hallo {Name}, ich denke heute an dich und wünsche dir einen wundervollen Geburtstag! 🌸🎂",
+      "Happy Birthday, {Name}! 🎈 Möge dein Kaffeebecher immer voll und dein Stresspegel immer niedrig sein!",
+      "Alles Gute zum Geburtstag, {Name}! 🥂 Feier heute schön und hab eine grandiose Zeit!",
+      "Liebe/r {Name}, zu deinem Geburtstag wünsche ich dir von Herzen Zufriedenheit, Glück und beste Gesundheit! 🍀🎁",
+      "Herzlichen Glückwunsch, {Name}! 🥳 Lass heute die Arbeit ruhen und das Leben hochleben!",
+      "Zum Geburtstag alles Liebe, {Name}! 🎂 Ich wünsche dir viele kleine Glücksmomente an jedem einzelnen Tag!",
+      "Happy Birthday, {Name}! 🎉 Bleib gesund, fröhlich und immer auf der Sonnenseite des Lebens!",
+      "Alles Gute zum Geburtstag, {Name}! 🌟 Ich hoffe, dein Tag wird genauso toll wie du!",
+      "Hallo {Name}! 🍰 Zu deinem Geburtstag wünsche ich dir alles Glück dieser Erde!",
+      "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🎈 Möge dir das neue Lebensjahr viele schöne Überraschungen bringen!",
+      "Liebe/r {Name}, alles Liebe und Gute zu deinem Ehrentag! 🥂🍀 Lass es dir heute rundum gutgehen!",
+      "Happy Birthday, {Name}! 🎂 Wieder ein Jahr mehr voller schöner Erinnerungen – auf viele weitere!",
+      "Alles Gute zum Geburtstag, {Name}! 🎁 Ich wünsche dir Gesundheit, Mut und immer gute Laune!",
+      "Herzlichen Glückwunsch, {Name}! 🥳Hab einen sonnigen, entspannten und fröhlichen Geburtstag!",
+      "Zu deinem Geburtstag wünsche ich dir von Herzen alles erdenklich Gute, {Name}! 🌸🎊",
+      "Hallo {Name}, lass dich heute feiern! 🎉 Alles Liebe, viel Glück und Gesundheit zum Geburtstag!",
+      "Happy Birthday, {Name}! 🥂 Möge dein neues Lebensjahr unter einem besonders guten Stern stehen! ⭐",
+      "Alles Liebe zum Geburtstag, {Name}! 🎂 Genieße das Kuchenessen, das Auspacken und das Feiern!",
+      "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍀 Auf dass du gesund, glücklich und zufrieden bleibst!",
+      "Liebe/r {Name}, ich wünsche dir einen zauberhaften Geburtstag und ein tolles neues Lebensjahr! ✨🎈",
+      "Alles Gute zum Geburtstag, {Name}! 🥳 Nimm dir heute Zeit für alles, was dir Freude macht!",
+      "Happy Birthday, {Name}! 🎁 Ich schicke dir eine große Portion Glück und beste Wünsche für dein neues Lebensjahr!",
+      "Herzlichen Glückwunsch, {Name}! 🎂 Möge jeder Tag deines neuen Lebensjahres ein kleines Fest sein!",
+      "Hallo {Name}, zum Geburtstag wünsche ich dir feste Gesundheit, gute Nerven und ganz viel Sonnenschein! ☀️🍀",
+      "Alles Liebe und Gute zum Geburtstag, {Name}! 🥂 Lass dich heute ordentlich hochleben!",
+      "Zu deinem Geburtstag nur das Beste für dich, {Name}: Glück, Liebe, Gesundheit und Erfolg! 🎉🎂",
+      "Happy Birthday, {Name}! 🎈 Bleib im Herzen jung und genieße jeden Moment!",
+      "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍰 Ich hoffe, du wirst heute nach Strich und Faden verwöhnt!",
+      "Liebe/r {Name}, alles Gute zum Geburtstag! 🍀 Möge das kommende Jahr dir viele schöne Reisen und Erlebnisse schenken!",
+      "Alles Liebe zum Geburtstag, {Name}! 🥳 Feier schön im Kreis deiner Lieblingsmenschen!",
+      "Happy Birthday, {Name}! 🎊 Ein Hoch auf dich und dein neues Lebensjahr!",
+      "Herzlichen Glückwunsch, {Name}! 🎂 Ich wünsche dir Gesundheit, Gelassenheit und jeden Tag ein Lächeln!",
+      "Hallo {Name}! 🎁 Zu deinem Ehrentag wünsche ich dir von Herzen alles Liebe und Gute!",
+      "Alles Gute zum Geburtstag, {Name}! ☀️ Mögen dir Glück und Gesundheit niemals ausgehen!",
+      "Liebe/r {Name}, herzlichen Glückwunsch zum Geburtstag! 🥂 Genieße deinen besonderen Tag in vollen Zügen!",
+      "Happy Birthday, {Name}! 🎉 Ich wünsche dir ein wunderbares neues Lebensjahr voller Freude und Harmonie!",
+      "Zum Geburtstag die allerherzlichsten Glückwünsche, {Name}! 🎂🍀 Lass es heute krachen!",
+      "Alles Liebe zum Geburtstag, {Name}! 🌸 Möge dir das neue Lebensjahr ganz viel Grund zum Feiern geben!",
+      "Herzlichen Glückwunsch, {Name}! 🎈 Gesundheit, Glück und viele schöne gemeinsame Stunden wünsche ich dir!",
+      "Hallo {Name}, alles Gute zum Geburtstag! 🥳 Bleib gesund, glücklich und genau so, wie du bist!",
+      "Happy Birthday, {Name}! 🍰✨ Ich wünsche dir einen unvergesslichen Tag und ein glückliches neues Lebensjahr!",
+      "Von Herzen alles Liebe und Gute zum Geburtstag, {Name}! 🎂🥂🍀 Lass dich heute wunderbar feiern!"
+    ];
+
+    let showGreetingsEditorModal = false;
+    let greetingsSearchQuery = "";
+
+    function getBirthdayGreetingsList() {
+      if (!Array.isArray(state.birthdayGreetings) || state.birthdayGreetings.length === 0) {
+        state.birthdayGreetings = [...DEFAULT_BIRTHDAY_GREETINGS];
+      }
+      return state.birthdayGreetings;
+    }
+
+    function pickRandomBirthdayGreeting(firstName, isPastMode = false) {
+      const cleanFirst = (firstName || "dir").trim();
+      if (isPastMode) {
+        return `Alles Gute nachträglich zum Geburtstag, ${cleanFirst}! 🎂🎉 Ich hoffe, du hattest einen wunderschönen Tag!`;
+      }
+      const list = getBirthdayGreetingsList();
+      const raw = list[Math.floor(Math.random() * list.length)] || DEFAULT_BIRTHDAY_GREETINGS[0];
+      return raw.replace(/\{Name\}/gi, cleanFirst);
+    }
+
+    function rerollPopupGreeting() {
+      if (!popupState) return;
+      const person = state.persons.find(p => p.id === popupState.personId);
+      if (!person) return;
+      const relPairs = getRelationsForPerson(person.id);
+      const resolved = ContactResolver.resolveTarget(person, relPairs);
+      const firstName = resolved.targetPersonName.split(" ")[0];
+      popupState.quickMessageText = pickRandomBirthdayGreeting(firstName, false);
+      renderModals();
+    }
     let showCreateDialog = false;
     let detailPersonId = null;
     let popupState = null;
@@ -1571,10 +1704,11 @@
       const relPairs = getRelationsForPerson(person.id);
       const resolved = ContactResolver.resolveTarget(person, relPairs);
       const firstName = resolved.targetPersonName.split(" ")[0];
+      const isPast = String(reason || "").toLowerCase().includes("nachträglich");
       popupState = {
         personId: person.id,
         reason,
-        quickMessageText: `Hallo ${firstName}, herzliche Grüße!`
+        quickMessageText: pickRandomBirthdayGreeting(firstName, isPast)
       };
       renderAll();
     }
@@ -1714,7 +1848,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.20</div>
+            <div class="app-title">Remember Me v1.0.21</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2999,11 +3133,52 @@
         return;
       }
 
+      if (showGreetingsEditorModal) {
+        const list = getBirthdayGreetingsList();
+        const q = (greetingsSearchQuery || "").trim().toLowerCase();
+        const filtered = list
+          .map((text, idx) => ({ text, idx }))
+          .filter(item => !q || item.text.toLowerCase().includes(q) || String(item.idx + 1) === q);
+
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" style="max-width:365px;" onclick="event.stopPropagation()">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div class="modal-title">🎂 Geburtstagsgrüße (${list.length})</div>
+                <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="resetDefaultBirthdayGreetings()">🔄 100 Standard</button>
+              </div>
+              <div style="font-size:11px; color:var(--text-secondary); line-height:1.35;">
+                Beim Öffnen einer Nachricht wählt die App zufällig einen dieser Glückwunschtexte aus. Der Platzhalter <b>{Name}</b> wird automatisch durch den Vornamen ersetzt.
+              </div>
+              <div style="display:flex; gap:6px;">
+                <input class="field-input" style="flex:1;" placeholder="🔎 Spruch suchen (z. B. Glück, Kuchen, Nr.)..." value="${escapeHtml(greetingsSearchQuery)}" oninput="greetingsSearchQuery=this.value; renderModals();" />
+                <button class="compact-btn primary" onclick="addNewBirthdayGreeting()">+ Neu</button>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow-y:auto; padding-right:2px;">
+                ${filtered.map(item => `
+                  <div style="display:flex; gap:5px; align-items:center; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:7px; padding:5px 7px;">
+                    <span style="font-size:10.5px; font-weight:700; color:var(--accent-steel); min-width:24px;">#${item.idx + 1}</span>
+                    <input class="field-input" style="flex:1; font-size:11.5px; padding:4px 6px;" value="${escapeHtml(item.text)}" onchange="updateBirthdayGreetingAt(${item.idx}, this.value)" />
+                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="deleteBirthdayGreetingAt(${item.idx})" title="Diesen Spruch löschen">✕</span>
+                  </div>
+                `).join("")}
+              </div>
+              <div class="modal-footer" style="justify-content:space-between;">
+                <button class="compact-btn" onclick="showGreetingsEditorModal=false; showOptionsDialog=true; renderModals();">← Zurück zu Optionen</button>
+                <button class="compact-btn primary" onclick="showGreetingsEditorModal=false; saveState();">Fertig</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       if (showOptionsDialog) {
         let currentTheme = state.themeMode || "warm";
         if (currentTheme === "light") currentTheme = "warm";
         if (currentTheme === "dark") currentTheme = "cozy-dark";
         const wichtelActive = state.wichtelEnabled !== false;
+        const greetingsCount = getBirthdayGreetingsList().length;
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
             <div class="modal" style="max-width:355px;" onclick="event.stopPropagation()">
@@ -3023,6 +3198,14 @@
                   <button class="compact-btn ${wichtelActive ? 'primary' : ''}" onclick="setWichtelEnabled(true)">Aktiviert</button>
                   <button class="compact-btn ${!wichtelActive ? 'primary' : ''}" onclick="setWichtelEnabled(false)">Deaktiviert</button>
                 </div>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
+                <div>
+                  <div style="font-size:13px; font-weight:600; color:var(--text-primary);">🎂 Geburtstagsgrüße (${greetingsCount})</div>
+                  <div style="font-size:10.5px; color:var(--text-secondary);">Zufällige Glückwunschtexte mit {Name}</div>
+                </div>
+                <button class="compact-btn primary" onclick="showOptionsDialog=false; showGreetingsEditorModal=true; renderModals();">✏️ Bearbeiten</button>
               </div>
 
               <div style="display:flex; flex-direction:column; gap:6px; padding:8px 0; border-bottom:1px solid var(--border-slate);">
@@ -3355,7 +3538,10 @@
               </div>
               ${resolved.warningNotice ? `<div class="warning-box">${escapeHtml(resolved.warningNotice)}</div>` : ""}
               <div class="field-group">
-                <label class="field-label">Nachricht / Gruß</label>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                  <label class="field-label">Nachricht / Gruß (zufälliger Glückwunsch)</label>
+                  <button class="compact-btn" style="padding:2px 7px; font-size:10.5px;" onclick="rerollPopupGreeting()" title="Anderen zufälligen Geburtstagsgruß würfeln">🎲 Anderer Spruch</button>
+                </div>
                 <input id="p-msg" class="field-input" value="${escapeHtml(popupState.quickMessageText)}" oninput="popupState.quickMessageText = this.value" />
               </div>
               <div class="btn-row">
@@ -4711,6 +4897,37 @@
       saveState();
     }
 
+    function addNewBirthdayGreeting() {
+      const list = getBirthdayGreetingsList();
+      list.unshift("Alles Liebe und Gute zum Geburtstag, {Name}! 🎂🎉");
+      greetingsSearchQuery = "";
+      addLog("Neuer Geburtstagsgruß hinzugefügt.");
+      saveState();
+    }
+
+    function updateBirthdayGreetingAt(idx, val) {
+      const list = getBirthdayGreetingsList();
+      if (idx >= 0 && idx < list.length) {
+        list[idx] = val;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+    }
+
+    function deleteBirthdayGreetingAt(idx) {
+      const list = getBirthdayGreetingsList();
+      if (list.length <= 1) return;
+      list.splice(idx, 1);
+      saveState();
+    }
+
+    function resetDefaultBirthdayGreetings() {
+      askDeleteConfirm("Alle Geburtstagsgrüße auf die 100 Standard-Glückwunschtexte zurücksetzen?", () => {
+        state.birthdayGreetings = [...DEFAULT_BIRTHDAY_GREETINGS];
+        addLog("100 Standard-Geburtstagsgrüße wiederhergestellt.");
+        saveState();
+      });
+    }
+
     function closeModals(e) {
       if (e.target.classList.contains("modal-backdrop")) {
         if (pendingDeleteConfirm) {
@@ -4719,6 +4936,7 @@
           return;
         }
         showOptionsDialog = false;
+        showGreetingsEditorModal = false;
         showCreateDialog = false;
         detailPersonId = null;
         popupState = null;
@@ -5005,7 +5223,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.20",
+        version: "1.0.21",
         createdAt: dateStr,
         state
       };
@@ -5023,7 +5241,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.20",
+        version: "1.0.21",
         createdAt: dateStr,
         state
       };
@@ -5098,7 +5316,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.20 gestartet.");
+    addLog("Remember Me v1.0.21 gestartet.");
     renderAll();
   </script>
 </body>

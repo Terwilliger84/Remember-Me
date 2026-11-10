@@ -846,6 +846,126 @@ fun serializeWichtelHistoryJson(history: List<WichtelHistoryEntry>): String {
     return arr.toString()
 }
 
+val DEFAULT_BIRTHDAY_GREETINGS = listOf(
+    "Alles Liebe und Gute zum Geburtstag, {Name}! 🎂🎉 Hab einen wunderschönen Tag!",
+    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🥳 Ich wünsche dir Gesundheit, Glück und ganz viel Freude!",
+    "Happy Birthday, {Name}! 🎈 Lass dich heute ordentlich feiern und reich beschenken!",
+    "Liebe/r {Name}, zu deinem Geburtstag wünsche ich dir von Herzen nur das Allerbeste! 🍀🎂",
+    "Hoch sollst du leben, {Name}! 🥂 Alles Gute für dein neues Lebensjahr!",
+    "Zum Geburtstag viel Glück, {Name}! 🎶🎂 Genieße deinen Ehrentag in vollen Zügen!",
+    "Alles Gute zum Geburtstag, {Name}! ☀️ Mögen all deine Wünsche im neuen Lebensjahr in Erfüllung gehen!",
+    "Hallo {Name}, ich wünsche dir einen fantastischen Geburtstag voller schöner Momente! 🎉🎁",
+    "Herzlichen Glückwunsch, {Name}! 🎂 Bleib so wunderbar, wie du bist, und hab einen tollen Tag!",
+    "Ein Prosit auf dein neues Lebensjahr, {Name}! 🥂✨ Alles Liebe zum Geburtstag!",
+    "Liebe/r {Name}, ich schicke dir sonnige Geburtstagsgrüße und wünsche dir 365 glückliche Tage! ☀️🍀",
+    "Alles, alles Gute zum Geburtstag, {Name}! 🎊 Lass heute mal fünfe gerade sein und feier schön!",
+    "Happy Birthday, {Name}! 🎂 Viel Gesundheit, Erfolg und unzählige schöne Augenblicke für dich!",
+    "Zu deinem Ehrentag wünsche ich dir beste Gesundheit, viel Lachen und tolle Menschen um dich herum, {Name}! 🥳",
+    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🎁 Möge dein neues Lebensjahr noch schöner werden als das letzte!",
+    "Hallo {Name}! 🎈 Heute ist dein Tag – lass dich feiern, verwöhnen und hochleben!",
+    "Für dein neues Lebensjahr wünsche ich dir eine Extraportion Glück, Gesundheit und Lebensfreude, {Name}! 🍀🎂",
+    "Alles Liebe zum Geburtstag, {Name}! 🌸 Schön, dass es dich gibt!",
+    "Herzlichen Glückwunsch, {Name}! 🎉 Ich hoffe, du hast heute einen richtig schönen Tag mit deinen Liebsten!",
+    "Happy Birthday, {Name}! 🍰 Iss heute ein großes Stück Kuchen für mich mit!",
+    "Liebe/r {Name}, alles erdenklich Gute zum Geburtstag! 🥂 Auf viele weitere glückliche und gesunde Jahre!",
+    "Ich wünsche dir zum Geburtstag viel Sonnenschein im Herzen und immer einen Grund zum Lächeln, {Name}! ☀️😊",
+    "Alles Gute zum Geburtstag, {Name}! 🎯 Möge dir im neuen Lebensjahr alles gelingen, was du dir vornimmst!",
+    "Herzlichen Glückwunsch, {Name}! 🎂 Gesundheit, Glück und Zufriedenheit sollen dich das ganze Jahr begleiten!",
+    "Ein neues Lebensjahr, ein neues Kapitel: Alles Liebe und Gute zum Geburtstag, {Name}! 📖✨",
+    "Hallo {Name}, von Herzen alles Gute zum Geburtstag! 🥳 Lass die Korken knallen!",
+    "Zu deinem Geburtstag wünsche ich dir Zeit für die schönen Dinge im Leben, {Name}! 🎂🌿",
+    "Happy Birthday, {Name}! 🎉 Bleib gesund, munter und genauso herzlich wie bisher!",
+    "Alles Liebe zum Geburtstag, {Name}! 🎁 Ich wünsche dir einen Tag voller Überraschungen und Freude!",
+    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍀 Möge das Glück heute und an jedem Tag an deiner Seite sein!",
+    "Auf dich, {Name}! 🥂 Hab einen grandiosen Geburtstag und ein wundervolles neues Lebensjahr!",
+    "Liebe/r {Name}, zu deinem Wiegenfest wünsche ich dir von Herzen alles Gute und beste Gesundheit! 🎂💐",
+    "Alles Gute zum Geburtstag, {Name}! 🌟 Strahle heute mit der Sonne um die Wette!",
+    "Happy Birthday, {Name}! 🎈 Genieße jede Sekunde deines heutigen Ehrentages!",
+    "Herzlichen Glückwunsch, {Name}! 🎊 Ich wünsche dir wunderbare Stunden im Kreis deiner Familie und Freunde!",
+    "Hallo {Name}, alles Liebe zum Geburtstag! 🎂 Möge dein neues Lebensjahr voller unvergesslicher Momente sein!",
+    "Für dich zum Geburtstag nur die besten Wünsche: Gesundheit, Frohsinn und ganz viel Glück, {Name}! 🍀🥳",
+    "Alles Gute zum Geburtstag, {Name}! 🎁 Heute dreht sich alles nur um dich – genieße es!",
+    "Liebe/r {Name}, herzlichen Glückwunsch! 🥂 Bleib so lebensfroh und positiv wie du bist!",
+    "Happy Birthday, {Name}! 🎂 Ein Jahr älter, ein Jahr weiser und noch genauso sympathisch!",
+    "Zu deinem Geburtstag schicke ich dir die herzlichsten Glückwünsche, {Name}! 🎉🌸",
+    "Alles Liebe und Gute, {Name}! 🎈 Ich wünsche dir für das kommende Lebensjahr Rückenwind bei all deinen Plänen!",
+    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍰 Lass es dir heute richtig gutgehen!",
+    "Hallo {Name}! 🥳 Wieder ein Jahr geschafft – feier deinen Geburtstag heute gebührend!",
+    "Ich wünsche dir zu deinem Geburtstag von Herzen Gesundheit, Ruhe, Freude und viele glückliche Tage, {Name}! 🍀🎂",
+    "Happy Birthday, {Name}! ✨ Möge das neue Lebensjahr dir jeden Tag ein Lächeln ins Gesicht zaubern!",
+    "Alles Gute zum Geburtstag, {Name}! 🎊 Lass dich heute von deinen Liebsten auf Händen tragen!",
+    "Liebe/r {Name}, die allerbesten Glückwünsche zu deinem Geburtstag! 🥂🎁 Hab einen traumhaften Tag!",
+    "Herzlichen Glückwunsch, {Name}! 🎂 Viel Kraft, Gesundheit und tolle Erlebnisse im neuen Lebensjahr!",
+    "Zum Geburtstag wünsche ich dir so viel Glück, wie der Regen Tropfen hat, {Name}! 🍀☀️",
+    "Hallo {Name}, alles Liebe zum Geburtstag! 🎈 Mach dir heute einen unvergesslich schönen Tag!",
+    "Happy Birthday, {Name}! 🥳 Auf dass deine kleinen und großen Träume im neuen Lebensjahr wahr werden!",
+    "Alles Gute zum Geburtstag, {Name}! 🎂 Gesundheit ist das größte Geschenk – davon wünsche ich dir reichlich!",
+    "Herzlichen Glückwunsch, {Name}! 🎉 Genieße deinen Tag mit gutem Essen, lieben Menschen und bester Laune!",
+    "Liebe/r {Name}, zum Geburtstag wünsche ich dir 12 Monate Gesundheit, 52 Wochen Glück und 365 Tage Freude! 🍀🥂",
+    "Ein herzliches Happy Birthday an dich, {Name}! 🎂🎁 Lass dich heute schön feiern!",
+    "Alles Liebe zum Geburtstag, {Name}! ☀️ Behalte deinen Humor und deine Lebensfreude!",
+    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🎊 Auf ein spannendes, gesundes und glückliches neues Lebensjahr!",
+    "Hallo {Name}, ich denke heute an dich und wünsche dir einen wundervollen Geburtstag! 🌸🎂",
+    "Happy Birthday, {Name}! 🎈 Möge dein Kaffeebecher immer voll und dein Stresspegel immer niedrig sein!",
+    "Alles Gute zum Geburtstag, {Name}! 🥂 Feier heute schön und hab eine grandiose Zeit!",
+    "Liebe/r {Name}, zu deinem Geburtstag wünsche ich dir von Herzen Zufriedenheit, Glück und beste Gesundheit! 🍀🎁",
+    "Herzlichen Glückwunsch, {Name}! 🥳 Lass heute die Arbeit ruhen und das Leben hochleben!",
+    "Zum Geburtstag alles Liebe, {Name}! 🎂 Ich wünsche dir viele kleine Glücksmomente an jedem einzelnen Tag!",
+    "Happy Birthday, {Name}! 🎉 Bleib gesund, fröhlich und immer auf der Sonnenseite des Lebens!",
+    "Alles Gute zum Geburtstag, {Name}! 🌟 Ich hoffe, dein Tag wird genauso toll wie du!",
+    "Hallo {Name}! 🍰 Zu deinem Geburtstag wünsche ich dir alles Glück dieser Erde!",
+    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🎈 Möge dir das neue Lebensjahr viele schöne Überraschungen bringen!",
+    "Liebe/r {Name}, alles Liebe und Gute zu deinem Ehrentag! 🥂🍀 Lass es dir heute rundum gutgehen!",
+    "Happy Birthday, {Name}! 🎂 Wieder ein Jahr mehr voller schöner Erinnerungen – auf viele weitere!",
+    "Alles Gute zum Geburtstag, {Name}! 🎁 Ich wünsche dir Gesundheit, Mut und immer gute Laune!",
+    "Herzlichen Glückwunsch, {Name}! 🥳 Hab einen sonnigen, entspannten und fröhlichen Geburtstag!",
+    "Zu deinem Geburtstag wünsche ich dir von Herzen alles erdenklich Gute, {Name}! 🌸🎊",
+    "Hallo {Name}, lass dich heute feiern! 🎉 Alles Liebe, viel Glück und Gesundheit zum Geburtstag!",
+    "Happy Birthday, {Name}! 🥂 Möge dein neues Lebensjahr unter einem besonders guten Stern stehen! ⭐",
+    "Alles Liebe zum Geburtstag, {Name}! 🎂 Genieße das Kuchenessen, das Auspacken und das Feiern!",
+    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍀 Auf dass du gesund, glücklich und zufrieden bleibst!",
+    "Liebe/r {Name}, ich wünsche dir einen zauberhaften Geburtstag und ein tolles neues Lebensjahr! ✨🎈",
+    "Alles Gute zum Geburtstag, {Name}! 🥳 Nimm dir heute Zeit für alles, was dir Freude macht!",
+    "Happy Birthday, {Name}! 🎁 Ich schicke dir eine große Portion Glück und beste Wünsche für dein neues Lebensjahr!",
+    "Herzlichen Glückwunsch, {Name}! 🎂 Möge jeder Tag deines neuen Lebensjahres ein kleines Fest sein!",
+    "Hallo {Name}, zum Geburtstag wünsche ich dir feste Gesundheit, gute Nerven und ganz viel Sonnenschein! ☀️🍀",
+    "Alles Liebe und Gute zum Geburtstag, {Name}! 🥂 Lass dich heute ordentlich hochleben!",
+    "Zu deinem Geburtstag nur das Beste für dich, {Name}: Glück, Liebe, Gesundheit und Erfolg! 🎉🎂",
+    "Happy Birthday, {Name}! 🎈 Bleib im Herzen jung und genieße jeden Moment!",
+    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍰 Ich hoffe, du wirst heute nach Strich und Faden verwöhnt!",
+    "Liebe/r {Name}, alles Gute zum Geburtstag! 🍀 Möge das kommende Jahr dir viele schöne Reisen und Erlebnisse schenken!",
+    "Alles Liebe zum Geburtstag, {Name}! 🥳 Feier schön im Kreis deiner Lieblingsmenschen!",
+    "Happy Birthday, {Name}! 🎊 Ein Hoch auf dich und dein neues Lebensjahr!",
+    "Herzlichen Glückwunsch, {Name}! 🎂 Ich wünsche dir Gesundheit, Gelassenheit und jeden Tag ein Lächeln!",
+    "Hallo {Name}! 🎁 Zu deinem Ehrentag wünsche ich dir von Herzen alles Liebe und Gute!",
+    "Alles Gute zum Geburtstag, {Name}! ☀️ Mögen dir Glück und Gesundheit niemals ausgehen!",
+    "Liebe/r {Name}, herzlichen Glückwunsch zum Geburtstag! 🥂 Genieße deinen besonderen Tag in vollen Zügen!",
+    "Happy Birthday, {Name}! 🎉 Ich wünsche dir ein wunderbares neues Lebensjahr voller Freude und Harmonie!",
+    "Zum Geburtstag die allerherzlichsten Glückwünsche, {Name}! 🎂🍀 Lass es heute krachen!",
+    "Alles Liebe zum Geburtstag, {Name}! 🌸 Möge dir das neue Lebensjahr ganz viel Grund zum Feiern geben!",
+    "Herzlichen Glückwunsch, {Name}! 🎈 Gesundheit, Glück und viele schöne gemeinsame Stunden wünsche ich dir!",
+    "Hallo {Name}, alles Gute zum Geburtstag! 🥳 Bleib gesund, glücklich und genau so, wie du bist!",
+    "Happy Birthday, {Name}! 🍰✨ Ich wünsche dir einen unvergesslichen Tag und ein glückliches neues Lebensjahr!",
+    "Von Herzen alles Liebe und Gute zum Geburtstag, {Name}! 🎂🥂🍀 Lass dich heute wunderbar feiern!"
+)
+
+fun parseBirthdayGreetingsJson(raw: String?): List<String> {
+    if (raw.isNullOrBlank()) return DEFAULT_BIRTHDAY_GREETINGS
+    return runCatching {
+        val arr = JSONArray(raw)
+        val list = (0 until arr.length()).mapNotNull { idx ->
+            arr.optString(idx).trim().takeIf { it.isNotBlank() }
+        }
+        list.ifEmpty { DEFAULT_BIRTHDAY_GREETINGS }
+    }.getOrElse { DEFAULT_BIRTHDAY_GREETINGS }
+}
+
+fun serializeBirthdayGreetingsJson(list: List<String>): String {
+    val arr = JSONArray()
+    list.forEach { arr.put(it) }
+    return arr.toString()
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -902,7 +1022,25 @@ fun KontaktChronikApp(
     var wichtelEnabled by remember { mutableStateOf(appPrefs.getBoolean("wichtel_enabled", true)) }
     var wichtelGroups by remember { mutableStateOf(parseWichtelGroupsJson(appPrefs.getString("wichtel_groups_json", null))) }
     var wichtelHistory by remember { mutableStateOf(parseWichtelHistoryJson(appPrefs.getString("wichtel_history_json", null))) }
+    var birthdayGreetings by remember { mutableStateOf(parseBirthdayGreetingsJson(appPrefs.getString("birthday_greetings_json", null))) }
     var showOptionsDialog by remember { mutableStateOf(false) }
+    var showGreetingsEditorDialog by remember { mutableStateOf(false) }
+
+    fun saveBirthdayGreetings(updated: List<String>) {
+        val finalList = updated.ifEmpty { DEFAULT_BIRTHDAY_GREETINGS }
+        birthdayGreetings = finalList
+        appPrefs.edit().putString("birthday_greetings_json", serializeBirthdayGreetingsJson(finalList)).apply()
+    }
+
+    fun pickRandomBirthdayGreeting(firstName: String, isPastMode: Boolean = false): String {
+        val cleanFirst = firstName.trim().ifBlank { "dir" }
+        if (isPastMode) {
+            return "Alles Gute nachträglich zum Geburtstag, $cleanFirst! 🎂🎉 Ich hoffe, du hattest einen wunderschönen Tag!"
+        }
+        val pool = birthdayGreetings.ifEmpty { DEFAULT_BIRTHDAY_GREETINGS }
+        val template = pool.random()
+        return template.replace(Regex("\\{Name\\}", RegexOption.IGNORE_CASE), cleanFirst)
+    }
 
     fun saveWichtelGroups(updated: List<WichtelGroup>) {
         wichtelGroups = updated
@@ -999,7 +1137,14 @@ fun KontaktChronikApp(
         }
 
         if (initialPopupPersonId > 0 && popupPerson == null) {
-            popupPerson = persons.find { it.id == initialPopupPersonId }
+            val found = persons.find { it.id == initialPopupPersonId }
+            if (found != null) {
+                val firstName = stripNameRoleSuffix(found.name).substringBefore(" ")
+                if (quickMessageText.isBlank()) {
+                    quickMessageText = pickRandomBirthdayGreeting(firstName, false)
+                }
+                popupPerson = found
+            }
         }
         if (selectedTreeRootId == null && persons.isNotEmpty()) {
             selectedTreeRootId = persons.first().id
@@ -1078,7 +1223,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.20", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.21", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1354,7 +1499,7 @@ fun KontaktChronikApp(
                             .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                         val resolved = ContactResolver.resolveTarget(p, relPairs)
                         popupReason = "Nachricht"
-                        quickMessageText = "Hallo ${resolved.targetPersonName.substringBefore(" ")}, herzliche Grüße!"
+                        quickMessageText = pickRandomBirthdayGreeting(resolved.targetPersonName.substringBefore(" "), false)
                         popupPerson = p
                     }
                 )
@@ -1412,7 +1557,7 @@ fun KontaktChronikApp(
                                         .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                                     val resolved = ContactResolver.resolveTarget(p, relPairs)
                                     popupReason = "Melde-Timer"
-                                    quickMessageText = "Hallo ${resolved.targetPersonName.substringBefore(" ")}, herzliche Grüße!"
+                                    quickMessageText = pickRandomBirthdayGreeting(resolved.targetPersonName.substringBefore(" "), false)
                                     popupPerson = p
                                 }
                             }
@@ -1483,7 +1628,7 @@ fun KontaktChronikApp(
                                         .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                                     val resolved = ContactResolver.resolveTarget(p, relPairs)
                                     popupReason = "Erinnerung: ${ev.title}"
-                                    quickMessageText = "Hallo ${resolved.targetPersonName.substringBefore(" ")}, herzliche Grüße!"
+                                    quickMessageText = pickRandomBirthdayGreeting(resolved.targetPersonName.substringBefore(" "), false)
                                     popupPerson = p
                                 }
                             }
@@ -1514,7 +1659,10 @@ fun KontaktChronikApp(
                                         "🎂 ${p.name}",
                                         color = TextPrimary,
                                         fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
                                     BirthdayCountdownPill(birthdayIso = p.birthdayIso, isPastMode = false)
                                 }
@@ -1530,7 +1678,7 @@ fun KontaktChronikApp(
                                     .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                                 val resolved = ContactResolver.resolveTarget(p, relPairs)
                                 popupReason = "Geburtstag"
-                                quickMessageText = "Herzlichen Glückwunsch zum Geburtstag, ${resolved.targetPersonName.substringBefore(" ")}!"
+                                quickMessageText = pickRandomBirthdayGreeting(resolved.targetPersonName.substringBefore(" "), false)
                                 popupPerson = p
                             }
                         }
@@ -1707,11 +1855,10 @@ fun KontaktChronikApp(
                                 }
                                 CompactButton("Nachricht") {
                                     popupReason = if (showPastDates) "Nachträglich zum Geburtstag" else "Erinnerung"
-                                    quickMessageText = if (showPastDates) {
-                                        "Alles Gute nachträglich zum Geburtstag, ${resolved.targetPersonName.substringBefore(" ")}!"
-                                    } else {
-                                        "Hallo ${resolved.targetPersonName.substringBefore(" ")}, herzliche Grüße!"
-                                    }
+                                    quickMessageText = pickRandomBirthdayGreeting(
+                                        resolved.targetPersonName.substringBefore(" "),
+                                        showPastDates
+                                    )
                                     popupPerson = person
                                 }
                             }
@@ -1762,8 +1909,9 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.20")
+                put("version", "1.0.21")
                 put("createdAt", dateStr)
+                put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
                 put("wichtelHistory", JSONArray(serializeWichtelHistoryJson(wichtelHistory)))
                 val personsArr = JSONArray()
@@ -1868,6 +2016,32 @@ fun KontaktChronikApp(
 
                 HorizontalDivider(color = BorderSlate)
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "🎂 Geburtstagsgrüße (${birthdayGreetings.size})",
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Zufällige Glückwunschtexte mit {Name}",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    CompactButton("✏️ Bearbeiten") {
+                        showOptionsDialog = false
+                        showGreetingsEditorDialog = true
+                    }
+                }
+
+                HorizontalDivider(color = BorderSlate)
+
                 Text("🎨 Design-Theme (Sanftes Blau / Festlich)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1966,6 +2140,10 @@ fun KontaktChronikApp(
                             runCatching {
                                 val parsed = JSONObject(restoreJsonText.trim())
                                 val stateObj = parsed.optJSONObject("state") ?: parsed
+                                val bgArr = stateObj.optJSONArray("birthdayGreetings")
+                                if (bgArr != null) {
+                                    saveBirthdayGreetings(parseBirthdayGreetingsJson(bgArr.toString()))
+                                }
                                 val wgArr = stateObj.optJSONArray("wichtelGroups")
                                 if (wgArr != null) {
                                     saveWichtelGroups(parseWichtelGroupsJson(wgArr.toString()))
@@ -2012,6 +2190,141 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.End
                 ) {
                     CompactButton("Schließen") { showOptionsDialog = false }
+                }
+            }
+        }
+    }
+
+    if (showGreetingsEditorDialog) {
+        var searchQuery by remember { mutableStateOf("") }
+        val filteredIndices = remember(birthdayGreetings, searchQuery) {
+            val q = searchQuery.trim().lowercase()
+            birthdayGreetings.indices.filter { idx ->
+                q.isBlank() ||
+                    birthdayGreetings[idx].lowercase().contains(q) ||
+                    (idx + 1).toString() == q
+            }
+        }
+
+        Dialog(onDismissRequest = { showGreetingsEditorDialog = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(12.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(12.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "🎂 Geburtstagsgrüße (${birthdayGreetings.size})",
+                        color = TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    CompactButton("🔄 100 Standard") {
+                        pendingConfirmMessage = "Alle Geburtstagsgrüße auf die 100 Standard-Glückwunschtexte zurücksetzen?"
+                        pendingConfirmAction = {
+                            saveBirthdayGreetings(DEFAULT_BIRTHDAY_GREETINGS)
+                        }
+                    }
+                }
+                Text(
+                    "Beim Öffnen einer Nachricht wählt die App zufällig einen dieser Glückwunschtexte aus. {Name} wird automatisch durch den Vornamen ersetzt.",
+                    color = TextSecondary,
+                    fontSize = 11.sp
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("🔎 Spruch suchen...", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    CompactButton("+ Neu") {
+                        saveBirthdayGreetings(
+                            listOf("Alles Liebe und Gute zum Geburtstag, {Name}! 🎂🎉") + birthdayGreetings
+                        )
+                        searchQuery = ""
+                    }
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(340.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(filteredIndices, key = { it }) { idx ->
+                        val currentText = birthdayGreetings.getOrNull(idx).orEmpty()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BgSlate, RoundedCornerShape(8.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "#${idx + 1}",
+                                color = AccentSteel,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            OutlinedTextField(
+                                value = currentText,
+                                onValueChange = { newVal ->
+                                    val copy = birthdayGreetings.toMutableList()
+                                    if (idx in copy.indices) {
+                                        copy[idx] = newVal
+                                        saveBirthdayGreetings(copy)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (birthdayGreetings.size > 1) {
+                                Text(
+                                    "✕",
+                                    color = WarnAmber,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .clickable {
+                                            val copy = birthdayGreetings.toMutableList()
+                                            if (idx in copy.indices) {
+                                                copy.removeAt(idx)
+                                                saveBirthdayGreetings(copy)
+                                            }
+                                        }
+                                        .padding(horizontal = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CompactButton("← Optionen") {
+                        showGreetingsEditorDialog = false
+                        showOptionsDialog = true
+                    }
+                    CompactButton("Fertig") {
+                        showGreetingsEditorDialog = false
+                    }
                 }
             }
         }
@@ -2853,6 +3166,24 @@ fun KontaktChronikApp(
                     }
                 }
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Nachricht / Gruß (zufälliger Glückwunsch)",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    CompactButton("🎲 Anderer Spruch") {
+                        quickMessageText = pickRandomBirthdayGreeting(
+                            resolved.targetPersonName.substringBefore(" "),
+                            false
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = quickMessageText,
                     onValueChange = { quickMessageText = it },
