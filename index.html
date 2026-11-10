@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.5 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.11 – Interaktiver Testserver</title>
   <style>
     :root {
       --bg-slate: #0F172A;
@@ -1303,7 +1303,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.10</div>
+          <div class="app-title">Remember Me v1.0.11</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
@@ -1597,6 +1597,63 @@
       return headerBar + listHtml;
     }
 
+    let treeZoom = 1.0;
+    let lastTreePinchDist = null;
+
+    function setTreeZoom(val) {
+      treeZoom = Math.min(2.2, Math.max(0.35, Math.round(val * 100) / 100));
+      renderPhoneApp();
+    }
+
+    function zoomTreeBy(delta) {
+      setTreeZoom(treeZoom + delta);
+    }
+
+    function resetTreeZoom() {
+      setTreeZoom(1.0);
+    }
+
+    function fitTreeZoom(maxRowCount, levelCount) {
+      const widthScale = maxRowCount > 2 ? (2.9 / maxRowCount) : 1.0;
+      const heightScale = levelCount > 4 ? (4.0 / levelCount) : 1.0;
+      const fit = Math.min(1.0, widthScale, heightScale);
+      setTreeZoom(Math.max(0.4, fit));
+    }
+
+    function handleTreeWheel(e) {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.1 : -0.1;
+      zoomTreeBy(delta);
+    }
+
+    function handleTreeTouchStart(e) {
+      if (e.touches && e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        lastTreePinchDist = Math.hypot(dx, dy);
+      }
+    }
+
+    function handleTreeTouchMove(e) {
+      if (e.touches && e.touches.length === 2 && lastTreePinchDist) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 5) {
+          const ratio = dist / lastTreePinchDist;
+          if (Math.abs(ratio - 1) > 0.04) {
+            lastTreePinchDist = dist;
+            setTreeZoom(treeZoom * ratio);
+          }
+        }
+      }
+    }
+
+    function handleTreeTouchEnd() {
+      lastTreePinchDist = null;
+    }
+
     function renderFamilyTreeTab() {
       const visiblePersons = state.persons.filter(p => !p.isHidden);
       if (visiblePersons.length === 0) return "";
@@ -1744,12 +1801,29 @@
         levelsMap.get(gen).push(personMap.get(pid));
       }
       const sortedLevels = [...levelsMap.keys()].sort((a, b) => a - b);
+      let maxRowCount = 1;
+      for (const lvl of sortedLevels) {
+        const len = (levelsMap.get(lvl) || []).length;
+        if (len > maxRowCount) maxRowCount = len;
+      }
 
       const dropdownOptions = visiblePersons.map(p => `
         <option value="${p.id}" ${p.id === rootPerson.id ? 'selected' : ''}>
           ${escapeHtml(p.name)}
         </option>
       `).join("");
+
+      const z = treeZoom;
+      const nodeMinW = Math.round(72 * z);
+      const nodeMaxW = Math.round(118 * z);
+      const nodePadV = Math.max(2, Math.round(5 * z));
+      const nodePadH = Math.max(3, Math.round(8 * z));
+      const nameFont = Math.max(6.5, +(11.5 * z).toFixed(1));
+      const roleFont = Math.max(5.5, +(10 * z).toFixed(1));
+      const connFont = Math.max(6, +(12 * z).toFixed(1));
+      const vLineH = Math.max(6, Math.round(14 * z));
+      const branchMinW = Math.max(40, Math.round(90 * z));
+      const rowGap = Math.max(2, Math.round(4 * z));
 
       const levelsHtml = sortedLevels.map((lvl, idx) => {
         const members = orderRowMembers(levelsMap.get(lvl) || [], lvl);
@@ -1762,13 +1836,15 @@
             const nextM = members[mIdx + 1];
             const coupled = arePartnersOrCoParents(m.id, nextM.id);
             connector = coupled
-              ? `<span style="color:var(--partner-rose); font-size:12px; font-weight:700; padding:0 1px;">──</span>`
-              : `<span style="width:4px; display:inline-block;"></span>`;
+              ? `<span style="color:var(--partner-rose); font-size:${connFont}px; font-weight:700; padding:0 1px;">──</span>`
+              : `<span style="width:${Math.max(2, Math.round(4 * z))}px; display:inline-block;"></span>`;
           }
           return `
-            <div class="tree-node ${isRoot ? 'root' : ''} ${isPartner ? 'partner' : ''}" onclick="openDetailModal(${m.id})">
-              <div style="font-size:11.5px; font-weight:700; color:var(--text-primary); line-height:1.2;">${escapeHtml(m.name)}</div>
-              <div style="font-size:10px; color:${isRoot ? 'var(--accent-steel)' : (isPartner ? 'var(--partner-rose)' : 'var(--tree-green)')}; margin-top:2px; line-height:1.1;">
+            <div class="tree-node ${isRoot ? 'root' : ''} ${isPartner ? 'partner' : ''}"
+                 style="min-width:${nodeMinW}px; max-width:${nodeMaxW}px; padding:${nodePadV}px ${nodePadH}px;"
+                 onclick="openDetailModal(${m.id})">
+              <div style="font-size:${nameFont}px; font-weight:700; color:var(--text-primary); line-height:1.2;">${escapeHtml(m.name)}</div>
+              <div style="font-size:${roleFont}px; color:${isRoot ? 'var(--accent-steel)' : (isPartner ? 'var(--partner-rose)' : 'var(--tree-green)')}; margin-top:2px; line-height:1.1;">
                 ${escapeHtml(role)}
               </div>
             </div>
@@ -1778,25 +1854,45 @@
 
         const nextMembers = idx < sortedLevels.length - 1 ? (levelsMap.get(sortedLevels[idx + 1]) || []) : [];
         const connectorDown = idx < sortedLevels.length - 1 ? `
-          <div class="tree-line-vertical"></div>
-          ${nextMembers.length > 1 ? `<div class="tree-branch-bar"></div>` : ""}
+          <div class="tree-line-vertical" style="height:${vLineH}px;"></div>
+          ${nextMembers.length > 1 ? `<div class="tree-branch-bar" style="min-width:${branchMinW}px;"></div>` : ""}
         ` : "";
 
         return `
-          <div class="tree-row">${nodesHtml}</div>
+          <div class="tree-row" style="gap:${rowGap}px; width:max-content; overflow:visible;">${nodesHtml}</div>
           ${connectorDown}
         `;
       }).join("");
 
+      const zoomPct = Math.round(treeZoom * 100);
+
       return `
-        <div class="card" style="padding:8px 10px; display:flex; align-items:center; gap:8px;">
-          <label class="field-label" style="white-space:nowrap; font-size:12px; font-weight:600; color:var(--text-secondary);">Kontakt:</label>
-          <select class="field-select" style="flex:1;" onchange="selectedTreeRootId=parseInt(this.value, 10); renderPhoneApp();">
-            ${dropdownOptions}
-          </select>
+        <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:7px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label class="field-label" style="white-space:nowrap; font-size:12px; font-weight:600; color:var(--text-secondary);">Kontakt:</label>
+            <select class="field-select" style="flex:1;" onchange="selectedTreeRootId=parseInt(this.value, 10); renderPhoneApp();">
+              ${dropdownOptions}
+            </select>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span style="font-size:11px; color:var(--text-muted);">🔍 Zoom (Mausrad / Pinch / Buttons):</span>
+            <div class="btn-row" style="gap:4px;">
+              <button class="compact-btn" style="padding:3px 8px; font-weight:700;" onclick="zoomTreeBy(-0.15)" title="Rauszoomen">➖</button>
+              <button class="compact-btn ${zoomPct === 100 ? 'primary' : ''}" style="padding:3px 8px; font-size:11px;" onclick="resetTreeZoom()" title="Auf 100% zurücksetzen">${zoomPct}%</button>
+              <button class="compact-btn" style="padding:3px 8px; font-weight:700;" onclick="zoomTreeBy(0.15)" title="Reinzoomen">➕</button>
+              <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="fitTreeZoom(${maxRowCount}, ${sortedLevels.length})" title="Großen Stammbaum komplett einpassen">⛶ Passend</button>
+            </div>
+          </div>
         </div>
-        <div class="tree-container" style="min-height:160px; justify-content:center;">
-          ${levelsHtml}
+        <div class="tree-container"
+             style="min-height:170px; overflow:auto; align-items: stretch;"
+             onwheel="handleTreeWheel(event)"
+             ontouchstart="handleTreeTouchStart(event)"
+             ontouchmove="handleTreeTouchMove(event)"
+             ontouchend="handleTreeTouchEnd()">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:max-content; margin:0 auto; padding:4px;">
+            ${levelsHtml}
+          </div>
         </div>
       `;
     }

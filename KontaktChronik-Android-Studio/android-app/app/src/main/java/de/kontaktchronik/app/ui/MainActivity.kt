@@ -13,6 +13,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -34,6 +36,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +58,7 @@ import org.json.JSONObject
 import java.io.File
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import kotlin.math.roundToInt
 
 private var isLightMode by mutableStateOf(false)
 
@@ -531,7 +535,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.10", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.11", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
@@ -2411,7 +2415,12 @@ fun FamilyTreeScreen(
         .mapValues { entry -> orderRowMembers(entry.value.filterNotNull(), entry.key) }
         .toSortedMap()
 
+    val maxRowCount = remember(levels) { levels.values.maxOfOrNull { it.size } ?: 1 }
+    val levelCount = levels.size
+
     var dropdownExpanded by remember { mutableStateOf(false) }
+    var treeZoom by remember { mutableStateOf(1.0f) }
+    val zoomPct = (treeZoom * 100f).roundToInt()
 
     Column(
         modifier = Modifier
@@ -2419,176 +2428,238 @@ fun FamilyTreeScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Dropdown-Menü oben zum Auswählen des Namens
-        Row(
+        // Obere Steuerleiste: Kontakt-Auswahl + Zoom-Funktion für größere Stammbäume
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(CardSlate, RoundedCornerShape(8.dp))
                 .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
                 .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            Text(
-                text = "Kontakt:",
-                color = TextSecondary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Box(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Kontakt:",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BgSlate, RoundedCornerShape(6.dp))
+                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                            .clickable { dropdownExpanded = true }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = rootPerson.name,
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text("▼", color = AccentSteel, fontSize = 11.sp)
+                    }
+                    DropdownMenu(
+                        expanded = dropdownExpanded,
+                        onDismissRequest = { dropdownExpanded = false },
+                        modifier = Modifier.background(CardSlate)
+                    ) {
+                        persons.forEach { p ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = p.name,
+                                        color = if (p.id == rootPerson.id) AccentSteel else TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (p.id == rootPerson.id) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                onClick = {
+                                    onSelectRoot(p.id)
+                                    dropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🔍 Zoom (2 Finger / Buttons):",
+                    color = TextMuted,
+                    fontSize = 11.sp
+                )
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(BgSlate, RoundedCornerShape(6.dp))
-                        .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                        .clickable { dropdownExpanded = true }
-                        .padding(horizontal = 10.dp, vertical = 7.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = rootPerson.name,
-                        color = TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text("▼", color = AccentSteel, fontSize = 11.sp)
-                }
-                DropdownMenu(
-                    expanded = dropdownExpanded,
-                    onDismissRequest = { dropdownExpanded = false },
-                    modifier = Modifier.background(CardSlate)
-                ) {
-                    persons.forEach { p ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = p.name,
-                                    color = if (p.id == rootPerson.id) AccentSteel else TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (p.id == rootPerson.id) FontWeight.Bold else FontWeight.Normal
-                                )
-                            },
-                            onClick = {
-                                onSelectRoot(p.id)
-                                dropdownExpanded = false
-                            }
-                        )
+                    CompactButton("➖") {
+                        treeZoom = (treeZoom - 0.15f).coerceIn(0.35f, 2.2f)
+                    }
+                    CompactButton("$zoomPct%", isPrimary = zoomPct == 100) {
+                        treeZoom = 1.0f
+                    }
+                    CompactButton("➕") {
+                        treeZoom = (treeZoom + 0.15f).coerceIn(0.35f, 2.2f)
+                    }
+                    CompactButton("⛶ Passend") {
+                        val widthScale = if (maxRowCount > 2) 2.9f / maxRowCount else 1.0f
+                        val heightScale = if (levelCount > 4) 4.0f / levelCount else 1.0f
+                        treeZoom = minOf(1.0f, widthScale, heightScale).coerceIn(0.4f, 1.0f)
                     }
                 }
             }
         }
 
-        // Kompakter visueller Stammbaum (Ausgewählter Name zentriert, Beziehungen darüber und darunter)
-        Column(
+        // Zoombarer & scrollbarer visueller Stammbaum (2-Finger Pinch-to-Zoom + 1-Finger Scroll)
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 160.dp)
+                .heightIn(min = 170.dp)
                 .background(CardSlate, RoundedCornerShape(10.dp))
                 .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        do {
+                            val event = awaitPointerEvent()
+                            if (event.changes.count { it.pressed } >= 2) {
+                                val zoomChange = event.calculateZoom()
+                                if (zoomChange != 1f) {
+                                    treeZoom = (treeZoom * zoomChange).coerceIn(0.35f, 2.2f)
+                                    event.changes.forEach { it.consume() }
+                                }
+                            }
+                        } while (event.changes.any { it.pressed })
+                    }
+                }
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 8.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            contentAlignment = Alignment.Center
         ) {
-            val levelKeys = levels.keys.toList()
-            levelKeys.forEachIndexed { idx, genLevel ->
-                val members = levels[genLevel].orEmpty()
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                val levelKeys = levels.keys.toList()
+                val z = treeZoom
+                val nodeMinW = (76f * z).coerceAtLeast(32f).dp
+                val nodeMaxW = (122f * z).coerceAtLeast(52f).dp
+                val padH = (8f * z).coerceAtLeast(3f).dp
+                val padV = (5f * z).coerceAtLeast(2f).dp
+                val nameFontSize = (12f * z).coerceIn(6.5f, 24f).sp
+                val nameLineHeight = (14f * z).coerceIn(7.5f, 28f).sp
+                val roleFontSize = (10f * z).coerceIn(5.5f, 20f).sp
+                val roleLineHeight = (12f * z).coerceIn(6.5f, 24f).sp
+                val connFontSize = (11f * z).coerceIn(6f, 22f).sp
+                val rowSpacing = (4f * z).coerceAtLeast(2f).dp
+                val cornerRad = (6f * z).coerceAtLeast(3f).dp
 
-                // Knoten dieser Generation nebeneinander
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    members.forEachIndexed { mIdx, member ->
-                        val isRoot = member.id == rootPerson.id
-                        val roleText = roleRelativeToRoot(member, genLevel)
-                        val isPartner = isPartnerRelation(roleText)
+                levelKeys.forEachIndexed { idx, genLevel ->
+                    val members = levels[genLevel].orEmpty()
 
-                        Column(
-                            modifier = Modifier
-                                .widthIn(min = 76.dp, max = 122.dp)
-                                .background(
-                                    if (isRoot) RootNodeBg else BgSlate,
-                                    RoundedCornerShape(6.dp)
+                    // Knoten dieser Generation nebeneinander
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(rowSpacing, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        members.forEachIndexed { mIdx, member ->
+                            val isRoot = member.id == rootPerson.id
+                            val roleText = roleRelativeToRoot(member, genLevel)
+                            val isPartner = isPartnerRelation(roleText)
+
+                            Column(
+                                modifier = Modifier
+                                    .widthIn(min = nodeMinW, max = nodeMaxW)
+                                    .background(
+                                        if (isRoot) RootNodeBg else BgSlate,
+                                        RoundedCornerShape(cornerRad)
+                                    )
+                                    .border(
+                                        width = if (isRoot) 1.5.dp else 1.dp,
+                                        color = when {
+                                            isRoot -> AccentSteel
+                                            isPartner -> PartnerRose
+                                            else -> BorderSlate
+                                        },
+                                        shape = RoundedCornerShape(cornerRad)
+                                    )
+                                    .clickable { onOpenDetails(member) }
+                                    .padding(horizontal = padH, vertical = padV),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = member.name,
+                                    color = TextPrimary,
+                                    fontSize = nameFontSize,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = nameLineHeight
                                 )
-                                .border(
-                                    width = if (isRoot) 1.5.dp else 1.dp,
+                                Text(
+                                    text = roleText,
                                     color = when {
                                         isRoot -> AccentSteel
                                         isPartner -> PartnerRose
-                                        else -> BorderSlate
+                                        else -> TreeGreen
                                     },
-                                    shape = RoundedCornerShape(6.dp)
+                                    fontSize = roleFontSize,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = roleLineHeight
                                 )
-                                .clickable { onOpenDetails(member) }
-                                .padding(horizontal = 8.dp, vertical = 5.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = member.name,
-                                color = TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 14.sp
-                            )
-                            Text(
-                                text = roleText,
-                                color = when {
-                                    isRoot -> AccentSteel
-                                    isPartner -> PartnerRose
-                                    else -> TreeGreen
-                                },
-                                fontSize = 10.sp,
-                                textAlign = TextAlign.Center,
-                                lineHeight = 12.sp
-                            )
-                        }
+                            }
 
-                        // Horizontale Verbindung zwischen Eltern / Ehe-Partnern nebeneinander
-                        if (mIdx < members.size - 1) {
-                            val nextMember = members[mIdx + 1]
-                            val coupled = arePartnersOrCoParents(member.id, nextMember.id)
-                            if (coupled) {
-                                Text(
-                                    text = "──",
-                                    color = PartnerRose,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            } else {
-                                Spacer(modifier = Modifier.width(2.dp))
+                            // Horizontale Verbindung zwischen Eltern / Ehe-Partnern nebeneinander
+                            if (mIdx < members.size - 1) {
+                                val nextMember = members[mIdx + 1]
+                                val coupled = arePartnersOrCoParents(member.id, nextMember.id)
+                                if (coupled) {
+                                    Text(
+                                        text = "──",
+                                        color = PartnerRose,
+                                        fontSize = connFontSize,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                } else {
+                                    Spacer(modifier = Modifier.width((2f * z).coerceAtLeast(1f).dp))
+                                }
                             }
                         }
                     }
-                }
 
-                // Vertikale Stammbaum-Verbindungslinie zu den Kindern darunter
-                if (idx < levelKeys.size - 1) {
-                    val nextMembers = levels[levelKeys[idx + 1]].orEmpty()
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(16.dp)
-                    ) {
-                        val centerX = size.width / 2f
-                        drawLine(
-                            color = AccentSteel,
-                            start = Offset(centerX, 0f),
-                            end = Offset(centerX, size.height),
-                            strokeWidth = 4f
-                        )
-                        if (nextMembers.size > 1) {
-                            val barHalfWidth = (size.width * 0.25f).coerceAtMost(120f)
-                            drawLine(
-                                color = AccentSteel,
-                                start = Offset(centerX - barHalfWidth, size.height),
-                                end = Offset(centerX + barHalfWidth, size.height),
-                                strokeWidth = 4f
+                    // Vertikale Stammbaum-Verbindungslinie zu den Kindern darunter
+                    if (idx < levelKeys.size - 1) {
+                        val nextMembers = levels[levelKeys[idx + 1]].orEmpty()
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(vertical = (2f * z).coerceAtLeast(1f).dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width((2f * z).coerceAtLeast(1.5f).dp)
+                                    .height((14f * z).coerceAtLeast(6f).dp)
+                                    .background(AccentSteel)
                             )
+                            if (nextMembers.size > 1) {
+                                Box(
+                                    modifier = Modifier
+                                        .width((96f * z).coerceAtLeast(40f).dp)
+                                        .height((2f * z).coerceAtLeast(1.5f).dp)
+                                        .background(AccentSteel)
+                                )
+                            }
                         }
                     }
                 }
