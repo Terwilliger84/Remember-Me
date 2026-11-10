@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.12 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.13 – Interaktiver Testserver</title>
   <style>
     :root {
       --bg-slate: #0F172A;
@@ -1303,7 +1303,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.12</div>
+          <div class="app-title">Remember Me v1.0.13</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
@@ -1337,6 +1337,45 @@
       return typeof dateIso === "string" && dateIso.startsWith("WEEKLY:");
     }
 
+    function isRepeatDateSpec(dateIso) {
+      return typeof dateIso === "string" && dateIso.startsWith("REPEAT:");
+    }
+
+    function addIntervalToIsoDate(baseIso, count, unit) {
+      const n = Math.max(1, parseInt(count, 10) || 1);
+      const d = new Date((baseIso || todayIso()) + "T00:00:00");
+      switch ((unit || "DAYS").toUpperCase()) {
+        case "WEEKS": d.setDate(d.getDate() + n * 7); break;
+        case "MONTHS": d.setMonth(d.getMonth() + n); break;
+        case "YEARS": d.setFullYear(d.getFullYear() + n); break;
+        default: d.setDate(d.getDate() + n); break;
+      }
+      return d.toISOString().slice(0, 10);
+    }
+
+    function formatRhythmTextDe(count, unit) {
+      const n = Math.max(1, parseInt(count, 10) || 1);
+      const u = (unit || "DAYS").toUpperCase();
+      if (u === "WEEKS") return n === 1 ? "1 Woche" : `${n} Wochen`;
+      if (u === "MONTHS") return n === 1 ? "1 Monat" : `${n} Monate`;
+      if (u === "YEARS") return n === 1 ? "1 Jahr" : `${n} Jahre`;
+      return n === 1 ? "1 Tag" : `${n} Tage`;
+    }
+
+    function parseRepeatDateSpec(dateIso, today = todayIso()) {
+      if (!isRepeatDateSpec(dateIso)) return null;
+      const parts = dateIso.split(":");
+      const count = Math.max(1, parseInt(parts[1], 10) || 1);
+      const unit = (parts[2] || "DAYS").toUpperCase();
+      let nextIso = parts[3] || addIntervalToIsoDate(today, count, unit);
+      let guard = 0;
+      while (nextIso < today && guard < 1000) {
+        nextIso = addIntervalToIsoDate(nextIso, count, unit);
+        guard++;
+      }
+      return { count, unit, nextIso };
+    }
+
     function getWeeklyDayNumber(dateIso) {
       if (!isWeeklyDateSpec(dateIso)) return null;
       const num = parseInt(dateIso.split(":")[1], 10);
@@ -1351,6 +1390,10 @@
     }
 
     function daysUntilEventSpec(dateIso, today = todayIso()) {
+      if (isRepeatDateSpec(dateIso)) {
+        const rep = parseRepeatDateSpec(dateIso, today);
+        return rep ? daysBetween(today, rep.nextIso) : 999;
+      }
       if (isWeeklyDateSpec(dateIso)) {
         const wd = getWeeklyDayNumber(dateIso);
         return wd ? daysUntilWeeklyDay(wd, today) : 999;
@@ -1359,6 +1402,14 @@
     }
 
     function formatEventBadgeText(ev, today = todayIso()) {
+      if (isRepeatDateSpec(ev.dateIso)) {
+        const rep = parseRepeatDateSpec(ev.dateIso, today);
+        const rhythmStr = formatRhythmTextDe(rep.count, rep.unit);
+        const nextStr = formatIsoToDdMmYyyy(rep.nextIso);
+        const diff = daysBetween(today, rep.nextIso);
+        if (diff === 0) return `🔔 Heute: ${ev.title} (alle ${rhythmStr})`;
+        return `🔁 Alle ${rhythmStr}: ${ev.title} (${nextStr})`;
+      }
       if (isWeeklyDateSpec(ev.dateIso)) {
         const wd = getWeeklyDayNumber(ev.dateIso);
         const dayName = WEEKDAY_NAMES_DE[wd] || "Wöchentlich";
@@ -1373,6 +1424,12 @@
     function formatIsoToDdMmYyyy(iso) {
       if (!iso || !iso.trim()) return "";
       const clean = iso.trim();
+      if (isRepeatDateSpec(clean)) {
+        const rep = parseRepeatDateSpec(clean);
+        const dParts = rep.nextIso.split("-");
+        const nextFormatted = dParts.length === 3 ? `${dParts[2].padStart(2, "0")}.${dParts[1].padStart(2, "0")}.${dParts[0]}` : rep.nextIso;
+        return `🔁 Alle ${formatRhythmTextDe(rep.count, rep.unit)} • Nächster: ${nextFormatted}`;
+      }
       if (isWeeklyDateSpec(clean)) {
         const wd = getWeeklyDayNumber(clean);
         return `🔁 Jeden ${WEEKDAY_NAMES_DE[wd] || "Wochentag"}`;
@@ -1389,7 +1446,7 @@
     function normalizeDateInputToIso(input) {
       const clean = (input || "").trim();
       if (!clean) return "";
-      if (isWeeklyDateSpec(clean)) return clean;
+      if (isWeeklyDateSpec(clean) || isRepeatDateSpec(clean)) return clean;
       const dotParts = clean.split(".");
       if (dotParts.length === 3 && dotParts[2].length === 4) {
         return `${dotParts[2]}-${dotParts[1].padStart(2, "0")}-${dotParts[0].padStart(2, "0")}`;
@@ -1578,7 +1635,7 @@
                   <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
                     ${personEvents.map(e => {
                       const isDueToday = daysUntilEventSpec(e.dateIso, today) === 0;
-                      const isWeekly = isWeeklyDateSpec(e.dateIso);
+                      const isWeekly = isWeeklyDateSpec(e.dateIso) || isRepeatDateSpec(e.dateIso);
                       const badgeBg = isDueToday ? "rgba(245, 158, 11, 0.18)" : (isWeekly ? "rgba(16, 185, 129, 0.14)" : "rgba(56, 189, 248, 0.12)");
                       const badgeColor = isDueToday ? "var(--warn-amber)" : (isWeekly ? "var(--tree-green)" : "var(--accent-steel)");
                       return `<span style="font-size:11px; font-weight:600; padding:2px 6px; border-radius:4px; background:${badgeBg}; color:${badgeColor};">${escapeHtml(formatEventBadgeText(e, today))}</span>`;
@@ -1950,7 +2007,7 @@
         const person = state.persons.find(p => p.id === ev.personId && !p.isHidden);
         if (!person) return;
         const days = daysUntilEventSpec(ev.dateIso, today);
-        const isWeekly = isWeeklyDateSpec(ev.dateIso);
+        const isWeekly = isWeeklyDateSpec(ev.dateIso) || isRepeatDateSpec(ev.dateIso);
         rows.push({
           days,
           personId: ev.personId,
@@ -2269,7 +2326,7 @@
         const diff = daysUntilEventSpec(ev.dateIso, today);
         if (diff >= 0 && diff <= 45) {
           const person = state.persons.find(p => p.id === ev.personId && !p.isHidden);
-          const isWeekly = isWeeklyDateSpec(ev.dateIso);
+          const isWeekly = isWeeklyDateSpec(ev.dateIso) || isRepeatDateSpec(ev.dateIso);
           if (person) items.push({ sortKey: diff, personId: person.id, name: person.name, subtitle: isWeekly ? `${formatIsoToDdMmYyyy(ev.dateIso)}: ${ev.title}` : `Erinnerung: ${ev.title}`, badge: diff === 0 ? "Heute" : `in ${diff}T` });
         }
       }
@@ -2543,28 +2600,31 @@
                     </div>
                   `).join("")}
                 </div>
-                <div style="display:flex; gap:6px; margin-bottom:4px;">
-                  <div class="field-group" style="flex:1.1;">
-                    <label class="field-label">Neue Erinnerung</label>
-                    <input id="d-evtitle" class="field-input" placeholder="z. B. Anrufen" />
+                <div class="field-group" style="margin-bottom:6px;">
+                  <label class="field-label">Neue Erinnerung</label>
+                  <input id="d-evtitle" class="field-input" placeholder="z. B. Anrufen" />
+                </div>
+                <div style="display:flex; gap:6px; margin-bottom:6px;">
+                  <div class="field-group" style="flex:0.85;">
+                    <label class="field-label">Rhythmus (Zahl)</label>
+                    <input id="d-evcount" type="number" min="1" class="field-input" value="1" oninput="updateDetailReminderPreview()" />
                   </div>
-                  <div class="field-group" style="flex:1;">
-                    <label class="field-label">Rhythmus</label>
-                    <select id="d-evrepeat" class="field-select" onchange="document.getElementById('d-evdate-group').style.display = this.value === 'ONCE' ? 'flex' : 'none';">
-                      <option value="ONCE">Einmalig (Datum)</option>
-                      <option value="WEEKLY:1">🔁 Jeden Montag</option>
-                      <option value="WEEKLY:2">🔁 Jeden Dienstag</option>
-                      <option value="WEEKLY:3">🔁 Jeden Mittwoch</option>
-                      <option value="WEEKLY:4">🔁 Jeden Donnerstag</option>
-                      <option value="WEEKLY:5">🔁 Jeden Freitag</option>
-                      <option value="WEEKLY:6">🔁 Jeden Samstag</option>
-                      <option value="WEEKLY:7">🔁 Jeden Sonntag</option>
+                  <div class="field-group" style="flex:1.15;">
+                    <label class="field-label">Einheit</label>
+                    <select id="d-evunit" class="field-select" onchange="updateDetailReminderPreview()">
+                      <option value="DAYS">Tag</option>
+                      <option value="WEEKS">Woche</option>
+                      <option value="MONTHS">Monat</option>
+                      <option value="YEARS">Jahr</option>
                     </select>
                   </div>
                 </div>
-                <div id="d-evdate-group" class="field-group">
-                  <label class="field-label">Datum (TT.MM.JJJJ)</label>
-                  <input id="d-evdate" class="field-input" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${formatIsoToDdMmYyyy(addDaysIso(todayIso(), 3))}" onclick="openCalendarPicker('d-evdate')" onfocus="openCalendarPicker('d-evdate')" />
+                <label class="checkbox-row" style="margin-bottom:6px;">
+                  <input type="checkbox" id="d-evrepeat-chk" onchange="updateDetailReminderPreview()" />
+                  <span>Wiederholen</span>
+                </label>
+                <div id="d-evnext-preview" style="font-size:12px; color:var(--accent-steel); background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:6px; padding:6px 10px;">
+                  📅 Nächster Termin: <b>${formatIsoToDdMmYyyy(addIntervalToIsoDate(todayIso(), 1, 'DAYS'))}</b> <span style="color:var(--text-muted);">(Einmalig)</span>
                 </div>
               </div>
 
@@ -3668,6 +3728,22 @@
       saveState();
     }
 
+    function updateDetailReminderPreview() {
+      const countEl = document.getElementById("d-evcount");
+      const unitEl = document.getElementById("d-evunit");
+      const repEl = document.getElementById("d-evrepeat-chk");
+      const previewEl = document.getElementById("d-evnext-preview");
+      if (!countEl || !unitEl || !previewEl) return;
+      const count = Math.max(1, parseInt(countEl.value, 10) || 1);
+      const unit = unitEl.value || "DAYS";
+      const isRep = repEl ? repEl.checked : false;
+      const nextIso = addIntervalToIsoDate(todayIso(), count, unit);
+      const nextFormatted = formatIsoToDdMmYyyy(nextIso);
+      previewEl.innerHTML = isRep
+        ? `📅 Nächster Termin: <b>${nextFormatted}</b> <span style="color:var(--tree-green);">(🔁 Alle ${formatRhythmTextDe(count, unit)})</span>`
+        : `📅 Nächster Termin: <b>${nextFormatted}</b> <span style="color:var(--text-muted);">(Einmalig)</span>`;
+    }
+
     function saveDetailPerson(id) {
       const dp = state.persons.find(p => p.id === id);
       if (!dp) return;
@@ -3683,21 +3759,24 @@
       dp.extraInfos = detailExtraInfos.filter(x => (x.label && x.label.trim()) || (x.value && x.value.trim()));
 
       const evTitle = document.getElementById("d-evtitle").value.trim();
-      const evRepeatEl = document.getElementById("d-evrepeat");
-      const evRepeat = evRepeatEl ? evRepeatEl.value : "ONCE";
-      const evDate = evRepeat === "ONCE"
-        ? normalizeDateInputToIso(document.getElementById("d-evdate").value.trim())
-        : evRepeat;
+      const evCountEl = document.getElementById("d-evcount");
+      const evUnitEl = document.getElementById("d-evunit");
+      const evRepeatChk = document.getElementById("d-evrepeat-chk");
+      const evCount = Math.max(1, parseInt(evCountEl ? evCountEl.value : "1", 10) || 1);
+      const evUnit = evUnitEl ? evUnitEl.value : "DAYS";
+      const isRepeating = evRepeatChk ? evRepeatChk.checked : false;
+      const nextDateIso = addIntervalToIsoDate(todayIso(), evCount, evUnit);
+      const evDateSpec = isRepeating ? `REPEAT:${evCount}:${evUnit}:${nextDateIso}` : nextDateIso;
       if (evTitle) {
         state.specialEvents.push({
           id: state.nextId++,
           personId: dp.id,
           title: evTitle,
-          dateIso: evDate,
+          dateIso: evDateSpec,
           leadDays: 1,
           note: ""
         });
-        addLog(`Erinnerung "${evTitle}" (${formatIsoToDdMmYyyy(evDate)}) für ${dp.name} eingetragen.`);
+        addLog(`Erinnerung "${evTitle}" (${formatIsoToDdMmYyyy(evDateSpec)}) für ${dp.name} eingetragen.`);
       } else {
         addLog(dp.savedInDeviceContacts ? `Kontakt "${dp.name}" in App & Handykontakten aktualisiert.` : `Details von ${dp.name} aktualisiert.`);
       }

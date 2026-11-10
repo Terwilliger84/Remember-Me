@@ -149,6 +149,46 @@ val WEEKDAY_NAMES_DE = mapOf(
 fun isWeeklyDateSpec(dateIso: String?): Boolean =
     dateIso?.trim()?.startsWith("WEEKLY:") == true
 
+fun isRepeatDateSpec(dateIso: String?): Boolean =
+    dateIso?.trim()?.startsWith("REPEAT:") == true
+
+fun addIntervalToIsoDate(baseDate: LocalDate, count: Int, unit: String): LocalDate {
+    val n = count.coerceAtLeast(1).toLong()
+    return when (unit.uppercase()) {
+        "WEEKS" -> baseDate.plusWeeks(n)
+        "MONTHS" -> baseDate.plusMonths(n)
+        "YEARS" -> baseDate.plusYears(n)
+        else -> baseDate.plusDays(n)
+    }
+}
+
+fun formatRhythmTextDe(count: Int, unit: String): String {
+    val n = count.coerceAtLeast(1)
+    return when (unit.uppercase()) {
+        "WEEKS" -> if (n == 1) "1 Woche" else "$n Wochen"
+        "MONTHS" -> if (n == 1) "1 Monat" else "$n Monate"
+        "YEARS" -> if (n == 1) "1 Jahr" else "$n Jahre"
+        else -> if (n == 1) "1 Tag" else "$n Tage"
+    }
+}
+
+data class ParsedRepeatSpec(val count: Int, val unit: String, val nextDate: LocalDate)
+
+fun parseRepeatDateSpec(dateIso: String?, today: LocalDate = LocalDate.now()): ParsedRepeatSpec? {
+    if (!isRepeatDateSpec(dateIso)) return null
+    val parts = dateIso!!.trim().split(":")
+    val count = parts.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    val unit = (parts.getOrNull(2) ?: "DAYS").uppercase()
+    var nextDate = runCatching { LocalDate.parse(parts.getOrNull(3).orEmpty()) }
+        .getOrElse { addIntervalToIsoDate(today, count, unit) }
+    var guard = 0
+    while (nextDate.isBefore(today) && guard < 1000) {
+        nextDate = addIntervalToIsoDate(nextDate, count, unit)
+        guard++
+    }
+    return ParsedRepeatSpec(count, unit, nextDate)
+}
+
 fun getWeeklyDayNumber(dateIso: String?): Int? {
     if (!isWeeklyDateSpec(dateIso)) return null
     val num = dateIso!!.trim().substringAfter("WEEKLY:").toIntOrNull()
@@ -162,6 +202,10 @@ fun daysUntilWeeklyDay(weekday1To7: Int, today: LocalDate = LocalDate.now()): Lo
 
 fun daysUntilEventSpec(dateIso: String?, today: LocalDate = LocalDate.now()): Long? {
     if (dateIso.isNullOrBlank()) return null
+    if (isRepeatDateSpec(dateIso)) {
+        val rep = parseRepeatDateSpec(dateIso, today) ?: return null
+        return ChronoUnit.DAYS.between(today, rep.nextDate)
+    }
     if (isWeeklyDateSpec(dateIso)) {
         val wd = getWeeklyDayNumber(dateIso) ?: return null
         return daysUntilWeeklyDay(wd, today)
@@ -171,6 +215,17 @@ fun daysUntilEventSpec(dateIso: String?, today: LocalDate = LocalDate.now()): Lo
 }
 
 fun formatEventBadgeText(ev: SpecialEventEntity, today: LocalDate = LocalDate.now()): String {
+    if (isRepeatDateSpec(ev.dateIso)) {
+        val rep = parseRepeatDateSpec(ev.dateIso, today) ?: return ev.title
+        val rhythmStr = formatRhythmTextDe(rep.count, rep.unit)
+        val nextStr = formatIsoToDdMmYyyy(rep.nextDate.toString())
+        val diff = ChronoUnit.DAYS.between(today, rep.nextDate)
+        return if (diff == 0L) {
+            "🔔 Heute: ${ev.title} (alle $rhythmStr)"
+        } else {
+            "🔁 Alle $rhythmStr: ${ev.title} ($nextStr)"
+        }
+    }
     if (isWeeklyDateSpec(ev.dateIso)) {
         val wd = getWeeklyDayNumber(ev.dateIso) ?: 1
         val dayName = WEEKDAY_NAMES_DE[wd] ?: "Wochentag"
@@ -201,6 +256,14 @@ fun extractLastName(fullName: String): String {
 fun formatIsoToDdMmYyyy(iso: String?): String {
     if (iso.isNullOrBlank()) return ""
     val clean = iso.trim()
+    if (isRepeatDateSpec(clean)) {
+        val rep = parseRepeatDateSpec(clean) ?: return clean
+        val dParts = rep.nextDate.toString().split("-")
+        val nextFormatted = if (dParts.size == 3) {
+            "${dParts[2].padStart(2, '0')}.${dParts[1].padStart(2, '0')}.${dParts[0]}"
+        } else rep.nextDate.toString()
+        return "🔁 Alle ${formatRhythmTextDe(rep.count, rep.unit)} • Nächster: $nextFormatted"
+    }
     if (isWeeklyDateSpec(clean)) {
         val wd = getWeeklyDayNumber(clean) ?: 1
         return "🔁 Jeden ${WEEKDAY_NAMES_DE[wd] ?: "Wochentag"}"
@@ -217,7 +280,7 @@ fun formatIsoToDdMmYyyy(iso: String?): String {
 
 fun normalizeDateInputToIso(input: String): String {
     val clean = input.trim()
-    if (isWeeklyDateSpec(clean)) return clean
+    if (isWeeklyDateSpec(clean) || isRepeatDateSpec(clean)) return clean
     if (clean.contains(".")) {
         val parts = clean.trimEnd('.').split(".")
         if (parts.size == 3) {
@@ -535,7 +598,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.12", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.13", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
@@ -1223,7 +1286,7 @@ fun KontaktChronikApp(
                                         personEvents.forEach { ev ->
                                             val diff = daysUntilEventSpec(ev.dateIso)
                                             val isDueToday = diff == 0L
-                                            val isWeekly = isWeeklyDateSpec(ev.dateIso)
+                                            val isWeekly = isWeeklyDateSpec(ev.dateIso) || isRepeatDateSpec(ev.dateIso)
                                             val badgeColor = when {
                                                 isDueToday -> WarnAmber
                                                 isWeekly -> TreeGreen
@@ -1726,8 +1789,10 @@ fun KontaktChronikApp(
             mutableStateOf(parsed)
         }
         var newEvTitle by remember { mutableStateOf("") }
-        var newEvRepeat by remember { mutableStateOf("ONCE") }
-        var newEvDate by remember { mutableStateOf(formatIsoToDdMmYyyy(LocalDate.now().plusDays(3).toString())) }
+        var newEvCount by remember { mutableStateOf("1") }
+        var newEvUnit by remember { mutableStateOf("DAYS") }
+        var newEvRepeatChecked by remember { mutableStateOf(false) }
+        var evUnitDropdownExpanded by remember { mutableStateOf(false) }
 
         // Neue Beziehung hinzufügen
         val otherPersons = persons.filter { it.id != dp.id }
@@ -1999,37 +2064,95 @@ fun KontaktChronikApp(
 
                     Text("Neue Erinnerung eintragen:", color = TextSecondary, fontSize = 12.sp)
                     OutlinedTextField(value = newEvTitle, onValueChange = { newEvTitle = it }, label = { Text("Neue Erinnerung (z. B. Anrufen)") }, modifier = Modifier.fillMaxWidth())
-                    val repeatOptions = listOf(
-                        "ONCE" to "Einmalig (Datum)",
-                        "WEEKLY:1" to "🔁 Jeden Montag",
-                        "WEEKLY:2" to "🔁 Jeden Dienstag",
-                        "WEEKLY:3" to "🔁 Jeden Mittwoch",
-                        "WEEKLY:4" to "🔁 Jeden Donnerstag",
-                        "WEEKLY:5" to "🔁 Jeden Freitag",
-                        "WEEKLY:6" to "🔁 Jeden Samstag",
-                        "WEEKLY:7" to "🔁 Jeden Sonntag"
+
+                    val parsedEvCount = newEvCount.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                    val calculatedNextEvDateIso = addIntervalToIsoDate(LocalDate.now(), parsedEvCount, newEvUnit).toString()
+                    val calculatedNextEvDateFormatted = formatIsoToDdMmYyyy(calculatedNextEvDateIso)
+                    val unitOptions = listOf(
+                        "DAYS" to "Tag",
+                        "WEEKS" to "Woche",
+                        "MONTHS" to "Monat",
+                        "YEARS" to "Jahr"
                     )
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(repeatOptions) { (code, labelText) ->
-                            val isSel = newEvRepeat == code
-                            Box(
-                                modifier = Modifier
-                                    .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                    .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                    .clickable { newEvRepeat = code }
-                                    .padding(horizontal = 8.dp, vertical = 5.dp)
-                            ) {
-                                Text(
-                                    labelText,
-                                    color = if (isSel) BgSlate else TextSecondary,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
-                                )
+                    val selectedUnitLabel = unitOptions.find { it.first == newEvUnit }?.second ?: "Tag"
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = newEvCount,
+                            onValueChange = { newEvCount = it.filter { ch -> ch.isDigit() } },
+                            label = { Text("Rhythmus (Zahl)") },
+                            modifier = Modifier.weight(0.9f)
+                        )
+                        Column(modifier = Modifier.weight(1.1f)) {
+                            Text("Einheit", color = TextSecondary, fontSize = 11.sp)
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Box {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(BgSlate, RoundedCornerShape(6.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable { evUnitDropdownExpanded = true }
+                                        .padding(horizontal = 10.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(selectedUnitLabel, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text("▼", color = AccentSteel, fontSize = 11.sp)
+                                }
+                                DropdownMenu(
+                                    expanded = evUnitDropdownExpanded,
+                                    onDismissRequest = { evUnitDropdownExpanded = false },
+                                    modifier = Modifier.background(CardSlate)
+                                ) {
+                                    unitOptions.forEach { (uCode, uLabel) ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    uLabel,
+                                                    color = if (uCode == newEvUnit) AccentSteel else TextPrimary,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = if (uCode == newEvUnit) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            onClick = {
+                                                newEvUnit = uCode
+                                                evUnitDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
-                    if (newEvRepeat == "ONCE") {
-                        DateInputWithCalendar(value = newEvDate, onValueChange = { newEvDate = it }, label = "Datum (TT.MM.JJJJ)")
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = newEvRepeatChecked, onCheckedChange = { newEvRepeatChecked = it })
+                        Text("Wiederholen", color = TextSecondary, fontSize = 12.sp)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BgSlate, RoundedCornerShape(6.dp))
+                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 7.dp)
+                    ) {
+                        val suffixText = if (newEvRepeatChecked) {
+                            "🔁 Alle ${formatRhythmTextDe(parsedEvCount, newEvUnit)}"
+                        } else {
+                            "Einmalig"
+                        }
+                        Text(
+                            text = "📅 Nächster Termin: $calculatedNextEvDateFormatted ($suffixText)",
+                            color = if (newEvRepeatChecked) TreeGreen else AccentSteel,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
 
@@ -2087,10 +2210,12 @@ fun KontaktChronikApp(
                                     .joinToString("\n") { "${it.first.replace("\t", " ")}\t${it.second.replace("\t", " ")}" }
                                 prefs.edit().putString("extra_infos_${dp.id}", serializedExtras).apply()
                                 if (newEvTitle.isNotBlank()) {
-                                    val targetDateSpec = if (newEvRepeat == "ONCE") {
-                                        normalizeDateInputToIso(newEvDate)
+                                    val cCount = newEvCount.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                                    val nextDateIso = addIntervalToIsoDate(LocalDate.now(), cCount, newEvUnit).toString()
+                                    val targetDateSpec = if (newEvRepeatChecked) {
+                                        "REPEAT:$cCount:$newEvUnit:$nextDateIso"
                                     } else {
-                                        newEvRepeat
+                                        nextDateIso
                                     }
                                     db.insertSpecialEvent(
                                         SpecialEventEntity(
