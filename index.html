@@ -1362,13 +1362,25 @@
         );
       }
 
-      // Order members in a generation so parents / partners sit directly side-by-side (nebeneinander)
+      // Order members in a generation:
+      // - For genLevel === 0: place rootPerson centered (siblings on left, partner on right)
+      // - For other levels: place parents / partners directly side-by-side (nebeneinander)
       function orderRowMembers(members, genLevel) {
+        if (genLevel === 0 && members.some(m => m.id === rootPerson.id)) {
+          const others = members.filter(m => m.id !== rootPerson.id);
+          const partners = others.filter(m => arePartnersOrCoParents(rootPerson.id, m.id));
+          const nonPartners = others.filter(m => !arePartnersOrCoParents(rootPerson.id, m.id));
+          if (partners.length > 0) {
+            return [...nonPartners, rootPerson, ...partners];
+          } else {
+            const half = Math.ceil(nonPartners.length / 2);
+            return [...nonPartners.slice(0, half), rootPerson, ...nonPartners.slice(half)];
+          }
+        }
+
         const visited = new Set();
         const ordered = [];
         const sortedSeed = [...members].sort((a, b) => {
-          if (a.id === rootPerson.id) return -1;
-          if (b.id === rootPerson.id) return 1;
           const aRole = roleRelativeToRoot(a, genLevel);
           const bRole = roleRelativeToRoot(b, genLevel);
           const aIsParent = aRole === "Eltern" || aRole === "Mutter" || aRole === "Vater";
@@ -1382,7 +1394,6 @@
           if (visited.has(m.id)) continue;
           visited.add(m.id);
           ordered.push(m);
-          // Immediately place partner / co-parent next to this person
           for (const candidate of members) {
             if (!visited.has(candidate.id) && arePartnersOrCoParents(m.id, candidate.id)) {
               visited.add(candidate.id);
@@ -1400,10 +1411,10 @@
       }
       const sortedLevels = [...levelsMap.keys()].sort((a, b) => a - b);
 
-      const focusChips = state.persons.map(p => `
-        <button class="compact-btn ${p.id === rootPerson.id ? 'primary' : ''}" style="padding:3px 7px; font-size:11px;" onclick="selectedTreeRootId=${p.id}; renderPhoneApp();">
+      const dropdownOptions = state.persons.map(p => `
+        <option value="${p.id}" ${p.id === rootPerson.id ? 'selected' : ''}>
           ${escapeHtml(p.name)}
-        </button>
+        </option>
       `).join("");
 
       const levelsHtml = sortedLevels.map((lvl, idx) => {
@@ -1444,10 +1455,13 @@
       }).join("");
 
       return `
-        <div class="card" style="padding:8px 10px;">
-          <div class="btn-row" style="gap:4px;">${focusChips}</div>
+        <div class="card" style="padding:8px 10px; display:flex; align-items:center; gap:8px;">
+          <label class="field-label" style="white-space:nowrap; font-size:12px; font-weight:600; color:var(--text-secondary);">Kontakt:</label>
+          <select class="field-select" style="flex:1;" onchange="selectedTreeRootId=parseInt(this.value, 10); renderPhoneApp();">
+            ${dropdownOptions}
+          </select>
         </div>
-        <div class="tree-container">
+        <div class="tree-container" style="min-height:160px; justify-content:center;">
           ${levelsHtml}
         </div>
       `;

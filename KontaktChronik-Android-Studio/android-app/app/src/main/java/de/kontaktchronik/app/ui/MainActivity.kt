@@ -1520,25 +1520,33 @@ fun FamilyTreeScreen(
         }
     }
 
-    // Sortiert Mitglieder einer Ebene so, dass Eltern / Partner direkt nebeneinander stehen
+    // Sortiert Mitglieder einer Ebene:
+    // - Auf Ebene 0: Fokus-Person zentriert in der Mitte (Geschwister links, Partner rechts)
+    // - Auf anderen Ebenen: Eltern / Partner direkt nebeneinander
     fun orderRowMembers(members: List<PersonEntity>, genLevel: Int): List<PersonEntity> {
+        if (genLevel == 0 && members.any { it.id == rootPerson.id }) {
+            val others = members.filter { it.id != rootPerson.id }
+            val partners = others.filter { arePartnersOrCoParents(rootPerson.id, it.id) }
+            val nonPartners = others.filter { !arePartnersOrCoParents(rootPerson.id, it.id) }
+            return if (partners.isNotEmpty()) {
+                nonPartners + listOf(rootPerson) + partners
+            } else {
+                val half = (nonPartners.size + 1) / 2
+                nonPartners.take(half) + listOf(rootPerson) + nonPartners.drop(half)
+            }
+        }
+
         val visited = mutableSetOf<Long>()
         val ordered = mutableListOf<PersonEntity>()
         val sortedSeed = members.sortedWith { a, b ->
+            val aRole = roleRelativeToRoot(a, genLevel)
+            val bRole = roleRelativeToRoot(b, genLevel)
+            val aIsParent = aRole == "Eltern" || aRole == "Mutter" || aRole == "Vater"
+            val bIsParent = bRole == "Eltern" || bRole == "Mutter" || bRole == "Vater"
             when {
-                a.id == rootPerson.id -> -1
-                b.id == rootPerson.id -> 1
-                else -> {
-                    val aRole = roleRelativeToRoot(a, genLevel)
-                    val bRole = roleRelativeToRoot(b, genLevel)
-                    val aIsParent = aRole == "Eltern" || aRole == "Mutter" || aRole == "Vater"
-                    val bIsParent = bRole == "Eltern" || bRole == "Mutter" || bRole == "Vater"
-                    when {
-                        aIsParent && !bIsParent -> -1
-                        !aIsParent && bIsParent -> 1
-                        else -> a.name.compareTo(b.name)
-                    }
-                }
+                aIsParent && !bIsParent -> -1
+                !aIsParent && bIsParent -> 1
+                else -> a.name.compareTo(b.name)
             }
         }
         for (m in sortedSeed) {
@@ -1559,48 +1567,84 @@ fun FamilyTreeScreen(
         .mapValues { entry -> orderRowMembers(entry.value.filterNotNull(), entry.key) }
         .toSortedMap()
 
+    var dropdownExpanded by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Kompakte Auswahl der Fokus-Person für den Stammbaum
-        LazyRow(
+        // Dropdown-Menü oben zum Auswählen des Namens
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(CardSlate, RoundedCornerShape(8.dp))
                 .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(persons) { p ->
-                val isSelected = p.id == rootPerson.id
-                Box(
+            Text(
+                text = "Kontakt:",
+                color = TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Box(modifier = Modifier.weight(1f)) {
+                Row(
                     modifier = Modifier
-                        .background(if (isSelected) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                        .border(1.dp, if (isSelected) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                        .clickable { onSelectRoot(p.id) }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .fillMaxWidth()
+                        .background(BgSlate, RoundedCornerShape(6.dp))
+                        .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                        .clickable { dropdownExpanded = true }
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = p.name,
-                        color = if (isSelected) BgSlate else TextPrimary,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        text = rootPerson.name,
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
                     )
+                    Text("▼", color = AccentSteel, fontSize = 11.sp)
+                }
+                DropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false },
+                    modifier = Modifier.background(CardSlate)
+                ) {
+                    persons.forEach { p ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = p.name,
+                                    color = if (p.id == rootPerson.id) AccentSteel else TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (p.id == rootPerson.id) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            onClick = {
+                                onSelectRoot(p.id)
+                                dropdownExpanded = false
+                            }
+                        )
+                    }
                 }
             }
         }
 
-        // Kompakter visueller Stammbaum (Eltern nebeneinander, darunter Kinder)
+        // Kompakter visueller Stammbaum (Ausgewählter Name zentriert, Beziehungen darüber und darunter)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 160.dp)
                 .background(CardSlate, RoundedCornerShape(10.dp))
                 .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                .padding(horizontal = 8.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             val levelKeys = levels.keys.toList()
             levelKeys.forEachIndexed { idx, genLevel ->
