@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.21 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.22 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1848,7 +1848,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.21</div>
+            <div class="app-title">Remember Me v1.0.22</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -3239,7 +3239,8 @@
       }
 
       if (showCreateDialog) {
-        const existingOptions = state.persons.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+        const sortedPersons = [...state.persons].sort((a, b) => (a.name || "").localeCompare(b.name || "", "de"));
+        const existingOptions = sortedPersons.map(p => `<option value="${p.id}">👤 ${escapeHtml(p.name)}</option>`).join("");
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
             <div class="modal" onclick="event.stopPropagation()">
@@ -3312,9 +3313,11 @@
                   </div>
                   ${createRelationsExpanded ? `
                     <div class="field-group" style="margin-top:6px;">
+                      <label class="field-label">1. Beziehungsart</label>
                       <select id="c-rellabel" class="field-select">${relPresetOptions}</select>
-                      <select id="c-reltarget" class="field-select" style="margin-top:4px;">
-                        <option value="-1">-- Keine Verknüpfung --</option>
+                      <label class="field-label" style="margin-top:4px;">2. Verknüpfter Kontakt</label>
+                      <select id="c-reltarget" class="field-select">
+                        <option value="-1">🚫 -- Keine Verknüpfung --</option>
                         ${existingOptions}
                       </select>
                     </div>
@@ -3334,7 +3337,7 @@
       if (detailPersonId !== null) {
         const dp = state.persons.find(p => p.id === detailPersonId);
         if (!dp) { detailPersonId = null; modalRoot.innerHTML = ""; return; }
-        const otherPersons = state.persons.filter(p => p.id !== dp.id);
+        const otherPersons = state.persons.filter(p => p.id !== dp.id).sort((a, b) => (a.name || "").localeCompare(b.name || "", "de"));
         const currentRels = getRelationsForPerson(dp.id);
         const currentEvs = state.specialEvents.filter(e => e.personId === dp.id);
 
@@ -3422,13 +3425,13 @@
                     </div>
                     ${otherPersons.length > 0 ? `
                       <div style="display:flex; flex-direction:column; gap:5px; width:100%;">
-                        <div style="display:flex; gap:5px; width:100%;">
-                          <select id="d-rellabel" class="field-select" style="flex:1; min-width:0;">${relPresetOptions}</select>
-                          <select id="d-reltarget" class="field-select" style="flex:1; min-width:0;">
-                            ${otherPersons.map(op => `<option value="${op.id}">${escapeHtml(op.name)}</option>`).join("")}
-                          </select>
-                        </div>
-                        <button class="compact-btn primary" style="width:100%; text-align:center;" onclick="addRelationFromDetail(${dp.id})">+ Beziehung hinzufügen</button>
+                        <label class="field-label">1. Beziehungsart</label>
+                        <select id="d-rellabel" class="field-select" style="width:100%;">${relPresetOptions}</select>
+                        <label class="field-label" style="margin-top:2px;">2. Verknüpfter Kontakt</label>
+                        <select id="d-reltarget" class="field-select" style="width:100%;">
+                          ${otherPersons.map(op => `<option value="${op.id}">👤 ${escapeHtml(op.name)}</option>`).join("")}
+                        </select>
+                        <button class="compact-btn primary" style="width:100%; text-align:center; margin-top:2px;" onclick="addRelationFromDetail(${dp.id})">+ Beziehung hinzufügen</button>
                       </div>
                     ` : ""}
                   ` : ""}
@@ -5223,7 +5226,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.21",
+        version: "1.0.22",
         createdAt: dateStr,
         state
       };
@@ -5241,7 +5244,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.21",
+        version: "1.0.22",
         createdAt: dateStr,
         state
       };
@@ -5316,7 +5319,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.21 gestartet.");
+    addLog("Remember Me v1.0.22 gestartet.");
     renderAll();
   </script>
 </body>

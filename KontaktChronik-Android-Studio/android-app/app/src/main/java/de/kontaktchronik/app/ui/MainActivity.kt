@@ -1223,7 +1223,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.21", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.22", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1909,7 +1909,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.21")
+                put("version", "1.0.22")
                 put("createdAt", dateStr)
                 put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
@@ -2486,55 +2486,120 @@ fun KontaktChronikApp(
                         )
                     }
                     if (createRelExpanded) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(RELATION_PRESETS) { preset ->
-                                val selected = relLabel == preset
-                                Box(
-                                    modifier = Modifier
-                                        .background(if (selected) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                        .border(1.dp, if (selected) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                        .clickable { relLabel = preset }
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                                ) {
-                                    Text(
-                                        preset,
-                                        color = if (selected) BgSlate else TextSecondary,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                }
-                            }
+                        var createRelLabelExpanded by remember { mutableStateOf(false) }
+                        var createRelTargetExpanded by remember { mutableStateOf(false) }
+                        val sortedTargetPersons = remember(persons) {
+                            persons.sortedBy { it.name.lowercase() }
                         }
+                        val selectedTargetName = sortedTargetPersons
+                            .find { it.id == selectedRelTargetId }?.name ?: "-- Keine Verknüpfung --"
 
-                        Text("Ziel-Kontakt auswählen:", color = TextSecondary, fontSize = 11.sp)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            item {
-                                val noneSelected = selectedRelTargetId == -1L
-                                Box(
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Beziehungsart:", color = TextSecondary, fontSize = 11.sp)
+                            Box {
+                                Row(
                                     modifier = Modifier
-                                        .background(if (noneSelected) BtnBg else BgSlate, RoundedCornerShape(6.dp))
-                                        .border(1.dp, if (noneSelected) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                        .clickable { selectedRelTargetId = -1L }
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                                ) {
-                                    Text("Keine", color = TextPrimary, fontSize = 11.sp)
-                                }
-                            }
-                            items(persons) { targetP ->
-                                val isSel = selectedRelTargetId == targetP.id
-                                Box(
-                                    modifier = Modifier
-                                        .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                        .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                        .clickable { selectedRelTargetId = targetP.id }
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                        .fillMaxWidth()
+                                        .background(BgSlate, RoundedCornerShape(6.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable { createRelLabelExpanded = true }
+                                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        targetP.name,
-                                        color = if (isSel) BgSlate else TextPrimary,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                        relLabel,
+                                        color = TextPrimary,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
+                                    Text("▼", color = AccentSteel, fontSize = 11.sp)
+                                }
+                                DropdownMenu(
+                                    expanded = createRelLabelExpanded,
+                                    onDismissRequest = { createRelLabelExpanded = false },
+                                    modifier = Modifier.background(CardSlate)
+                                ) {
+                                    RELATION_PRESETS.forEach { preset ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    preset,
+                                                    color = if (preset == relLabel) AccentSteel else TextPrimary,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = if (preset == relLabel) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            onClick = {
+                                                relLabel = preset
+                                                createRelLabelExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text("Verknüpfter Kontakt:", color = TextSecondary, fontSize = 11.sp)
+                            Box {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(BgSlate, RoundedCornerShape(6.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable { createRelTargetExpanded = true }
+                                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        selectedTargetName,
+                                        color = TextPrimary,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text("▼", color = AccentSteel, fontSize = 11.sp)
+                                }
+                                DropdownMenu(
+                                    expanded = createRelTargetExpanded,
+                                    onDismissRequest = { createRelTargetExpanded = false },
+                                    modifier = Modifier
+                                        .background(CardSlate)
+                                        .heightIn(max = 280.dp)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "-- Keine Verknüpfung --",
+                                                color = if (selectedRelTargetId == -1L) AccentSteel else TextSecondary,
+                                                fontSize = 13.sp,
+                                                fontWeight = if (selectedRelTargetId == -1L) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        onClick = {
+                                            selectedRelTargetId = -1L
+                                            createRelTargetExpanded = false
+                                        }
+                                    )
+                                    sortedTargetPersons.forEach { targetP ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    targetP.name,
+                                                    color = if (targetP.id == selectedRelTargetId) AccentSteel else TextPrimary,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = if (targetP.id == selectedRelTargetId) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            onClick = {
+                                                selectedRelTargetId = targetP.id
+                                                createRelTargetExpanded = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2860,42 +2925,113 @@ fun KontaktChronikApp(
                             }
 
                             if (otherPersons.isNotEmpty()) {
+                                var detailRelLabelExpanded by remember { mutableStateOf(false) }
+                                var detailRelTargetExpanded by remember { mutableStateOf(false) }
+                                val sortedOtherPersons = remember(otherPersons) {
+                                    otherPersons.sortedBy { it.name.lowercase() }
+                                }
+                                val selectedOtherName = sortedOtherPersons
+                                    .find { it.id == newRelTargetId }?.name
+                                    ?: sortedOtherPersons.firstOrNull()?.also { newRelTargetId = it.id }?.name
+                                    ?: "Kontakt wählen"
+
                                 Text("Beziehung hinzufügen:", color = TextSecondary, fontSize = 11.sp)
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    items(RELATION_PRESETS) { preset ->
-                                        val isSel = newRelLabel == preset
-                                        Box(
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        Row(
                                             modifier = Modifier
-                                                .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                                .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                                .clickable { newRelLabel = preset }
-                                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                                                .fillMaxWidth()
+                                                .background(BgSlate, RoundedCornerShape(6.dp))
+                                                .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                                .clickable { detailRelLabelExpanded = true }
+                                                .padding(horizontal = 10.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                preset,
-                                                color = if (isSel) BgSlate else TextSecondary,
-                                                fontSize = 11.sp,
-                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                                newRelLabel,
+                                                color = TextPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
                                             )
+                                            Text("▼", color = AccentSteel, fontSize = 10.sp)
+                                        }
+                                        DropdownMenu(
+                                            expanded = detailRelLabelExpanded,
+                                            onDismissRequest = { detailRelLabelExpanded = false },
+                                            modifier = Modifier.background(CardSlate)
+                                        ) {
+                                            RELATION_PRESETS.forEach { preset ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            preset,
+                                                            color = if (preset == newRelLabel) AccentSteel else TextPrimary,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (preset == newRelLabel) FontWeight.Bold else FontWeight.Normal
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        newRelLabel = preset
+                                                        detailRelLabelExpanded = false
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
-                                }
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    items(otherPersons) { op ->
-                                        val isSel = newRelTargetId == op.id
-                                        Box(
+
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        Row(
                                             modifier = Modifier
-                                                .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                                .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                                .clickable { newRelTargetId = op.id }
-                                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                                                .fillMaxWidth()
+                                                .background(BgSlate, RoundedCornerShape(6.dp))
+                                                .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                                .clickable { detailRelTargetExpanded = true }
+                                                .padding(horizontal = 10.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                op.name,
-                                                color = if (isSel) BgSlate else TextPrimary,
-                                                fontSize = 11.sp,
-                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                                selectedOtherName,
+                                                color = TextPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
                                             )
+                                            Text("▼", color = AccentSteel, fontSize = 10.sp)
+                                        }
+                                        DropdownMenu(
+                                            expanded = detailRelTargetExpanded,
+                                            onDismissRequest = { detailRelTargetExpanded = false },
+                                            modifier = Modifier
+                                                .background(CardSlate)
+                                                .heightIn(max = 280.dp)
+                                        ) {
+                                            sortedOtherPersons.forEach { op ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            op.name,
+                                                            color = if (op.id == newRelTargetId) AccentSteel else TextPrimary,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (op.id == newRelTargetId) FontWeight.Bold else FontWeight.Normal
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        newRelTargetId = op.id
+                                                        detailRelTargetExpanded = false
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
