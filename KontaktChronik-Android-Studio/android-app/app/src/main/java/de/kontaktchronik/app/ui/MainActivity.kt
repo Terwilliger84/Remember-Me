@@ -760,12 +760,14 @@ fun KontaktChronikApp(
 
     // Dialog: Neuen Kontakt anlegen (inkl. Beziehungen für den Stammbaum)
     if (showCreateDialog) {
+        val prefs = remember { context.getSharedPreferences("remember_me_prefs", android.content.Context.MODE_PRIVATE) }
         var name by remember { mutableStateOf("") }
         var bday by remember { mutableStateOf(formatIsoToDdMmYyyy(LocalDate.now().toString())) }
         var noPhone by remember { mutableStateOf(false) }
         var phone by remember { mutableStateOf("") }
         var email by remember { mutableStateOf("") }
         var notes by remember { mutableStateOf("") }
+        var extraInfos by remember { mutableStateOf(listOf<Pair<String, String>>()) }
         var timerInterval by remember { mutableStateOf("14") }
         var relLabel by remember { mutableStateOf("Kind von") }
         var selectedRelTargetId by remember { mutableStateOf(-1L) }
@@ -793,6 +795,61 @@ fun KontaktChronikApp(
                 OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("E-Mail (aktiviert Mail-Button)") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = timerInterval, onValueChange = { timerInterval = it }, label = { Text("Melde-Timer (Tage)") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
+
+                // Zusätzliche Informationszeilen (z. B. 2. Telefonnummer)
+                Divider(color = BorderSlate)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Zusätzliche Infos (z. B. 2. Telefon):",
+                        color = AccentSteel,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    CompactButton("＋") {
+                        val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Weitere Info"
+                        extraInfos = extraInfos + (defaultLabel to "")
+                    }
+                }
+                extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = infoLabel,
+                            onValueChange = { newL ->
+                                extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
+                            },
+                            label = { Text("Bezeichnung") },
+                            modifier = Modifier.weight(0.9f)
+                        )
+                        OutlinedTextField(
+                            value = infoValue,
+                            onValueChange = { newV ->
+                                extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
+                            },
+                            label = { Text("Nummer / Wert") },
+                            modifier = Modifier.weight(1.1f)
+                        )
+                        Text(
+                            "✕",
+                            color = WarnAmber,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clickable {
+                                    extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                }
+                                .padding(horizontal = 4.dp)
+                        )
+                    }
+                }
 
                 if (persons.isNotEmpty()) {
                     Divider(color = BorderSlate)
@@ -873,6 +930,10 @@ fun KontaktChronikApp(
                                 if (selectedRelTargetId > 0 && relLabel.isNotBlank()) {
                                     addBidirectionalRelation(newId, selectedRelTargetId, relLabel)
                                 }
+                                val serializedExtras = extraInfos
+                                    .filter { it.first.isNotBlank() || it.second.isNotBlank() }
+                                    .joinToString("\n") { "${it.first.replace("\t", " ")}\t${it.second.replace("\t", " ")}" }
+                                prefs.edit().putString("extra_infos_$newId", serializedExtras).apply()
                                 selectedTreeRootId = newId
                                 showCreateDialog = false
                             }
@@ -885,12 +946,21 @@ fun KontaktChronikApp(
 
     // Dialog: Kontakt-Details (wird geöffnet durch Antippen des Namens in der Übersicht)
     detailPerson?.let { dp ->
+        val prefs = remember { context.getSharedPreferences("remember_me_prefs", android.content.Context.MODE_PRIVATE) }
         var nameVal by remember(dp) { mutableStateOf(dp.name) }
         var bdayVal by remember(dp) { mutableStateOf(formatIsoToDdMmYyyy(dp.birthdayIso)) }
         var phoneVal by remember(dp) { mutableStateOf(dp.phone) }
         var noPhoneVal by remember(dp) { mutableStateOf(dp.hasNoOwnPhone) }
         var emailVal by remember(dp) { mutableStateOf(dp.email) }
         var notesVal by remember(dp) { mutableStateOf(dp.notes) }
+        var extraInfos by remember(dp) {
+            val raw = prefs.getString("extra_infos_${dp.id}", "").orEmpty()
+            val parsed = raw.lines().filter { it.isNotBlank() }.map { line ->
+                val parts = line.split("\t", limit = 2)
+                (parts.getOrNull(0) ?: "Info") to (parts.getOrNull(1) ?: "")
+            }
+            mutableStateOf(parsed)
+        }
         var newEvTitle by remember { mutableStateOf("") }
         var newEvDate by remember { mutableStateOf(formatIsoToDdMmYyyy(LocalDate.now().plusDays(3).toString())) }
 
@@ -950,6 +1020,69 @@ fun KontaktChronikApp(
                     }
                     OutlinedTextField(value = emailVal, onValueChange = { emailVal = it }, label = { Text("E-Mail-Adresse") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = notesVal, onValueChange = { notesVal = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
+
+                    // Abschnitt: Zusätzliche Informationszeilen (z. B. 2. Telefonnummer)
+                    Divider(color = BorderSlate)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Zusätzliche Infos (z. B. 2. Telefon):",
+                            color = AccentSteel,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        CompactButton("＋") {
+                            val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Weitere Info"
+                            extraInfos = extraInfos + (defaultLabel to "")
+                        }
+                    }
+                    if (extraInfos.isEmpty()) {
+                        Text(
+                            "Tippe auf „＋\", um weitere Zeilen (z. B. 2. Telefonnummer, Adresse) einzufügen.",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                    } else {
+                        extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = infoLabel,
+                                    onValueChange = { newL ->
+                                        extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
+                                    },
+                                    label = { Text("Bezeichnung") },
+                                    modifier = Modifier.weight(0.9f)
+                                )
+                                OutlinedTextField(
+                                    value = infoValue,
+                                    onValueChange = { newV ->
+                                        extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
+                                    },
+                                    label = { Text("Nummer / Wert") },
+                                    modifier = Modifier.weight(1.1f)
+                                )
+                                Text(
+                                    "✕",
+                                    color = WarnAmber,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .clickable {
+                                            extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                        }
+                                        .padding(horizontal = 4.dp)
+                                )
+                            }
+                        }
+                    }
 
                     // Abschnitt: Beziehungen für Stammbaum
                     Divider(color = BorderSlate)
@@ -1099,6 +1232,10 @@ fun KontaktChronikApp(
                                     notes = notesVal.trim()
                                 )
                                 db.updatePerson(updated)
+                                val serializedExtras = extraInfos
+                                    .filter { it.first.isNotBlank() || it.second.isNotBlank() }
+                                    .joinToString("\n") { "${it.first.replace("\t", " ")}\t${it.second.replace("\t", " ")}" }
+                                prefs.edit().putString("extra_infos_${dp.id}", serializedExtras).apply()
                                 if (newEvTitle.isNotBlank()) {
                                     db.insertSpecialEvent(
                                         SpecialEventEntity(
