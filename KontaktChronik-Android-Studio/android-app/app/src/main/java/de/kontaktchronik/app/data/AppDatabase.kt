@@ -213,10 +213,10 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
     fun generateDefaultPortraitBase64(name: String): String {
         return try {
             val n = name.lowercase()
-            var bg1 = 0xFFD96B43.toInt()
-            var bg2 = 0xFF9E3B18.toInt()
+            var bg1 = 0xFF4A90E2.toInt()
+            var bg2 = 0xFF2B5B84.toInt()
             var skin = 0xFFF6D0B8.toInt()
-            var hair = 0xFF5C3A21.toInt()
+            var hair = 0xFF4A5568.toInt()
             var shirt = 0xFF2E7D5B.toInt()
             var style = "woman"
             var glasses = false
@@ -224,58 +224,58 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
 
             when {
                 n.contains("helga") || n.contains("oma") -> {
-                    bg1 = 0xFFD96B43.toInt(); bg2 = 0xFF8F391A.toInt()
-                    skin = 0xFFF7D5BE.toInt(); hair = 0xFFD9D9E0.toInt(); shirt = 0xFF8E3A59.toInt()
+                    bg1 = 0xFF5B9BD5.toInt(); bg2 = 0xFF2E5B88.toInt()
+                    skin = 0xFFF7D5BE.toInt(); hair = 0xFFD9D9E0.toInt(); shirt = 0xFF4A6FA5.toInt()
                     style = "oma"; glasses = true
                 }
                 n.contains("anna") -> {
-                    bg1 = 0xFFD6336C.toInt(); bg2 = 0xFF881641.toInt()
-                    skin = 0xFFF8D6C0.toInt(); hair = 0xFF6B3E26.toInt(); shirt = 0xFF2E7D5B.toInt()
+                    bg1 = 0xFF38BDF8.toInt(); bg2 = 0xFF0284C7.toInt()
+                    skin = 0xFFF8D6C0.toInt(); hair = 0xFF4A5568.toInt(); shirt = 0xFF2E7D5B.toInt()
                     style = "woman"
                 }
                 n.contains("sabine") -> {
-                    bg1 = 0xFF8B5CF6.toInt(); bg2 = 0xFF4C1D95.toInt()
-                    skin = 0xFFF7D4BC.toInt(); hair = 0xFFB44C27.toInt(); shirt = 0xFFD97706.toInt()
+                    bg1 = 0xFF6366F1.toInt(); bg2 = 0xFF3730A3.toInt()
+                    skin = 0xFFF7D4BC.toInt(); hair = 0xFF64748B.toInt(); shirt = 0xFF3B82F6.toInt()
                     style = "woman"
                 }
                 n.contains("thomas") -> {
                     bg1 = 0xFF2E7D5B.toInt(); bg2 = 0xFF164A33.toInt()
-                    skin = 0xFFF0C5A8.toInt(); hair = 0xFF3B281E.toInt(); shirt = 0xFF2B4C7E.toInt()
+                    skin = 0xFFF0C5A8.toInt(); hair = 0xFF334155.toInt(); shirt = 0xFF2B4C7E.toInt()
                     style = "man"
                 }
                 n.contains("markus") -> {
                     bg1 = 0xFF3B82F6.toInt(); bg2 = 0xFF1E3A8A.toInt()
-                    skin = 0xFFF2C8AD.toInt(); hair = 0xFF7A5230.toInt(); shirt = 0xFFC85A32.toInt()
+                    skin = 0xFFF2C8AD.toInt(); hair = 0xFF475569.toInt(); shirt = 0xFF0284C7.toInt()
                     style = "man"
                 }
                 n.contains("max") -> {
                     bg1 = 0xFF0EA5E9.toInt(); bg2 = 0xFF0C4A6E.toInt()
-                    skin = 0xFFEFC2A5.toInt(); hair = 0xFF2C1E16.toInt(); shirt = 0xFF374151.toInt()
+                    skin = 0xFFEFC2A5.toInt(); hair = 0xFF1E293B.toInt(); shirt = 0xFF374151.toInt()
                     style = "man"; beard = true
                 }
                 n.contains("leo") || n.contains("baby") -> {
-                    bg1 = 0xFFF59E0B.toInt(); bg2 = 0xFFB45309.toInt()
-                    skin = 0xFFFBE0CD.toInt(); hair = 0xFFC68B59.toInt(); shirt = 0xFF38BDF8.toInt()
+                    bg1 = 0xFF60A5FA.toInt(); bg2 = 0xFF2563EB.toInt()
+                    skin = 0xFFFBE0CD.toInt(); hair = 0xFF94A3B8.toInt(); shirt = 0xFF38BDF8.toInt()
                     style = "baby"
                 }
                 n.contains("praxis") || n.contains("dr.") -> {
-                    bg1 = 0xFF10B981.toInt(); bg2 = 0xFF065F46.toInt()
+                    bg1 = 0xFF14B8A6.toInt(); bg2 = 0xFF0F766E.toInt()
                     skin = 0xFFF3CBB2.toInt(); hair = 0xFF9CA3AF.toInt(); shirt = 0xFFFFFFFF.toInt()
                     style = "man"; glasses = true
                 }
                 else -> {
                     val h = abs(n.fold(0) { acc, ch -> ch.code + ((acc shl 5) - acc) })
                     val bgPairs = listOf(
-                        0xFFC85A32.toInt() to 0xFF7C2D12.toInt(),
-                        0xFF2E7D5B.toInt() to 0xFF14532D.toInt(),
-                        0xFF6366F1.toInt() to 0xFF312E81.toInt(),
-                        0xFFEC4899.toInt() to 0xFF831843.toInt()
+                        0xFF4A90E2.toInt() to 0xFF2563EB.toInt(),
+                        0xFF38BDF8.toInt() to 0xFF0284C7.toInt(),
+                        0xFF6366F1.toInt() to 0xFF4338CA.toInt(),
+                        0xFF14B8A6.toInt() to 0xFF0D9488.toInt()
                     )
                     val pair = bgPairs[h % bgPairs.size]
                     bg1 = pair.first; bg2 = pair.second
-                    val hairs = listOf(0xFF3B281E.toInt(), 0xFF6B3E26.toInt(), 0xFFB44C27.toInt(), 0xFF2C1E16.toInt())
+                    val hairs = listOf(0xFF334155.toInt(), 0xFF475569.toInt(), 0xFF1E293B.toInt(), 0xFF64748B.toInt())
                     hair = hairs[h % hairs.size]
-                    val shirts = listOf(0xFF2B4C7E.toInt(), 0xFF2E7D5B.toInt(), 0xFF9E3B18.toInt(), 0xFF6D28D9.toInt())
+                    val shirts = listOf(0xFF2B4C7E.toInt(), 0xFF0284C7.toInt(), 0xFF2E7D5B.toInt(), 0xFF4F46E5.toInt())
                     shirt = shirts[(h shr 2) % shirts.size]
                     style = if (h % 2 == 0) "woman" else "man"
                 }

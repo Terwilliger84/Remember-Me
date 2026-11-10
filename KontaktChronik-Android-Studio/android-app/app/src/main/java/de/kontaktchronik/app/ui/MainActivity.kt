@@ -74,14 +74,14 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-// "warm" (Standard: Warm & Persönlich), "cozy-dark", "xmas" (Weihnachts-Modus), "classic"
+// "warm" (Standard: Sanftes Blau), "cozy-dark" (Sanftes Nachtblau), "xmas" (Weihnachts-Modus), "classic"
 private var appThemeMode by mutableStateOf("warm")
 private val isLightMode: Boolean get() = appThemeMode == "warm"
 
 private val BgSlate: Color
     get() = when (appThemeMode) {
-        "warm" -> Color(0xFFFDF8F2)
-        "cozy-dark" -> Color(0xFF1C1917)
+        "warm" -> Color(0xFFF2F7FC)
+        "cozy-dark" -> Color(0xFF131F31)
         "xmas" -> Color(0xFF0F241D)
         else -> Color(0xFF0F172A)
     }
@@ -89,71 +89,71 @@ private val BgSlate: Color
 private val CardSlate: Color
     get() = when (appThemeMode) {
         "warm" -> Color(0xFFFFFFFF)
-        "cozy-dark" -> Color(0xFF292524)
+        "cozy-dark" -> Color(0xFF1B2B42)
         "xmas" -> Color(0xFF163329)
         else -> Color(0xFF1E293B)
     }
 
 private val BorderSlate: Color
     get() = when (appThemeMode) {
-        "warm" -> Color(0xFFEADBC8)
-        "cozy-dark" -> Color(0xFF44403C)
+        "warm" -> Color(0xFFCFE0F0)
+        "cozy-dark" -> Color(0xFF2C4263)
         "xmas" -> Color(0xFF265444)
         else -> Color(0xFF334155)
     }
 
 private val BtnBg: Color
     get() = when (appThemeMode) {
-        "warm" -> Color(0xFFF5EBE0)
-        "cozy-dark" -> Color(0xFF35302D)
+        "warm" -> Color(0xFFE3EFFA)
+        "cozy-dark" -> Color(0xFF243854)
         "xmas" -> Color(0xFF20483A)
         else -> Color(0xFF334155)
     }
 
 private val RootNodeBg: Color
     get() = when (appThemeMode) {
-        "warm" -> Color(0xFFFEF3C7)
-        "cozy-dark" -> Color(0xFF452719)
+        "warm" -> Color(0xFFDFEFFC)
+        "cozy-dark" -> Color(0xFF1E3A5F)
         "xmas" -> Color(0xFF3F1D24)
         else -> Color(0xFF1E3A5F)
     }
 
 private val TextPrimary: Color
     get() = when (appThemeMode) {
-        "warm" -> Color(0xFF2C1E16)
-        "cozy-dark" -> Color(0xFFFAF5F0)
+        "warm" -> Color(0xFF182B42)
+        "cozy-dark" -> Color(0xFFF0F6FC)
         "xmas" -> Color(0xFFFEFCE8)
         else -> Color(0xFFF8FAFC)
     }
 
 private val TextSecondary: Color
     get() = when (appThemeMode) {
-        "warm" -> Color(0xFF6B5344)
-        "cozy-dark" -> Color(0xFFD6CEC2)
+        "warm" -> Color(0xFF415A77)
+        "cozy-dark" -> Color(0xFFB8CCE0)
         "xmas" -> Color(0xFFD1FAE5)
         else -> Color(0xFFCBD5E1)
     }
 
 private val TextMuted: Color
     get() = when (appThemeMode) {
-        "warm" -> Color(0xFF9C8270)
-        "cozy-dark" -> Color(0xFFA89F91)
+        "warm" -> Color(0xFF728CA8)
+        "cozy-dark" -> Color(0xFF7E97B3)
         "xmas" -> Color(0xFF86EFAC)
         else -> Color(0xFF94A3B8)
     }
 
 private val AccentSteel: Color
     get() = when (appThemeMode) {
-        "warm" -> Color(0xFFD97706)
-        "cozy-dark" -> Color(0xFFF59E0B)
+        "warm" -> Color(0xFF3B82C4)
+        "cozy-dark" -> Color(0xFF63A4FF)
         "xmas" -> Color(0xFFFBBF24)
         else -> Color(0xFF38BDF8)
     }
 
 private val WarnAmber: Color
     get() = when (appThemeMode) {
-        "warm" -> Color(0xFFDC2626)
-        "cozy-dark" -> Color(0xFFFB923C)
+        "warm" -> Color(0xFF2563EB)
+        "cozy-dark" -> Color(0xFF60A5FA)
         "xmas" -> Color(0xFFF87171)
         else -> Color(0xFFF59E0B)
     }
@@ -189,13 +189,13 @@ fun nextThemeMode(mode: String): String = when (mode) {
 }
 
 private val AVATAR_GRADIENTS = listOf(
-    listOf(Color(0xFFEA580C), Color(0xFFD97706)),
-    listOf(Color(0xFFE11D48), Color(0xFFDB2777)),
-    listOf(Color(0xFF059669), Color(0xFF15803D)),
-    listOf(Color(0xFF2563EB), Color(0xFF4F46E5)),
-    listOf(Color(0xFF9333EA), Color(0xFF7C3AED)),
-    listOf(Color(0xFF0D9488), Color(0xFF0284C7)),
-    listOf(Color(0xFFB45309), Color(0xFFA16207))
+    listOf(Color(0xFF4A90E2), Color(0xFF2563EB)),
+    listOf(Color(0xFF38BDF8), Color(0xFF0284C7)),
+    listOf(Color(0xFF60A5FA), Color(0xFF3B82F6)),
+    listOf(Color(0xFF6366F1), Color(0xFF4338CA)),
+    listOf(Color(0xFF2DD4BF), Color(0xFF0D9488)),
+    listOf(Color(0xFF4C6EF5), Color(0xFF364FC7)),
+    listOf(Color(0xFF0CA678), Color(0xFF087F5B))
 )
 
 fun getPersonInitials(name: String): String {
@@ -1026,7 +1026,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.17", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.18", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1831,7 +1831,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.17")
+                put("version", "1.0.18")
                 put("createdAt", dateStr)
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
                 put("wichtelHistory", JSONArray(serializeWichtelHistoryJson(wichtelHistory)))
@@ -1937,16 +1937,16 @@ fun KontaktChronikApp(
 
                 HorizontalDivider(color = BorderSlate)
 
-                Text("🎨 Design-Theme (Warm / Cozy / Festlich)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("🎨 Design-Theme (Sanftes Blau / Festlich)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(modifier = Modifier.weight(1f)) {
-                            CompactButton(if (appThemeMode == "warm") "✓ ☀️ Warm & Hell" else "☀️ Warm & Hell") {
+                            CompactButton(if (appThemeMode == "warm") "✓ ☀️ Sanftes Blau" else "☀️ Sanftes Blau") {
                                 applyThemeMode("warm")
                             }
                         }
                         Box(modifier = Modifier.weight(1f)) {
-                            CompactButton(if (appThemeMode == "cozy-dark") "✓ 🌙 Cozy-Dark" else "🌙 Cozy-Dark") {
+                            CompactButton(if (appThemeMode == "cozy-dark") "✓ 🌙 Nachtblau" else "🌙 Nachtblau") {
                                 applyThemeMode("cozy-dark")
                             }
                         }

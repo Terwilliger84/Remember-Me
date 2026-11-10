@@ -3,54 +3,54 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.17 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.18 – Interaktiver Testserver</title>
   <style>
-    /* Standard-Theme: ☀️ Warm & Persönlich ("Family & Cozy") */
+    /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
     body[data-theme="warm"],
     body[data-theme="light"] {
-      background-color: #E8DFD3;
-      --bg-slate: #FAF5EE;
+      background-color: #DCE8F5;
+      --bg-slate: #F2F7FC;
       --card-slate: #FFFFFF;
-      --border-slate: #E5D7C4;
-      --btn-bg: #F2E8DA;
-      --btn-hover: #E5D5BF;
-      --primary-bg: #C85A32;
-      --primary-hover: #B04B25;
-      --root-node-bg: #FDEBD0;
-      --text-primary: #2C201B;
-      --text-secondary: #5E4A40;
-      --text-muted: #8E786B;
-      --accent-steel: #C85A32;
-      --warn-amber: #D97706;
-      --warn-bg: #FEF3C7;
-      --warn-text: #92400E;
+      --border-slate: #CFE0F0;
+      --btn-bg: #E3EFFA;
+      --btn-hover: #D0E3F5;
+      --primary-bg: #3B82C4;
+      --primary-hover: #2C6CA8;
+      --root-node-bg: #DFEFFC;
+      --text-primary: #182B42;
+      --text-secondary: #415A77;
+      --text-muted: #728CA8;
+      --accent-steel: #3B82C4;
+      --warn-amber: #2563EB;
+      --warn-bg: #E0F2FE;
+      --warn-text: #1E40AF;
       --danger: #C9352B;
       --success: #2E7D5B;
       --partner-rose: #D6336C;
       --tree-green: #2E7D5B;
-      --card-shadow: 0 3px 10px rgba(74, 48, 32, 0.06);
+      --card-shadow: 0 3px 10px rgba(24, 43, 66, 0.06);
     }
 
-    /* 🌙 Cozy Dark */
+    /* 🌙 Sanftes Nachtblau */
     body[data-theme="cozy-dark"],
     body[data-theme="dark"] {
-      background-color: #110E0C;
-      --bg-slate: #1C1715;
-      --card-slate: #28211E;
-      --border-slate: #423630;
-      --btn-bg: #362C27;
-      --btn-hover: #483B35;
-      --primary-bg: #D96B43;
-      --primary-hover: #C25933;
-      --root-node-bg: #3D281E;
-      --text-primary: #FAF3EC;
-      --text-secondary: #D8C6B8;
-      --text-muted: #9E8A7C;
-      --accent-steel: #F08C63;
-      --warn-amber: #F59E0B;
-      --warn-bg: #3B2F1E;
-      --warn-text: #FDE68A;
+      background-color: #0D1624;
+      --bg-slate: #131F31;
+      --card-slate: #1B2B42;
+      --border-slate: #2C4263;
+      --btn-bg: #243854;
+      --btn-hover: #2F486B;
+      --primary-bg: #4A90E2;
+      --primary-hover: #357ABD;
+      --root-node-bg: #1E3A5F;
+      --text-primary: #F0F6FC;
+      --text-secondary: #B8CCE0;
+      --text-muted: #7E97B3;
+      --accent-steel: #63A4FF;
+      --warn-amber: #60A5FA;
+      --warn-bg: #1E3A5F;
+      --warn-text: #DBEAFE;
       --danger: #EF4444;
       --success: #34D399;
       --partner-rose: #FB7185;
@@ -184,7 +184,7 @@
       min-height: 700px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 20px 45px rgba(44, 32, 27, 0.25);
+      box-shadow: 0 20px 45px rgba(24, 43, 66, 0.2);
       position: relative;
     }
 
@@ -303,7 +303,7 @@
       background: var(--primary-bg);
       color: #FFFFFF;
       border-color: var(--primary-bg);
-      box-shadow: 0 2px 8px rgba(200, 90, 50, 0.25);
+      box-shadow: 0 2px 8px rgba(59, 130, 196, 0.28);
     }
 
     .card-list {
@@ -549,10 +549,10 @@
     .widget-row-badge {
       font-size: 11px;
       font-weight: 700;
-      color: var(--text-secondary);
-      background: #1E293B;
+      color: var(--accent-steel);
+      background: var(--btn-bg);
       padding: 2px 7px;
-      border-radius: 4px;
+      border-radius: 6px;
       border: 1px solid var(--border-slate);
     }
 
@@ -1213,32 +1213,32 @@
 
     function makeIllustratedPortraitDataUrl(name) {
       const n = String(name || "").toLowerCase();
-      let bg1 = "#D96B43", bg2 = "#9E3B18", skin = "#F6D0B8", hair = "#5C3A21", shirt = "#2E7D5B", style = "woman", glasses = false, beard = false;
+      let bg1 = "#4A90E2", bg2 = "#2B5B84", skin = "#F6D0B8", hair = "#4A5568", shirt = "#2E7D5B", style = "woman", glasses = false, beard = false;
       if (n.includes("helga") || n.includes("oma")) {
-        bg1 = "#D96B43"; bg2 = "#8F391A"; skin = "#F7D5BE"; hair = "#D9D9E0"; shirt = "#8E3A59"; style = "oma"; glasses = true;
+        bg1 = "#5B9BD5"; bg2 = "#2E5B88"; skin = "#F7D5BE"; hair = "#D9D9E0"; shirt = "#4A6FA5"; style = "oma"; glasses = true;
       } else if (n.includes("anna")) {
-        bg1 = "#D6336C"; bg2 = "#881641"; skin = "#F8D6C0"; hair = "#6B3E26"; shirt = "#2E7D5B"; style = "woman";
+        bg1 = "#38BDF8"; bg2 = "#0284C7"; skin = "#F8D6C0"; hair = "#4A5568"; shirt = "#2E7D5B"; style = "woman";
       } else if (n.includes("sabine")) {
-        bg1 = "#8B5CF6"; bg2 = "#4C1D95"; skin = "#F7D4BC"; hair = "#B44C27"; shirt = "#D97706"; style = "woman";
+        bg1 = "#6366F1"; bg2 = "#3730A3"; skin = "#F7D4BC"; hair = "#64748B"; shirt = "#3B82F6"; style = "woman";
       } else if (n.includes("thomas")) {
-        bg1 = "#2E7D5B"; bg2 = "#164A33"; skin = "#F0C5A8"; hair = "#3B281E"; shirt = "#2B4C7E"; style = "man";
+        bg1 = "#2E7D5B"; bg2 = "#164A33"; skin = "#F0C5A8"; hair = "#334155"; shirt = "#2B4C7E"; style = "man";
       } else if (n.includes("markus")) {
-        bg1 = "#3B82F6"; bg2 = "#1E3A8A"; skin = "#F2C8AD"; hair = "#7A5230"; shirt = "#C85A32"; style = "man";
+        bg1 = "#3B82F6"; bg2 = "#1E3A8A"; skin = "#F2C8AD"; hair = "#475569"; shirt = "#0284C7"; style = "man";
       } else if (n.includes("max")) {
-        bg1 = "#0EA5E9"; bg2 = "#0C4A6E"; skin = "#EFC2A5"; hair = "#2C1E16"; shirt = "#374151"; style = "man"; beard = true;
+        bg1 = "#0EA5E9"; bg2 = "#0C4A6E"; skin = "#EFC2A5"; hair = "#1E293B"; shirt = "#374151"; style = "man"; beard = true;
       } else if (n.includes("leo") || n.includes("baby")) {
-        bg1 = "#F59E0B"; bg2 = "#B45309"; skin = "#FBE0CD"; hair = "#C68B59"; shirt = "#38BDF8"; style = "baby";
+        bg1 = "#60A5FA"; bg2 = "#2563EB"; skin = "#FBE0CD"; hair = "#94A3B8"; shirt = "#38BDF8"; style = "baby";
       } else if (n.includes("praxis") || n.includes("dr.")) {
-        bg1 = "#10B981"; bg2 = "#065F46"; skin = "#F3CBB2"; hair = "#9CA3AF"; shirt = "#FFFFFF"; style = "man"; glasses = true;
+        bg1 = "#14B8A6"; bg2 = "#0F766E"; skin = "#F3CBB2"; hair = "#9CA3AF"; shirt = "#FFFFFF"; style = "man"; glasses = true;
       } else {
         let h = 0;
         for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
-        const bgPairs = [["#C85A32","#7C2D12"],["#2E7D5B","#14532D"],["#6366F1","#312E81"],["#EC4899","#831843"]];
+        const bgPairs = [["#4A90E2","#2563EB"],["#38BDF8","#0284C7"],["#6366F1","#4338CA"],["#14B8A6","#0D9488"]];
         const pair = bgPairs[h % bgPairs.length];
         bg1 = pair[0]; bg2 = pair[1];
-        const hairs = ["#3B281E", "#6B3E26", "#B44C27", "#2C1E16", "#8D6E63"];
+        const hairs = ["#334155", "#475569", "#1E293B", "#64748B", "#94A3B8"];
         hair = hairs[h % hairs.length];
-        const shirts = ["#2B4C7E", "#2E7D5B", "#9E3B18", "#6D28D9"];
+        const shirts = ["#2B4C7E", "#0284C7", "#2E7D5B", "#4F46E5"];
         shirt = shirts[(h >> 2) % shirts.length];
         style = (h % 2 === 0) ? "woman" : "man";
       }
@@ -1283,8 +1283,13 @@
       let changed = false;
       for (const p of state.persons) {
         if (p.photoRemovedByUser) continue;
-        // Aktualisiere fehlende Fotos oder alte Emoji-Platzhalter automatisch auf die echten Kontaktporträts
-        if (!p.photoBase64 || p.photoBase64.includes("font-size%3D%2264%22")) {
+        // Aktualisiere fehlende Fotos oder alte Platzhalter/Brauntöne automatisch auf die sanften Blau-Kontaktporträts
+        if (
+          !p.photoBase64 ||
+          p.photoBase64.includes("font-size%3D%2264%22") ||
+          p.photoBase64.includes("D96B43") ||
+          p.photoBase64.includes("C85A32")
+        ) {
           p.photoBase64 = makeIllustratedPortraitDataUrl(p.name);
           changed = true;
         }
@@ -1441,14 +1446,14 @@
     }
 
     const AVATAR_GRADIENTS = [
-      "linear-gradient(135deg, #D96B43, #B84A24)",
-      "linear-gradient(135deg, #2E7D5B, #1E5A3E)",
-      "linear-gradient(135deg, #C86D51, #9E472D)",
-      "linear-gradient(135deg, #D6336C, #A61E4D)",
-      "linear-gradient(135deg, #D97706, #B45309)",
+      "linear-gradient(135deg, #4A90E2, #2563EB)",
+      "linear-gradient(135deg, #38BDF8, #0284C7)",
+      "linear-gradient(135deg, #60A5FA, #3B82F6)",
+      "linear-gradient(135deg, #6366F1, #4338CA)",
+      "linear-gradient(135deg, #2DD4BF, #0D9488)",
       "linear-gradient(135deg, #4C6EF5, #364FC7)",
       "linear-gradient(135deg, #0CA678, #087F5B)",
-      "linear-gradient(135deg, #AE3EC9, #862E9C)"
+      "linear-gradient(135deg, #818CF8, #4F46E5)"
     ];
 
     function getInitials(fullName) {
@@ -1512,8 +1517,8 @@
       const idx = order.indexOf(current);
       state.themeMode = order[(idx + 1) % order.length];
       const names = {
-        "warm": "☀️ Warm & Persönlich",
-        "cozy-dark": "🌙 Cozy Dark",
+        "warm": "☀️ Sanftes Blau (Hell)",
+        "cozy-dark": "🌙 Sanftes Nachtblau",
         "xmas": "🎄 Weihnachts-Modus",
         "classic": "💎 Klassisch"
       };
@@ -1698,11 +1703,11 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.17</div>
+            <div class="app-title">Remember Me v1.0.18</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
-            <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Design-Theme umschalten (Warm / Cozy Dark / Weihnachten / Klassisch)">${themeEmoji}</button>
+            <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Design-Theme umschalten (Sanftes Blau / Nachtblau / Weihnachten / Klassisch)">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">+ Neu</button>
             <button class="compact-btn" title="Optionen & Backup" onclick="openOptionsModal()">⚙</button>
@@ -3010,10 +3015,10 @@
               </div>
 
               <div style="display:flex; flex-direction:column; gap:6px; padding:8px 0; border-bottom:1px solid var(--border-slate);">
-                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">🎨 Design-Theme (Warm / Cozy / Festlich)</span>
+                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">🎨 Design-Theme (Sanftes Blau / Festlich)</span>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-                  <button class="compact-btn ${currentTheme === 'warm' ? 'primary' : ''}" onclick="setThemeMode('warm')">☀️ Warm & Persönlich</button>
-                  <button class="compact-btn ${currentTheme === 'cozy-dark' ? 'primary' : ''}" onclick="setThemeMode('cozy-dark')">🌙 Cozy-Dark</button>
+                  <button class="compact-btn ${currentTheme === 'warm' ? 'primary' : ''}" onclick="setThemeMode('warm')">☀️ Sanftes Blau (Hell)</button>
+                  <button class="compact-btn ${currentTheme === 'cozy-dark' ? 'primary' : ''}" onclick="setThemeMode('cozy-dark')">🌙 Sanftes Nachtblau</button>
                   <button class="compact-btn ${currentTheme === 'xmas' ? 'primary' : ''}" onclick="setThemeMode('xmas')">🎄 Weihnachts-Modus</button>
                   <button class="compact-btn ${currentTheme === 'classic' ? 'primary' : ''}" onclick="setThemeMode('classic')">💎 Klassisch-Dunkel</button>
                 </div>
@@ -4989,7 +4994,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.17",
+        version: "1.0.18",
         createdAt: dateStr,
         state
       };
@@ -5007,7 +5012,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.17",
+        version: "1.0.18",
         createdAt: dateStr,
         state
       };
@@ -5083,7 +5088,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.17 gestartet.");
+      addLog("Remember Me v1.0.18 gestartet.");
       renderAll();
     }
   </script>
