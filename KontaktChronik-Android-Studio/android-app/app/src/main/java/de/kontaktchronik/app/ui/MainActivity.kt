@@ -331,7 +331,6 @@ fun BirthdayCountdownPill(birthdayIso: String?, isPastMode: Boolean) {
         val neg = ContactResolver.negativeDaysSinceLastBirthday(birthdayIso, today) ?: return
         val label = when (neg) {
             0L -> "🎂 Heute!"
-            -1L -> "vor 1 Tag"
             else -> "vor ${abs(neg)}T"
         }
         Box(
@@ -340,18 +339,24 @@ fun BirthdayCountdownPill(birthdayIso: String?, isPastMode: Boolean) {
                 .border(1.dp, BorderSlate, RoundedCornerShape(999.dp))
                 .padding(horizontal = 7.dp, vertical = 2.dp)
         ) {
-            Text(label, color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text(
+                text = label,
+                color = TextSecondary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false
+            )
         }
         return
     }
     val days = ContactResolver.daysUntilNextBirthday(birthdayIso, today) ?: return
     val isToday = days == 0L
     val isSoon = days in 1L..14L
-    val label = when {
-        days == 0L -> "🎂 Heute!"
-        days == 1L -> "🎂 Morgen!"
-        days <= 30L -> "🎂 in $days Tagen"
-        else -> "in ${days}T"
+    val label = when (days) {
+        0L -> "🎂 Heute!"
+        1L -> "🎂 Morgen!"
+        else -> "🎂 in ${days}T"
     }
     val bgColor = when {
         isToday -> WarnAmber
@@ -374,7 +379,14 @@ fun BirthdayCountdownPill(birthdayIso: String?, isPastMode: Boolean) {
             .border(1.dp, borderColor, RoundedCornerShape(999.dp))
             .padding(horizontal = 7.dp, vertical = 2.dp)
     ) {
-        Text(label, color = textColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = label,
+            color = textColor,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false
+        )
     }
 }
 
@@ -1026,7 +1038,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.18", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.19", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1382,7 +1394,10 @@ fun KontaktChronikApp(
                                             text = person.name,
                                             color = if (isHidden) TextMuted else TextPrimary,
                                             fontSize = 15.sp,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
                                         )
                                         BirthdayCountdownPill(birthdayIso = person.birthdayIso, isPastMode = false)
                                         if (isHidden) {
@@ -1390,7 +1405,9 @@ fun KontaktChronikApp(
                                                 text = "Ausgeblendet",
                                                 color = WarnAmber,
                                                 fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                softWrap = false
                                             )
                                         }
                                         if (person.birthdayIso.isNullOrBlank()) {
@@ -1398,7 +1415,9 @@ fun KontaktChronikApp(
                                                 text = "Ohne Datum",
                                                 color = AccentSteel,
                                                 fontSize = 10.sp,
-                                                fontWeight = FontWeight.Medium
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                softWrap = false
                                             )
                                         }
                                     }
@@ -1691,7 +1710,9 @@ fun KontaktChronikApp(
                                 text = if (showPastDates) "Anstehende zeigen" else "Vergangene Termine",
                                 color = if (showPastDates) BgSlate else TextPrimary,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -1738,7 +1759,10 @@ fun KontaktChronikApp(
                                             text = person.name,
                                             color = TextPrimary,
                                             fontSize = 15.sp,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
                                         )
                                         BirthdayCountdownPill(birthdayIso = person.birthdayIso, isPastMode = showPastDates)
                                     }
@@ -1769,7 +1793,9 @@ fun KontaktChronikApp(
                                                 text = formatEventBadgeText(ev),
                                                 color = badgeColor,
                                                 fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
@@ -1831,7 +1857,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.18")
+                put("version", "1.0.19")
                 put("createdAt", dateStr)
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
                 put("wichtelHistory", JSONArray(serializeWichtelHistoryJson(wichtelHistory)))
@@ -4293,12 +4319,20 @@ fun WichtelScreen(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(part.name, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        part.name,
+                                        color = TextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
                                     if (part.name.equals(activeGroup.adminName, ignoreCase = true)) {
-                                        Text("👑 Admin", color = AccentSteel, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Text("👑 Admin", color = AccentSteel, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                     }
                                     if (part.notifiedVia.isNotBlank()) {
-                                        Text("✓ ${part.notifiedVia}", color = TreeGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Text("✓ ${part.notifiedVia}", color = TreeGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                     }
                                 }
                                 if (partnerInGroup != null && activeGroup.excludeCouples) {
@@ -5328,6 +5362,14 @@ fun CompactButton(label: String, onClick: () -> Unit) {
             .padding(horizontal = 10.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(
+            text = label,
+            color = TextPrimary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

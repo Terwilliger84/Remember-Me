@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.18 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.19 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -229,6 +229,8 @@
       cursor: pointer;
       transition: all 0.15s ease;
       user-select: none;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .compact-btn:hover {
@@ -350,6 +352,8 @@
       color: var(--accent-steel);
       border: 1px solid var(--border-slate);
       white-space: nowrap;
+      flex-shrink: 0;
+      line-height: 1.2;
     }
 
     .countdown-pill.today {
@@ -397,6 +401,8 @@
       background: var(--btn-bg);
       padding: 2px 7px;
       border-radius: 999px;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .badge-nophone {
@@ -406,6 +412,8 @@
       background: var(--warn-bg);
       padding: 2px 7px;
       border-radius: 999px;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .person-sub {
@@ -1501,13 +1509,14 @@
       if (isPastMode) {
         const neg = ContactResolver.negativeDaysSinceLastBirthday(birthdayIso);
         if (neg === null) return "";
-        const label = neg === 0 ? "🎂 Heute!" : (neg === -1 ? "🎂 vor 1 Tag" : `🎂 vor ${Math.abs(neg)}T`);
+        const label = neg === 0 ? "🎂 Heute!" : `🎂 vor ${Math.abs(neg)}T`;
         return `<span class="countdown-pill ${neg === 0 ? 'today' : ''}">${label}</span>`;
       }
       const days = ContactResolver.daysUntilNextBirthday(birthdayIso);
       if (days === null) return "";
       if (days === 0) return `<span class="countdown-pill today">🎂 Heute!</span>`;
-      if (days <= 7) return `<span class="countdown-pill soon">🎂 in ${days} ${days === 1 ? 'Tag' : 'Tagen'}</span>`;
+      if (days === 1) return `<span class="countdown-pill soon">🎂 Morgen!</span>`;
+      if (days <= 7) return `<span class="countdown-pill soon">🎂 in ${days}T</span>`;
       return `<span class="countdown-pill">🎂 in ${days}T</span>`;
     }
 
@@ -1703,7 +1712,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.18</div>
+            <div class="app-title">Remember Me v1.0.19</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -1992,8 +2001,8 @@
                 ${renderPersonAvatarHtml(person.name)}
               </div>
               <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
-                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                  <span style="font-size:15px; font-weight:700; color:var(--text-primary);">${escapeHtml(person.name)}</span>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0;">
+                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(person.name)}</span>
                   ${pillHtml}
                   ${person.isHidden ? `<span class="badge-nophone">Ausgeblendet</span>` : ""}
                   ${!person.birthdayIso ? `<span class="badge-app">Ohne Datum</span>` : ""}
@@ -2044,8 +2053,8 @@
                 ${renderPersonAvatarHtml(person.name)}
               </div>
               <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
-                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                  <span style="font-size:15px; font-weight:700; color:var(--text-primary);">${escapeHtml(person.name)}</span>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0;">
+                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(person.name)}</span>
                   ${pillHtml}
                 </div>
                 ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : `<div class="person-sub" style="margin-top:2px; color:var(--text-muted);">${escapeHtml(fallbackLine)}</div>`}
@@ -2056,7 +2065,7 @@
                       const isWeekly = isWeeklyDateSpec(e.dateIso) || isRepeatDateSpec(e.dateIso);
                       const badgeBg = isDueToday ? "var(--warn-bg)" : (isWeekly ? "rgba(46, 125, 91, 0.14)" : "var(--btn-bg)");
                       const badgeColor = isDueToday ? "var(--warn-amber)" : (isWeekly ? "var(--tree-green)" : "var(--accent-steel)");
-                      return `<span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; background:${badgeBg}; color:${badgeColor};">${escapeHtml(formatEventBadgeText(e, today))}</span>`;
+                      return `<span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; background:${badgeBg}; color:${badgeColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; display:inline-block;">${escapeHtml(formatEventBadgeText(e, today))}</span>`;
                     }).join("")}
                   </div>
                 ` : ""}
@@ -4994,7 +5003,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.18",
+        version: "1.0.19",
         createdAt: dateStr,
         state
       };
@@ -5012,7 +5021,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.18",
+        version: "1.0.19",
         createdAt: dateStr,
         state
       };
@@ -5088,7 +5097,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.18 gestartet.");
+      addLog("Remember Me v1.0.19 gestartet.");
       renderAll();
     }
   </script>
