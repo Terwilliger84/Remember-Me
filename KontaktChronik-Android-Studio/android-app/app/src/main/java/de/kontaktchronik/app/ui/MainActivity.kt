@@ -253,6 +253,99 @@ fun formatPassedBirthdayLine(birthdayIso: String?, today: LocalDate = LocalDate.
     return "$dateStr  •  $passedAgeStr ($negLabel)"
 }
 
+data class WichtelParticipant(
+    val id: Long,
+    val personId: Long? = null,
+    val name: String,
+    val phone: String = "",
+    val wishText: String = "",
+    val wishlistUrl: String = "",
+    val drawnTargetId: Long? = null,
+    val notifiedVia: String = ""
+)
+
+data class WichtelGroup(
+    val id: Long,
+    val groupName: String,
+    val adminName: String,
+    val budget: String = "25 €",
+    val revealDateIso: String = "${LocalDate.now().year}-12-24",
+    val excludeCouples: Boolean = true,
+    val forceRevealed: Boolean = false,
+    val isDrawn: Boolean = false,
+    val participants: List<WichtelParticipant> = emptyList()
+)
+
+fun parseWichtelGroupsJson(raw: String?): List<WichtelGroup> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return runCatching {
+        val arr = JSONArray(raw)
+        (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            val pArr = obj.optJSONArray("participants") ?: JSONArray()
+            val parts = (0 until pArr.length()).map { j ->
+                val pObj = pArr.getJSONObject(j)
+                WichtelParticipant(
+                    id = pObj.optLong("id", System.nanoTime()),
+                    personId = pObj.optLong("personId", -1L).takeIf { it > 0 },
+                    name = pObj.optString("name", ""),
+                    phone = pObj.optString("phone", ""),
+                    wishText = pObj.optString("wishText", ""),
+                    wishlistUrl = pObj.optString("wishlistUrl", ""),
+                    drawnTargetId = pObj.optLong("drawnTargetId", -1L).takeIf { it > 0 },
+                    notifiedVia = pObj.optString("notifiedVia", "")
+                )
+            }
+            WichtelGroup(
+                id = obj.optLong("id", System.nanoTime()),
+                groupName = obj.optString("groupName", "Wichtelrunde"),
+                adminName = obj.optString("adminName", "Admin"),
+                budget = obj.optString("budget", "25 €"),
+                revealDateIso = obj.optString("revealDateIso", "${LocalDate.now().year}-12-24"),
+                excludeCouples = obj.optBoolean("excludeCouples", true),
+                forceRevealed = obj.optBoolean("forceRevealed", false),
+                isDrawn = obj.optBoolean("isDrawn", false),
+                participants = parts
+            )
+        }
+    }.getOrElse { emptyList() }
+}
+
+fun serializeWichtelGroupsJson(groups: List<WichtelGroup>): String {
+    val arr = JSONArray()
+    groups.forEach { g ->
+        arr.put(
+            JSONObject().apply {
+                put("id", g.id)
+                put("groupName", g.groupName)
+                put("adminName", g.adminName)
+                put("budget", g.budget)
+                put("revealDateIso", g.revealDateIso)
+                put("excludeCouples", g.excludeCouples)
+                put("forceRevealed", g.forceRevealed)
+                put("isDrawn", g.isDrawn)
+                val pArr = JSONArray()
+                g.participants.forEach { p ->
+                    pArr.put(
+                        JSONObject().apply {
+                            put("id", p.id)
+                            put("personId", p.personId ?: -1L)
+                            put("name", p.name)
+                            put("phone", p.phone)
+                            put("wishText", p.wishText)
+                            put("wishlistUrl", p.wishlistUrl)
+                            put("drawnTargetId", p.drawnTargetId ?: -1L)
+                            put("notifiedVia", p.notifiedVia)
+                        }
+                    )
+                }
+                put("participants", pArr)
+            }
+        )
+    }
+    return arr.toString()
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -306,7 +399,14 @@ fun KontaktChronikApp(
 
     var activeTab by remember { mutableStateOf("Übersicht") }
     var treeEnabled by remember { mutableStateOf(appPrefs.getBoolean("tree_enabled", true)) }
+    var wichtelEnabled by remember { mutableStateOf(appPrefs.getBoolean("wichtel_enabled", true)) }
+    var wichtelGroups by remember { mutableStateOf(parseWichtelGroupsJson(appPrefs.getString("wichtel_groups_json", null))) }
     var showOptionsDialog by remember { mutableStateOf(false) }
+
+    fun saveWichtelGroups(updated: List<WichtelGroup>) {
+        wichtelGroups = updated
+        appPrefs.edit().putString("wichtel_groups_json", serializeWichtelGroupsJson(updated)).apply()
+    }
     var showPastDates by remember { mutableStateOf(false) }
     var contactSortMode by remember { mutableStateOf("birthday") } // "birthday" | "firstname" | "lastname"
     var allContactsFilter by remember { mutableStateOf("all") } // "all" | "hidden"
@@ -404,7 +504,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.8", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.9", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
@@ -436,35 +536,45 @@ fun KontaktChronikApp(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Navigation inkl. Alle Kontakte, Stammbaum & Erinnerung
-        val visibleTabs = if (treeEnabled) {
-            listOf("Übersicht", "Alle Kontakte", "Stammbaum", "Timer", "Erinnerung")
-        } else {
-            listOf("Übersicht", "Alle Kontakte", "Timer", "Erinnerung")
+        // Navigation inkl. Alle Kontakte, Stammbaum, Erinnerung & Wichteln (2-zeiliges Raster)
+        val visibleTabs = buildList {
+            add("Übersicht")
+            add("Alle Kontakte")
+            if (treeEnabled) add("Stammbaum")
+            add("Timer")
+            add("Erinnerung")
+            if (wichtelEnabled) add("🎄 Wichteln")
         }
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            visibleTabs.forEach { tab ->
-                val active = activeTab == tab
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .background(if (active) BtnBg else CardSlate, RoundedCornerShape(6.dp))
-                        .border(1.dp, if (active) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                        .clickable { activeTab = tab }
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
+            visibleTabs.chunked(3).forEach { rowTabs ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        tab,
-                        color = if (active) TextPrimary else TextMuted,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    rowTabs.forEach { tab ->
+                        val active = activeTab == tab
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(if (active) BtnBg else CardSlate, RoundedCornerShape(6.dp))
+                                .border(1.dp, if (active) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
+                                .clickable { activeTab = tab }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                tab,
+                                color = if (active) TextPrimary else TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -576,6 +686,55 @@ fun KontaktChronikApp(
                                     dateIso = "WEEKLY:3",
                                     leadDays = 0,
                                     note = "Wöchentlicher Mittwochs-Anruf"
+                                )
+                            )
+                            val xmasYear = LocalDate.now().year
+                            saveWichtelGroups(
+                                listOf(
+                                    WichtelGroup(
+                                        id = 1001L,
+                                        groupName = "Familien-Wichteln $xmasYear",
+                                        adminName = "Anna Weber",
+                                        budget = "25 €",
+                                        revealDateIso = "$xmasYear-12-24",
+                                        excludeCouples = true,
+                                        forceRevealed = false,
+                                        isDrawn = false,
+                                        participants = listOf(
+                                            WichtelParticipant(
+                                                id = 2001L,
+                                                personId = omaId,
+                                                name = "Helga Weber (Oma)",
+                                                phone = "+491701112233",
+                                                wishText = "Gartenhandschuhe, Kräutertee-Set",
+                                                wishlistUrl = "https://www.amazon.de/hz/wishlist/ls/OMA-GARTEN"
+                                            ),
+                                            WichtelParticipant(
+                                                id = 2002L,
+                                                personId = annaId,
+                                                name = "Anna Weber",
+                                                phone = "+491712345678",
+                                                wishText = "Krimi-Taschenbuch, Duftkerze Vanille",
+                                                wishlistUrl = "https://www.amazon.de/hz/wishlist/ls/ANNA-WISHES"
+                                            ),
+                                            WichtelParticipant(
+                                                id = 2003L,
+                                                personId = thomasId,
+                                                name = "Thomas Weber",
+                                                phone = "+491719988776",
+                                                wishText = "Ganze Espresso-Bohnen (100% Arabica)",
+                                                wishlistUrl = "https://www.amazon.de/hz/wishlist/ls/THOMAS-COFFEE"
+                                            ),
+                                            WichtelParticipant(
+                                                id = 2004L,
+                                                personId = markusId,
+                                                name = "Markus Weber",
+                                                phone = "+491605544332",
+                                                wishText = "Warme Laufsocken (Gr. 43), dunkle Schokolade",
+                                                wishlistUrl = "https://www.amazon.de/hz/wishlist/ls/MARKUS-SPORT"
+                                            )
+                                        )
+                                    )
                                 )
                             )
                             selectedTreeRootId = annaId
@@ -891,6 +1050,19 @@ fun KontaktChronikApp(
                 }
             }
 
+            "🎄 Wichteln" -> {
+                WichtelScreen(
+                    groups = wichtelGroups,
+                    persons = persons,
+                    relations = relations,
+                    onSaveGroups = { saveWichtelGroups(it) },
+                    onConfirmDelete = { msg, act ->
+                        pendingConfirmMessage = msg
+                        pendingConfirmAction = act
+                    }
+                )
+            }
+
             else -> {
                 val sortedPersons = remember(visiblePersons, showPastDates, contactSortMode) {
                     when (contactSortMode) {
@@ -1118,6 +1290,27 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Text("🎄 Wichtelrunde", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactButton(if (wichtelEnabled) "✓ Aktiviert" else "Aktiviert") {
+                            wichtelEnabled = true
+                            appPrefs.edit().putBoolean("wichtel_enabled", true).apply()
+                        }
+                        CompactButton(if (!wichtelEnabled) "✓ Deaktiviert" else "Deaktiviert") {
+                            wichtelEnabled = false
+                            if (activeTab == "🎄 Wichteln") activeTab = "Übersicht"
+                            appPrefs.edit().putBoolean("wichtel_enabled", false).apply()
+                        }
+                    }
+                }
+
+                Divider(color = BorderSlate)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text("Darstellung", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         CompactButton(if (!isLightMode) "✓ 🌙 Dunkel" else "🌙 Dunkel") {
@@ -1148,8 +1341,9 @@ fun KontaktChronikApp(
                         val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
                         val rootJson = JSONObject().apply {
                             put("app", "Remember Me")
-                            put("version", "1.0.8")
+                            put("version", "1.0.9")
                             put("createdAt", dateStr)
+                            put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
                             val personsArr = JSONArray()
                             persons.forEach { p ->
                                 personsArr.put(
@@ -2587,6 +2781,627 @@ fun DateInputWithCalendar(
         },
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+@Composable
+fun WichtelScreen(
+    groups: List<WichtelGroup>,
+    persons: List<PersonEntity>,
+    relations: List<RelationEntity>,
+    onSaveGroups: (List<WichtelGroup>) -> Unit,
+    onConfirmDelete: (String, () -> Unit) -> Unit
+) {
+    val context = LocalContext.current
+    var selectedGroupId by remember(groups) {
+        mutableStateOf(groups.firstOrNull()?.id)
+    }
+
+    // Dialog-States
+    var editingGroup by remember { mutableStateOf<WichtelGroup?>(null) }
+    var isCreatingGroup by remember { mutableStateOf(false) }
+    var editingParticipantGroup by remember { mutableStateOf<WichtelGroup?>(null) }
+    var editingParticipant by remember { mutableStateOf<WichtelParticipant?>(null) }
+    var secretPeekPair by remember { mutableStateOf<Triple<WichtelGroup, WichtelParticipant, WichtelParticipant>?>(null) }
+
+    val activeGroup = groups.find { it.id == selectedGroupId } ?: groups.firstOrNull()
+
+    fun isGroupRevealed(g: WichtelGroup): Boolean {
+        if (g.forceRevealed) return true
+        val todayStr = LocalDate.now().toString()
+        return g.revealDateIso.isNotBlank() && todayStr >= g.revealDateIso
+    }
+
+    fun areCouplesInTree(idA: Long?, idB: Long?): Boolean {
+        if (idA == null || idB == null || idA <= 0L || idB <= 0L) return false
+        return relations.any { r ->
+            ((r.fromPersonId == idA && r.toPersonId == idB) ||
+                (r.fromPersonId == idB && r.toPersonId == idA)) &&
+                isPartnerRelation(r.relationLabel)
+        }
+    }
+
+    fun rollGroup(g: WichtelGroup) {
+        val parts = g.participants
+        if (parts.size < 2) return
+        var chosenMap: Map<Long, Long>? = null
+        for (attempt in 0 until 120) {
+            val shuffled = parts.shuffled()
+            var valid = true
+            val map = mutableMapOf<Long, Long>()
+            for (i in shuffled.indices) {
+                val giver = shuffled[i]
+                val receiver = shuffled[(i + 1) % shuffled.size]
+                if (giver.id == receiver.id) {
+                    valid = false
+                    break
+                }
+                if (g.excludeCouples && parts.size > 2 && areCouplesInTree(giver.personId, receiver.personId)) {
+                    valid = false
+                    break
+                }
+                map[giver.id] = receiver.id
+            }
+            if (valid) {
+                chosenMap = map
+                break
+            }
+        }
+        if (chosenMap == null) {
+            val shuffled = parts.shuffled()
+            val fallback = mutableMapOf<Long, Long>()
+            for (i in shuffled.indices) {
+                fallback[shuffled[i].id] = shuffled[(i + 1) % shuffled.size].id
+            }
+            chosenMap = fallback
+        }
+        val updatedGroup = g.copy(
+            isDrawn = true,
+            forceRevealed = false,
+            participants = parts.map { p ->
+                p.copy(drawnTargetId = chosenMap[p.id], notifiedVia = "")
+            }
+        )
+        onSaveGroups(groups.map { if (it.id == g.id) updatedGroup else it })
+    }
+
+    fun buildSecretMessage(g: WichtelGroup, giver: WichtelParticipant, target: WichtelParticipant): String {
+        val revealStr = formatIsoToDdMmYyyy(g.revealDateIso).ifBlank { "Weihnachten" }
+        return buildString {
+            append("🎄 Hallo ${giver.name.substringBefore(" ")}! Hier ist dein geheimes Los für unsere Wichtelrunde „${g.groupName}“ (Gruppenadmin: ${g.adminName}):\n\n")
+            append("🎁 Du beschenkst: *${target.name}*!\n")
+            if (g.budget.isNotBlank()) append("💶 Budget: ${g.budget}\n")
+            if (target.wishText.isNotBlank()) append("📝 Wunschzettel von ${target.name.substringBefore(" ")}: ${target.wishText}\n")
+            if (target.wishlistUrl.isNotBlank()) append("🛒 Amazon-Wunschliste / Link: ${target.wishlistUrl}\n")
+            append("\n🤫 Pssst: Niemand sonst kennt dein Los! Erst ab dem $revealStr wird für alle aufgelöst, wer wen gezogen hat.")
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            LazyRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(groups) { g ->
+                    val isSel = g.id == activeGroup?.id
+                    CompactButton(if (isSel) "✓ 🎄 ${g.groupName}" else "🎄 ${g.groupName}") {
+                        selectedGroupId = g.id
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            CompactButton("+ Neue Runde") {
+                isCreatingGroup = true
+                editingGroup = WichtelGroup(
+                    id = System.currentTimeMillis(),
+                    groupName = "Weihnachts-Wichteln ${LocalDate.now().year}",
+                    adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
+                    budget = "25 €",
+                    revealDateIso = "${LocalDate.now().year}-12-24",
+                    excludeCouples = true
+                )
+            }
+        }
+
+        if (activeGroup == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(8.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                    .padding(14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("🎄 Noch keine Wichtelrunde erstellt", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Erstelle als Gruppenadmin eine Wichtelrunde, lade Namen & Kontakte ein, hinterlege Wunschzettel oder Amazon-Wunschlisten und würfle die geheime Zulosung aus!",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                    CompactButton("🎄 Erste Wichtelrunde starten") {
+                        isCreatingGroup = true
+                        editingGroup = WichtelGroup(
+                            id = System.currentTimeMillis(),
+                            groupName = "Familien-Wichteln ${LocalDate.now().year}",
+                            adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
+                            budget = "25 €",
+                            revealDateIso = "${LocalDate.now().year}-12-24",
+                            excludeCouples = true
+                        )
+                    }
+                }
+            }
+        } else {
+            val revealed = isGroupRevealed(activeGroup)
+            val revealDateFormatted = formatIsoToDdMmYyyy(activeGroup.revealDateIso).ifBlank { "24.12." }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(CardSlate, RoundedCornerShape(8.dp))
+                            .border(1.dp, AccentSteel, RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "🎄 ${activeGroup.groupName}",
+                                    color = TextPrimary,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "👑 Gruppenadmin: ${activeGroup.adminName}" +
+                                        if (activeGroup.budget.isNotBlank()) " • 💶 Budget: ${activeGroup.budget}" else "",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    "📅 Auflösungs-Frist: $revealDateFormatted" +
+                                        if (activeGroup.excludeCouples) " • 💑 Paar-Sperre aktiv" else "",
+                                    color = AccentSteel,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                CompactButton("✏️") {
+                                    isCreatingGroup = false
+                                    editingGroup = activeGroup
+                                }
+                                CompactButton("🗑️") {
+                                    onConfirmDelete("Wichtelrunde „${activeGroup.groupName}“ wirklich löschen?") {
+                                        onSaveGroups(groups.filter { it.id != activeGroup.id })
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!activeGroup.isDrawn) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(BgSlate, RoundedCornerShape(6.dp))
+                                    .border(1.dp, AccentSteel, RoundedCornerShape(6.dp))
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    "🎲 Bereit zum Würfeln: Sobald alle Teilnehmer eingetragen sind, tippe auf „🎲 Jetzt auslosen!“. Vor Ablauf der Frist ($revealDateFormatted) sieht niemand die Gesamtliste.",
+                                    color = TextPrimary,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        } else if (!revealed) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(BgSlate, RoundedCornerShape(6.dp))
+                                    .border(1.dp, TreeGreen, RoundedCornerShape(6.dp))
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    "🔒 Geheimhaltung aktiv bis $revealDateFormatted!\nNiemand in der Gruppe sieht, wer wen gezogen hat. Teile jedem sein Los einzeln per 📲 WhatsApp oder 💬 In-App mit.",
+                                    color = TreeGreen,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(BgSlate, RoundedCornerShape(6.dp))
+                                    .border(1.dp, WarnAmber, RoundedCornerShape(6.dp))
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    "🔓 Frist abgelaufen ($revealDateFormatted) – Alle Paarungen sind jetzt sichtbar:",
+                                    color = WarnAmber,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                activeGroup.participants.forEach { p ->
+                                    val t = activeGroup.participants.find { it.id == p.drawnTargetId }
+                                    Text(
+                                        "🎁 ${p.name} ➔ hat ${t?.name ?: "?"} beschenkt",
+                                        color = TextPrimary,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CompactButton(if (activeGroup.isDrawn) "🎲 Neu würfeln" else "🎲 Jetzt auslosen!") {
+                                rollGroup(activeGroup)
+                            }
+                            CompactButton("+ Teilnehmer") {
+                                editingParticipantGroup = activeGroup
+                                editingParticipant = WichtelParticipant(
+                                    id = System.currentTimeMillis(),
+                                    name = ""
+                                )
+                            }
+                            if (activeGroup.isDrawn) {
+                                CompactButton(if (revealed) "🔒 Verbergen" else "🔓 Frist-Ablauf") {
+                                    val toggled = activeGroup.copy(forceRevealed = !activeGroup.forceRevealed)
+                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) toggled else it })
+                                }
+                            }
+                        }
+                    }
+                }
+
+                items(activeGroup.participants) { part ->
+                    val target = activeGroup.participants.find { it.id == part.drawnTargetId }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(CardSlate, RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(part.name, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                    if (part.name.equals(activeGroup.adminName, ignoreCase = true)) {
+                                        Text("👑 Admin", color = AccentSteel, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    if (part.notifiedVia.isNotBlank()) {
+                                        Text("✓ ${part.notifiedVia}", color = TreeGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                val statusLine = when {
+                                    !activeGroup.isDrawn -> "Noch nicht ausgelost"
+                                    revealed && target != null -> "🎁 Hat gezogen: ${target.name}"
+                                    else -> "🎲 Zugelost • 🔒 Geheim bis $revealDateFormatted"
+                                }
+                                Text(
+                                    statusLine,
+                                    color = if (!activeGroup.isDrawn) TextMuted else if (revealed) WarnAmber else TreeGreen,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                if (part.wishText.isNotBlank()) {
+                                    Text("🎁 Wunsch: ${part.wishText}", color = TextSecondary, fontSize = 11.5.sp)
+                                }
+                                if (part.wishlistUrl.isNotBlank()) {
+                                    Text(
+                                        "🛒 Amazon-Wunschliste / Link öffnen ↗",
+                                        color = AccentSteel,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.clickable {
+                                            runCatching {
+                                                val url = if (part.wishlistUrl.startsWith("http")) part.wishlistUrl else "https://${part.wishlistUrl}"
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CompactButton("🎁 Wunsch") {
+                                    editingParticipantGroup = activeGroup
+                                    editingParticipant = part
+                                }
+                                Text(
+                                    "✕",
+                                    color = WarnAmber,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .clickable {
+                                            onConfirmDelete("Teilnehmer „${part.name}“ aus der Wichtelrunde entfernen?") {
+                                                val updated = activeGroup.copy(
+                                                    isDrawn = false,
+                                                    participants = activeGroup.participants
+                                                        .filter { it.id != part.id }
+                                                        .map { it.copy(drawnTargetId = null, notifiedVia = "") }
+                                                )
+                                                onSaveGroups(groups.map { if (it.id == activeGroup.id) updated else it })
+                                            }
+                                        }
+                                        .padding(horizontal = 4.dp)
+                                )
+                            }
+                        }
+
+                        if (activeGroup.isDrawn && target != null) {
+                            Divider(color = BorderSlate, modifier = Modifier.padding(vertical = 4.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                CompactButton("📲 Los per WhatsApp") {
+                                    val msg = buildSecretMessage(activeGroup, part, target)
+                                    val updatedGroup = activeGroup.copy(
+                                        participants = activeGroup.participants.map {
+                                            if (it.id == part.id) it.copy(notifiedVia = "WhatsApp") else it
+                                        }
+                                    )
+                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) updatedGroup else it })
+                                    runCatching {
+                                        val cleanPhone = part.phone.replace(Regex("[^0-9]"), "")
+                                        val url = if (cleanPhone.isNotBlank()) {
+                                            "https://wa.me/$cleanPhone?text=${android.net.Uri.encode(msg)}"
+                                        } else {
+                                            "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+                                        }
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                    }
+                                }
+                                CompactButton("💬 In-App") {
+                                    val updatedGroup = activeGroup.copy(
+                                        participants = activeGroup.participants.map {
+                                            if (it.id == part.id) it.copy(notifiedVia = "In-App") else it
+                                        }
+                                    )
+                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) updatedGroup else it })
+                                }
+                                CompactButton("👁️ Geheimes Los") {
+                                    secretPeekPair = Triple(activeGroup, part, target)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog: Wichtelrunde erstellen / bearbeiten
+    editingGroup?.let { eg ->
+        var gName by remember(eg) { mutableStateOf(eg.groupName) }
+        var gAdmin by remember(eg) { mutableStateOf(eg.adminName) }
+        var gBudget by remember(eg) { mutableStateOf(eg.budget) }
+        var gReveal by remember(eg) { mutableStateOf(formatIsoToDdMmYyyy(eg.revealDateIso)) }
+        var gCouples by remember(eg) { mutableStateOf(eg.excludeCouples) }
+
+        Dialog(onDismissRequest = { editingGroup = null }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                    .padding(14.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    if (isCreatingGroup) "🎄 Neue Wichtelrunde erstellen" else "🎄 Wichtelrunde bearbeiten",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                OutlinedTextField(value = gName, onValueChange = { gName = it }, label = { Text("Name der Wichtelrunde") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = gAdmin, onValueChange = { gAdmin = it }, label = { Text("👑 Gruppenadmin (Ersteller)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = gBudget, onValueChange = { gBudget = it }, label = { Text("💶 Budget / Preisrahmen") }, modifier = Modifier.fillMaxWidth())
+                DateInputWithCalendar(
+                    value = gReveal,
+                    onValueChange = { gReveal = it },
+                    label = "📅 Auflösungs-Frist (TT.MM.JJJJ)"
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = gCouples, onCheckedChange = { gCouples = it })
+                    Text("💑 Paare aus Stammbaum nicht gegenseitig zulosen", color = TextSecondary, fontSize = 12.sp)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    CompactButton("Abbrechen") { editingGroup = null }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    CompactButton("Speichern") {
+                        val finalGroup = eg.copy(
+                            groupName = gName.trim().ifBlank { "Wichtelrunde" },
+                            adminName = gAdmin.trim().ifBlank { "Admin" },
+                            budget = gBudget.trim(),
+                            revealDateIso = normalizeDateInputToIso(gReveal).ifBlank { "${LocalDate.now().year}-12-24" },
+                            excludeCouples = gCouples,
+                            participants = if (isCreatingGroup && eg.participants.isEmpty()) {
+                                val adminContact = persons.find { it.name.equals(gAdmin.trim(), ignoreCase = true) }
+                                listOf(
+                                    WichtelParticipant(
+                                        id = System.currentTimeMillis() + 1,
+                                        personId = adminContact?.id,
+                                        name = gAdmin.trim().ifBlank { "Admin" },
+                                        phone = adminContact?.phone.orEmpty()
+                                    )
+                                )
+                            } else eg.participants
+                        )
+                        val nextList = if (isCreatingGroup) groups + finalGroup else groups.map { if (it.id == eg.id) finalGroup else it }
+                        onSaveGroups(nextList)
+                        selectedGroupId = finalGroup.id
+                        editingGroup = null
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog: Teilnehmer & Amazon-Wunschliste hinzufügen / bearbeiten
+    val pGroup = editingParticipantGroup
+    val pItem = editingParticipant
+    if (pGroup != null && pItem != null) {
+        val isExisting = pGroup.participants.any { it.id == pItem.id }
+        var pPersonId by remember(pItem) { mutableStateOf(pItem.personId) }
+        var pName by remember(pItem) { mutableStateOf(pItem.name) }
+        var pPhone by remember(pItem) { mutableStateOf(pItem.phone) }
+        var pWish by remember(pItem) { mutableStateOf(pItem.wishText) }
+        var pUrl by remember(pItem) { mutableStateOf(pItem.wishlistUrl) }
+
+        Dialog(
+            onDismissRequest = {
+                editingParticipantGroup = null
+                editingParticipant = null
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                    .padding(14.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    if (isExisting) "🎁 Teilnehmer & Wunschliste" else "+ Teilnehmer einladen",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                if (!isExisting && persons.isNotEmpty()) {
+                    Text("Aus Kontakten übernehmen:", color = TextSecondary, fontSize = 11.sp)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(persons) { contact ->
+                            CompactButton(contact.name) {
+                                pPersonId = contact.id
+                                pName = contact.name
+                                pPhone = contact.phone
+                                if (pWish.isBlank() && contact.notes.isNotBlank()) {
+                                    pWish = contact.notes
+                                }
+                            }
+                        }
+                    }
+                }
+                OutlinedTextField(value = pName, onValueChange = { pName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = pPhone, onValueChange = { pPhone = it }, label = { Text("Telefon (für WhatsApp-Los)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = pWish, onValueChange = { pWish = it }, label = { Text("🎁 Wunschzettel / Geschenk-Ideen") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = pUrl, onValueChange = { pUrl = it }, label = { Text("🛒 Amazon-Wunschliste / Link") }, modifier = Modifier.fillMaxWidth())
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    CompactButton("Abbrechen") {
+                        editingParticipantGroup = null
+                        editingParticipant = null
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    CompactButton("Speichern") {
+                        if (pName.isNotBlank()) {
+                            val updatedPart = pItem.copy(
+                                personId = pPersonId,
+                                name = pName.trim(),
+                                phone = pPhone.trim(),
+                                wishText = pWish.trim(),
+                                wishlistUrl = pUrl.trim()
+                            )
+                            val updatedGroup = if (isExisting) {
+                                pGroup.copy(
+                                    participants = pGroup.participants.map { if (it.id == pItem.id) updatedPart else it }
+                                )
+                            } else {
+                                pGroup.copy(
+                                    isDrawn = false,
+                                    participants = (pGroup.participants + updatedPart).map { it.copy(drawnTargetId = null, notifiedVia = "") }
+                                )
+                            }
+                            onSaveGroups(groups.map { if (it.id == pGroup.id) updatedGroup else it })
+                            editingParticipantGroup = null
+                            editingParticipant = null
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog: Geheimes Einzel-Los für einen Teilnehmer
+    secretPeekPair?.let { (g, giver, target) ->
+        Dialog(onDismissRequest = { secretPeekPair = null }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, TreeGreen, RoundedCornerShape(10.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("🤫 Geheimes Wichtel-Los für ${giver.name}", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("Runde: ${g.groupName} • Budget: ${g.budget}", color = TextSecondary, fontSize = 12.sp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(BgSlate, RoundedCornerShape(8.dp))
+                        .border(1.dp, TreeGreen, RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text("Du beschenkst zu Weihnachten:", color = TextMuted, fontSize = 11.sp)
+                    Text("🎁 ${target.name}", color = TreeGreen, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    if (target.wishText.isNotBlank()) {
+                        Text("📝 Wunschzettel: ${target.wishText}", color = TextPrimary, fontSize = 12.sp, textAlign = TextAlign.Center)
+                    }
+                    if (target.wishlistUrl.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        CompactButton("🛒 Amazon-Wunschliste öffnen ↗") {
+                            runCatching {
+                                val url = if (target.wishlistUrl.startsWith("http")) target.wishlistUrl else "https://${target.wishlistUrl}"
+                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                            }
+                        }
+                    }
+                }
+                Text(
+                    "🔒 Geheim bis zur Auflösung am ${formatIsoToDdMmYyyy(g.revealDateIso)}!",
+                    color = WarnAmber,
+                    fontSize = 11.sp
+                )
+                CompactButton("Verstanden & schließen") { secretPeekPair = null }
+            }
+        }
+    }
 }
 
 @Composable

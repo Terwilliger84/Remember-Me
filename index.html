@@ -186,7 +186,7 @@
 
     .nav-tabs {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap: 6px;
       margin-bottom: 12px;
     }
@@ -688,7 +688,8 @@
         persons: [],
         relations: [],
         specialEvents: [],
-        directMessages: []
+        directMessages: [],
+        wichtelGroups: []
       };
     }
 
@@ -961,8 +962,69 @@
         }
       );
 
+      const xmasYear = parseInt(today.slice(0, 4), 10);
+      state.wichtelGroups = [
+        {
+          id: state.nextId++,
+          groupName: `Familien-Wichteln ${xmasYear}`,
+          adminName: "Anna Weber",
+          budget: "25 €",
+          revealDateIso: `${xmasYear}-12-24`,
+          excludeCouples: true,
+          forceRevealed: false,
+          isDrawn: false,
+          drawnAt: "",
+          participants: [
+            {
+              id: state.nextId++,
+              personId: omaId,
+              name: "Helga Weber (Oma)",
+              phone: "+491701112233",
+              appPeerId: "",
+              wishText: "Gartenhandschuhe, Kräutertee-Set",
+              wishlistUrl: "https://www.amazon.de/hz/wishlist/ls/OMA-GARTEN",
+              drawnTargetId: null,
+              notifiedVia: ""
+            },
+            {
+              id: state.nextId++,
+              personId: annaId,
+              name: "Anna Weber",
+              phone: "+491712345678",
+              appPeerId: "KC-ANNA-92",
+              wishText: "Krimi-Taschenbuch, Duftkerze Vanille",
+              wishlistUrl: "https://www.amazon.de/hz/wishlist/ls/ANNA-WISHES",
+              drawnTargetId: null,
+              notifiedVia: ""
+            },
+            {
+              id: state.nextId++,
+              personId: thomasId,
+              name: "Thomas Weber",
+              phone: "+491719988776",
+              appPeerId: "",
+              wishText: " Ganze Espresso-Bohnen (100% Arabica)",
+              wishlistUrl: "https://www.amazon.de/hz/wishlist/ls/THOMAS-COFFEE",
+              drawnTargetId: null,
+              notifiedVia: ""
+            },
+            {
+              id: state.nextId++,
+              personId: markusId,
+              name: "Markus Weber",
+              phone: "+491605544332",
+              appPeerId: "",
+              wishText: "Warme Laufsocken (Gr. 43), dunkle Schokolade",
+              wishlistUrl: "https://www.amazon.de/hz/wishlist/ls/MARKUS-SPORT",
+              drawnTargetId: null,
+              notifiedVia: ""
+            }
+          ]
+        }
+      ];
+
       selectedTreeRootId = annaId;
-      addLog("Beispieldaten mit 3-Generationen-Stammbaum (Oma Helga -> Anna, Ehe-Partner Thomas & Bruder Markus -> Baby Leo) angelegt.");
+      addLog("Beispieldaten mit 3-Generationen-Stammbaum & Weihnachts-Wichtelrunde angelegt.");
       saveState();
     }
 
@@ -1181,15 +1243,20 @@
     function renderPhoneApp() {
       const root = document.getElementById("app-root");
       const treeActive = state.treeEnabled !== false;
+      const wichtelActive = state.wichtelEnabled !== false;
       if (!treeActive && activeTab === "Stammbaum") {
         activeTab = "Übersicht";
       }
-      const tabs = treeActive
-        ? ["Übersicht", "Alle Kontakte", "Stammbaum", "Timer", "Erinnerung"]
-        : ["Übersicht", "Alle Kontakte", "Timer", "Erinnerung"];
+      if (!wichtelActive && activeTab === "🎄 Wichteln") {
+        activeTab = "Übersicht";
+      }
+      const tabs = ["Übersicht", "Alle Kontakte"];
+      if (treeActive) tabs.push("Stammbaum");
+      tabs.push("Timer", "Erinnerung");
+      if (wichtelActive) tabs.push("🎄 Wichteln");
       let contentHtml = "";
 
-      if (state.persons.length === 0) {
+      if (state.persons.length === 0 && activeTab !== "🎄 Wichteln") {
         contentHtml += `
           <div class="card" style="margin-bottom: 10px;">
             <div style="font-size:14px; font-weight:600; margin-bottom:6px;">Noch keine Kontakte vorhanden</div>
@@ -1209,13 +1276,15 @@
         contentHtml += renderTimerTab();
       } else if (activeTab === "Erinnerung") {
         contentHtml += renderEventsTab();
+      } else if (activeTab === "🎄 Wichteln" && wichtelActive) {
+        contentHtml += renderWichtelTab();
       } else {
         contentHtml += renderPersonsList();
       }
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.8</div>
+          <div class="app-title">Remember Me v1.0.9</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
@@ -1789,6 +1858,204 @@
       `).join("");
     }
 
+    let selectedWichtelGroupId = null;
+    let wichtelGroupModalState = null; // { mode: 'create'|'edit', groupId, groupName, adminName, budget, revealDate, excludeCouples }
+    let wichtelParticipantModalState = null; // { mode: 'add'|'edit', groupId, participantId, personId, name, phone, wishText, wishlistUrl }
+    let wichtelSecretPeekState = null; // { groupId, participantId }
+
+    function ensureWichtelGroups() {
+      if (!Array.isArray(state.wichtelGroups)) {
+        state.wichtelGroups = [];
+      }
+      if (state.wichtelGroups.length === 0 && state.persons.length > 0) {
+        const today = todayIso();
+        const xmasYear = parseInt(today.slice(0, 4), 10);
+        const adultPersons = state.persons.filter(p => !p.isHidden && !p.name.toLowerCase().includes("baby")).slice(0, 5);
+        state.wichtelGroups.push({
+          id: state.nextId++,
+          groupName: `Familien-Wichteln ${xmasYear}`,
+          adminName: adultPersons[1] ? adultPersons[1].name : (adultPersons[0] ? adultPersons[0].name : "Ich (Admin)"),
+          budget: "25 €",
+          revealDateIso: `${xmasYear}-12-24`,
+          excludeCouples: true,
+          forceRevealed: false,
+          isDrawn: false,
+          drawnAt: "",
+          participants: adultPersons.map(p => ({
+            id: state.nextId++,
+            personId: p.id,
+            name: p.name,
+            phone: p.phone || "",
+            appPeerId: p.appPeerId || "",
+            wishText: p.notes || "Überraschung, Schokolade, Buch",
+            wishlistUrl: `https://www.amazon.de/hz/wishlist/ls/${p.name.split(" ")[0].toUpperCase()}-WISH`,
+            drawnTargetId: null,
+            notifiedVia: ""
+          }))
+        });
+      }
+      if (selectedWichtelGroupId === null || !state.wichtelGroups.some(g => g.id === selectedWichtelGroupId)) {
+        selectedWichtelGroupId = state.wichtelGroups[0] ? state.wichtelGroups[0].id : null;
+      }
+    }
+
+    function isWichtelGroupRevealed(group) {
+      if (!group) return false;
+      if (group.forceRevealed) return true;
+      const today = todayIso();
+      return !!(group.revealDateIso && today >= group.revealDateIso);
+    }
+
+    function renderWichtelTab() {
+      ensureWichtelGroups();
+      const groups = state.wichtelGroups;
+
+      const topBar = `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
+          <div style="display:flex; gap:5px; flex-wrap:wrap;">
+            ${groups.map(g => `
+              <button class="compact-btn ${g.id === selectedWichtelGroupId ? 'primary' : ''}" onclick="selectedWichtelGroupId=${g.id}; renderPhoneApp();">
+                🎄 ${escapeHtml(g.groupName)}
+              </button>
+            `).join("")}
+          </div>
+          <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">+ Neue Runde</button>
+        </div>
+      `;
+
+      const group = groups.find(g => g.id === selectedWichtelGroupId);
+      if (!group) {
+        return topBar + `
+          <div class="card">
+            <div style="font-size:14px; font-weight:600; margin-bottom:4px;">🎄 Noch keine Wichtelrunde erstellt</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">
+              Erstelle als Gruppenadmin eine neue Wichtelrunde, lade Kontakte ein, hinterlege Wunschzettel oder Amazon-Wunschlisten und würfle die geheime Zulosung aus!
+            </div>
+            <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">🎄 Erste Wichtelrunde starten</button>
+          </div>
+        `;
+      }
+
+      const revealed = isWichtelGroupRevealed(group);
+      const revealDateFormatted = formatIsoToDdMmYyyy(group.revealDateIso) || "24.12.";
+      const daysUntilReveal = group.revealDateIso ? daysBetween(todayIso(), group.revealDateIso) : 0;
+
+      const statusBanner = !group.isDrawn
+        ? `
+          <div style="background:rgba(56, 189, 248, 0.12); border:1px solid var(--accent-steel); border-radius:8px; padding:9px 11px; margin-top:8px; font-size:12px; color:var(--text-primary);">
+            🎲 <b>Bereit zum Würfeln:</b> Sobald alle Teilnehmer eingetragen sind, tippe auf <b>„🎲 Jetzt auslosen!“</b>. Niemand sieht die Gesamtliste vor Ablauf der Frist (${escapeHtml(revealDateFormatted)}).
+          </div>
+        `
+        : (!revealed
+          ? `
+            <div style="background:rgba(16, 185, 129, 0.14); border:1px solid var(--tree-green); border-radius:8px; padding:9px 11px; margin-top:8px; font-size:12px; color:var(--text-primary); line-height:1.4;">
+              🔒 <b>Geheimhaltung aktiv bis ${escapeHtml(revealDateFormatted)}</b> ${daysUntilReveal > 0 ? `(noch ${daysUntilReveal} Tage)` : ""}<br/>
+              <span style="font-size:11px; color:var(--text-secondary);">Niemand in der Gruppe sieht, wer wen gezogen hat! Teile jedem Teilnehmer sein Los einzeln per <b>📲 WhatsApp</b> oder <b>💬 In-App</b> mit.</span>
+            </div>
+          `
+          : `
+            <div style="background:rgba(245, 158, 11, 0.16); border:1px solid var(--warn-amber); border-radius:8px; padding:10px 11px; margin-top:8px; font-size:12px; color:var(--text-primary);">
+              <div style="font-weight:700; color:var(--warn-amber); margin-bottom:6px;">🔓 Frist abgelaufen (${escapeHtml(revealDateFormatted)}) – Alle Paarungen sind jetzt sichtbar:</div>
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                ${group.participants.map(p => {
+                  const target = group.participants.find(x => x.id === p.drawnTargetId);
+                  return `<div style="background:var(--bg-slate); padding:5px 8px; border-radius:5px; border:1px solid var(--border-slate); font-size:12px;">🎁 <b>${escapeHtml(p.name)}</b> ➔ hat <b>${escapeHtml(target ? target.name : '?')}</b> beschenkt</div>`;
+                }).join("")}
+              </div>
+            </div>
+          `);
+
+      const groupHeaderCard = `
+        <div class="card" style="border-color:var(--accent-steel);">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+            <div>
+              <div style="font-size:16px; font-weight:700; color:var(--text-primary);">🎄 ${escapeHtml(group.groupName)}</div>
+              <div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">
+                👑 Gruppenadmin: <b>${escapeHtml(group.adminName || "Admin")}</b>
+                ${group.budget ? ` • 💶 Budget: <b>${escapeHtml(group.budget)}</b>` : ""}
+              </div>
+              <div style="font-size:11px; color:var(--accent-steel); margin-top:2px;">
+                📅 Auflösungs-Frist: <b>${escapeHtml(revealDateFormatted)}</b>
+                ${group.excludeCouples ? ` • 💑 Paar-Sperre aktiv` : ""}
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="compact-btn" onclick="openWichtelGroupModal('edit', ${group.id})" title="Runde bearbeiten">✏️</button>
+              <button class="compact-btn danger" onclick="deleteWichtelGroup(${group.id})" title="Runde löschen">🗑️</button>
+            </div>
+          </div>
+
+          ${statusBanner}
+
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
+            <button class="compact-btn primary" style="flex:1; font-weight:700;" onclick="rollWichtelGroup(${group.id})">
+              🎲 ${group.isDrawn ? "Neu würfeln" : "Jetzt auslosen!"}
+            </button>
+            <button class="compact-btn" onclick="openWichtelParticipantModal('add', ${group.id})">
+              + Teilnehmer
+            </button>
+            ${group.isDrawn ? `
+              <button class="compact-btn" onclick="toggleWichtelForceReveal(${group.id})" title="Auflösung nach Fristablauf simulieren">
+                ${revealed ? "🔒 Verbergen" : "🔓 Frist-Ablauf zeigen"}
+              </button>
+            ` : ""}
+          </div>
+        </div>
+      `;
+
+      const participantsHtml = group.participants.map(part => {
+        const target = group.participants.find(x => x.id === part.drawnTargetId);
+        const secretLine = !group.isDrawn
+          ? `<span style="color:var(--text-muted);">Noch nicht ausgelost</span>`
+          : (revealed && target
+            ? `<span style="color:var(--warn-amber); font-weight:700;">🎁 Hat gezogen: ${escapeHtml(target.name)}</span>`
+            : `<span style="color:var(--tree-green); font-weight:600;">🎲 Zugelost • 🔒 Geheim bis ${escapeHtml(revealDateFormatted)}</span>`);
+
+        return `
+          <div class="card" style="padding:10px 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span style="font-size:14px; font-weight:600; color:var(--text-primary);">${escapeHtml(part.name)}</span>
+                  ${part.name === group.adminName ? `<span class="badge-app">👑 Admin</span>` : ""}
+                  ${part.notifiedVia ? `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(16,185,129,0.16); color:var(--tree-green); font-weight:600;">✓ ${escapeHtml(part.notifiedVia)}</span>` : ""}
+                </div>
+                <div style="font-size:11.5px; margin-top:3px;">${secretLine}</div>
+                ${part.wishText ? `<div style="font-size:11.5px; color:var(--text-secondary); margin-top:4px;">🎁 <b>Wunsch:</b> ${escapeHtml(part.wishText)}</div>` : ""}
+                ${part.wishlistUrl ? `
+                  <div style="margin-top:4px;">
+                    <a href="${escapeHtml(part.wishlistUrl)}" target="_blank" rel="noopener" style="font-size:11px; color:var(--accent-steel); text-decoration:none; font-weight:600;">
+                      🛒 Amazon-Wunschliste / Link öffnen ↗
+                    </a>
+                  </div>
+                ` : ""}
+              </div>
+              <div style="display:flex; gap:4px; align-items:center;">
+                <button class="compact-btn" style="padding:4px 7px; font-size:11px;" onclick="openWichtelParticipantModal('edit', ${group.id}, ${part.id})" title="Wunschliste & Daten bearbeiten">🎁 Wunsch</button>
+                <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeWichtelParticipant(${group.id}, ${part.id})" title="Teilnehmer entfernen">✕</span>
+              </div>
+            </div>
+
+            ${group.isDrawn && target ? `
+              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-slate);">
+                <button class="compact-btn primary" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'WhatsApp')">
+                  📲 Los per WhatsApp
+                </button>
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'In-App')">
+                  💬 In-App senden
+                </button>
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="openWichtelSecretPeek(${group.id}, ${part.id})" title="Nur für ${escapeHtml(part.name)} kurz aufdecken">
+                  👁️ Geheimes Los
+                </button>
+              </div>
+            ` : ""}
+          </div>
+        `;
+      }).join("");
+
+      return topBar + groupHeaderCard + participantsHtml;
+    }
+
     function renderWidget() {
       const container = document.getElementById("widget-rows");
       const today = todayIso();
@@ -1844,6 +2111,7 @@
 
       if (showOptionsDialog) {
         const isLight = (state.themeMode || "dark") === "light";
+        const wichtelActive = state.wichtelEnabled !== false;
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
             <div class="modal" style="max-width:340px;" onclick="event.stopPropagation()">
@@ -1854,6 +2122,14 @@
                 <div class="btn-row">
                   <button class="compact-btn ${treeActive ? 'primary' : ''}" onclick="setTreeEnabled(true)">Aktiviert</button>
                   <button class="compact-btn ${!treeActive ? 'primary' : ''}" onclick="setTreeEnabled(false)">Deaktiviert</button>
+                </div>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
+                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">🎄 Wichtelrunde</span>
+                <div class="btn-row">
+                  <button class="compact-btn ${wichtelActive ? 'primary' : ''}" onclick="setWichtelEnabled(true)">Aktiviert</button>
+                  <button class="compact-btn ${!wichtelActive ? 'primary' : ''}" onclick="setWichtelEnabled(false)">Deaktiviert</button>
                 </div>
               </div>
 
@@ -2192,6 +2468,129 @@
         return;
       }
 
+      if (wichtelGroupModalState !== null) {
+        const wg = wichtelGroupModalState;
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+              <div class="modal-title">${wg.mode === 'edit' ? '🎄 Wichtelrunde bearbeiten' : '🎄 Neue Wichtelrunde erstellen'}</div>
+              <div class="field-group">
+                <label class="field-label">Name der Wichtelrunde</label>
+                <input id="wg-name" class="field-input" placeholder="z. B. Familien-Wichteln 2026" value="${escapeHtml(wg.groupName)}" oninput="wichtelGroupModalState.groupName=this.value" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">👑 Gruppenadmin (Ersteller)</label>
+                <input id="wg-admin" class="field-input" placeholder="Dein Name" value="${escapeHtml(wg.adminName)}" oninput="wichtelGroupModalState.adminName=this.value" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">💶 Budget / Preisrahmen (optional)</label>
+                <input id="wg-budget" class="field-input" placeholder="z. B. max. 25 €" value="${escapeHtml(wg.budget)}" oninput="wichtelGroupModalState.budget=this.value" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">📅 Auflösungs-Frist (Vorher für alle geheim!)</label>
+                <div style="display:flex; gap:5px; align-items:center;">
+                  <input id="wg-reveal" class="field-input" style="flex:1; cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(wg.revealDate)}" onclick="openCalendarPicker('wg-reveal')" onfocus="openCalendarPicker('wg-reveal')" oninput="wichtelGroupModalState.revealDate=this.value" />
+                  <button class="compact-btn" style="padding:5px 8px;" onclick="openCalendarPicker('wg-reveal')">📅</button>
+                </div>
+              </div>
+              <label class="checkbox-row">
+                <input type="checkbox" id="wg-couples" ${wg.excludeCouples ? 'checked' : ''} onchange="wichtelGroupModalState.excludeCouples=this.checked" />
+                <span>💑 Paare aus Stammbaum nicht gegenseitig zulosen</span>
+              </label>
+              <div class="modal-footer">
+                <button class="compact-btn" onclick="wichtelGroupModalState=null; renderModals();">Abbrechen</button>
+                <button class="compact-btn primary" onclick="saveWichtelGroupModal()">Speichern</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (wichtelParticipantModalState !== null) {
+        const wp = wichtelParticipantModalState;
+        const contactOptions = state.persons.map(p =>
+          `<option value="${p.id}" ${wp.personId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
+        ).join("");
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+              <div class="modal-title">${wp.mode === 'edit' ? '🎁 Teilnehmer & Wunschliste' : '+ Teilnehmer zur Wichtelrunde einladen'}</div>
+              ${wp.mode === 'add' && state.persons.length > 0 ? `
+                <div class="field-group">
+                  <label class="field-label">Aus App-Kontakten übernehmen (optional)</label>
+                  <select class="field-select" onchange="selectContactForWichtelParticipant(this.value)">
+                    <option value="-1">-- Frei eingeben oder Kontakt wählen --</option>
+                    ${contactOptions}
+                  </select>
+                </div>
+              ` : ""}
+              <div class="field-group">
+                <label class="field-label">Name</label>
+                <input id="wp-name" class="field-input" placeholder="Name des Teilnehmers" value="${escapeHtml(wp.name)}" oninput="wichtelParticipantModalState.name=this.value" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Telefon (für geheimes WhatsApp-Los)</label>
+                <input id="wp-phone" class="field-input" placeholder="+49..." value="${escapeHtml(wp.phone)}" oninput="wichtelParticipantModalState.phone=this.value" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">🎁 Wunschzettel / Geschenk-Ideen</label>
+                <input id="wp-wish" class="field-input" placeholder="z. B. Krimi-Buch, Schokolade, Wollsocken" value="${escapeHtml(wp.wishText)}" oninput="wichtelParticipantModalState.wishText=this.value" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">🛒 Amazon-Wunschliste / Wunschzettel-Link</label>
+                <input id="wp-url" class="field-input" placeholder="https://www.amazon.de/hz/wishlist/..." value="${escapeHtml(wp.wishlistUrl)}" oninput="wichtelParticipantModalState.wishlistUrl=this.value" />
+              </div>
+              <div class="modal-footer">
+                <button class="compact-btn" onclick="wichtelParticipantModalState=null; renderModals();">Abbrechen</button>
+                <button class="compact-btn primary" onclick="saveWichtelParticipantModal()">Speichern</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (wichtelSecretPeekState !== null) {
+        const group = (state.wichtelGroups || []).find(g => g.id === wichtelSecretPeekState.groupId);
+        const giver = group ? group.participants.find(p => p.id === wichtelSecretPeekState.participantId) : null;
+        const target = (group && giver) ? group.participants.find(p => p.id === giver.drawnTargetId) : null;
+        if (!group || !giver || !target) {
+          wichtelSecretPeekState = null;
+          modalRoot.innerHTML = "";
+          return;
+        }
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" style="max-width:335px;" onclick="event.stopPropagation()">
+              <div class="modal-title">🤫 Geheimes Wichtel-Los für ${escapeHtml(giver.name)}</div>
+              <div style="font-size:12px; color:var(--text-secondary);">
+                Runde: <b>${escapeHtml(group.groupName)}</b> ${group.budget ? `• Budget: <b>${escapeHtml(group.budget)}</b>` : ""}
+              </div>
+              <div style="background:var(--bg-slate); border:1.5px solid var(--tree-green); border-radius:8px; padding:12px; text-align:center; margin:4px 0;">
+                <div style="font-size:11px; color:var(--text-muted);">Du beschenkst zu Weihnachten:</div>
+                <div style="font-size:17px; font-weight:700; color:var(--tree-green); margin-top:4px;">🎁 ${escapeHtml(target.name)}</div>
+                ${target.wishText ? `<div style="font-size:12px; color:var(--text-primary); margin-top:6px;">📝 <b>Wunschzettel:</b> ${escapeHtml(target.wishText)}</div>` : ""}
+                ${target.wishlistUrl ? `
+                  <div style="margin-top:8px;">
+                    <a href="${escapeHtml(target.wishlistUrl)}" target="_blank" rel="noopener" class="compact-btn primary" style="display:inline-block; text-decoration:none; font-size:11.5px;">
+                      🛒 Amazon-Wunschliste öffnen ↗
+                    </a>
+                  </div>
+                ` : ""}
+              </div>
+              <div style="font-size:11px; color:var(--warn-amber); text-align:center;">
+                🔒 Geheim bis zur Auflösung am ${escapeHtml(formatIsoToDdMmYyyy(group.revealDateIso))}!
+              </div>
+              <div class="modal-footer" style="justify-content:flex-end;">
+                <button class="compact-btn primary" onclick="wichtelSecretPeekState=null; renderModals();">Verstanden & schließen</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       modalRoot.innerHTML = "";
     }
 
@@ -2224,6 +2623,343 @@
       if (!state.treeEnabled && activeTab === "Stammbaum") {
         activeTab = "Übersicht";
       }
+      saveState();
+    }
+
+    function setWichtelEnabled(enabled) {
+      state.wichtelEnabled = !!enabled;
+      if (!state.wichtelEnabled && activeTab === "🎄 Wichteln") {
+        activeTab = "Übersicht";
+      }
+      saveState();
+    }
+
+    function openWichtelGroupModal(mode, groupId = null) {
+      ensureWichtelGroups();
+      const xmasYear = parseInt(todayIso().slice(0, 4), 10);
+      if (mode === "edit" && groupId) {
+        const g = state.wichtelGroups.find(x => x.id === groupId);
+        if (!g) return;
+        wichtelGroupModalState = {
+          mode: "edit",
+          groupId: g.id,
+          groupName: g.groupName || "",
+          adminName: g.adminName || "",
+          budget: g.budget || "25 €",
+          revealDate: formatIsoToDdMmYyyy(g.revealDateIso) || `24.12.${xmasYear}`,
+          excludeCouples: !!g.excludeCouples
+        };
+      } else {
+        wichtelGroupModalState = {
+          mode: "create",
+          groupId: null,
+          groupName: `Weihnachts-Wichteln ${xmasYear}`,
+          adminName: state.persons[0] ? state.persons[0].name : "Ich (Admin)",
+          budget: "25 €",
+          revealDate: `24.12.${xmasYear}`,
+          excludeCouples: true
+        };
+      }
+      renderModals();
+    }
+
+    function saveWichtelGroupModal() {
+      if (!wichtelGroupModalState) return;
+      const nameEl = document.getElementById("wg-name");
+      const adminEl = document.getElementById("wg-admin");
+      const budgetEl = document.getElementById("wg-budget");
+      const revealEl = document.getElementById("wg-reveal");
+      const couplesEl = document.getElementById("wg-couples");
+
+      const groupName = (nameEl ? nameEl.value : wichtelGroupModalState.groupName).trim() || "Wichtelrunde";
+      const adminName = (adminEl ? adminEl.value : wichtelGroupModalState.adminName).trim() || "Gruppenadmin";
+      const budget = (budgetEl ? budgetEl.value : wichtelGroupModalState.budget).trim();
+      const revealDateIso = normalizeDateInputToIso(revealEl ? revealEl.value : wichtelGroupModalState.revealDate) || `${todayIso().slice(0, 4)}-12-24`;
+      const excludeCouples = couplesEl ? couplesEl.checked : !!wichtelGroupModalState.excludeCouples;
+
+      if (wichtelGroupModalState.mode === "edit" && wichtelGroupModalState.groupId) {
+        const g = state.wichtelGroups.find(x => x.id === wichtelGroupModalState.groupId);
+        if (g) {
+          g.groupName = groupName;
+          g.adminName = adminName;
+          g.budget = budget;
+          g.revealDateIso = revealDateIso;
+          g.excludeCouples = excludeCouples;
+          addLog(`Wichtelrunde "${groupName}" (Admin: ${adminName}) aktualisiert.`);
+        }
+      } else {
+        const newGroupId = state.nextId++;
+        const adminPerson = state.persons.find(p => p.name.toLowerCase() === adminName.toLowerCase());
+        state.wichtelGroups.push({
+          id: newGroupId,
+          groupName,
+          adminName,
+          budget,
+          revealDateIso,
+          excludeCouples,
+          forceRevealed: false,
+          isDrawn: false,
+          drawnAt: "",
+          participants: [
+            {
+              id: state.nextId++,
+              personId: adminPerson ? adminPerson.id : null,
+              name: adminName,
+              phone: adminPerson ? (adminPerson.phone || "") : "",
+              appPeerId: adminPerson ? (adminPerson.appPeerId || "") : "",
+              wishText: "",
+              wishlistUrl: "",
+              drawnTargetId: null,
+              notifiedVia: ""
+            }
+          ]
+        });
+        selectedWichtelGroupId = newGroupId;
+        addLog(`Neue Wichtelrunde "${groupName}" von Gruppenadmin "${adminName}" angelegt.`);
+      }
+      wichtelGroupModalState = null;
+      saveState();
+    }
+
+    function deleteWichtelGroup(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g) return;
+      askDeleteConfirm(`Wichtelrunde „${g.groupName}" wirklich löschen?`, () => {
+        state.wichtelGroups = state.wichtelGroups.filter(x => x.id !== groupId);
+        if (selectedWichtelGroupId === groupId) {
+          selectedWichtelGroupId = state.wichtelGroups[0] ? state.wichtelGroups[0].id : null;
+        }
+        addLog(`Wichtelrunde "${g.groupName}" gelöscht.`);
+        saveState();
+      });
+    }
+
+    function openWichtelParticipantModal(mode, groupId, participantId = null) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g) return;
+      if (mode === "edit" && participantId) {
+        const p = g.participants.find(x => x.id === participantId);
+        if (!p) return;
+        wichtelParticipantModalState = {
+          mode: "edit",
+          groupId: g.id,
+          participantId: p.id,
+          personId: p.personId || -1,
+          name: p.name || "",
+          phone: p.phone || "",
+          wishText: p.wishText || "",
+          wishlistUrl: p.wishlistUrl || ""
+        };
+      } else {
+        wichtelParticipantModalState = {
+          mode: "add",
+          groupId: g.id,
+          participantId: null,
+          personId: -1,
+          name: "",
+          phone: "",
+          wishText: "",
+          wishlistUrl: ""
+        };
+      }
+      renderModals();
+    }
+
+    function selectContactForWichtelParticipant(personIdStr) {
+      if (!wichtelParticipantModalState) return;
+      const pid = parseInt(personIdStr, 10);
+      const person = state.persons.find(p => p.id === pid);
+      if (!person) return;
+      wichtelParticipantModalState.personId = person.id;
+      wichtelParticipantModalState.name = person.name;
+      wichtelParticipantModalState.phone = person.phone || "";
+      if (!wichtelParticipantModalState.wishText && person.notes) {
+        wichtelParticipantModalState.wishText = person.notes;
+      }
+      renderModals();
+    }
+
+    function saveWichtelParticipantModal() {
+      if (!wichtelParticipantModalState) return;
+      const g = (state.wichtelGroups || []).find(x => x.id === wichtelParticipantModalState.groupId);
+      if (!g) return;
+
+      const nameEl = document.getElementById("wp-name");
+      const phoneEl = document.getElementById("wp-phone");
+      const wishEl = document.getElementById("wp-wish");
+      const urlEl = document.getElementById("wp-url");
+
+      const name = (nameEl ? nameEl.value : wichtelParticipantModalState.name).trim();
+      if (!name) return;
+      const phone = (phoneEl ? phoneEl.value : wichtelParticipantModalState.phone).trim();
+      const wishText = (wishEl ? wishEl.value : wichtelParticipantModalState.wishText).trim();
+      const wishlistUrl = (urlEl ? urlEl.value : wichtelParticipantModalState.wishlistUrl).trim();
+
+      if (wichtelParticipantModalState.mode === "edit" && wichtelParticipantModalState.participantId) {
+        const part = g.participants.find(x => x.id === wichtelParticipantModalState.participantId);
+        if (part) {
+          part.name = name;
+          part.phone = phone;
+          part.wishText = wishText;
+          part.wishlistUrl = wishlistUrl;
+          addLog(`Wunschliste & Daten für "${name}" in "${g.groupName}" gespeichert.`);
+        }
+      } else {
+        const linkedPerson = state.persons.find(p => p.id === wichtelParticipantModalState.personId);
+        g.participants.push({
+          id: state.nextId++,
+          personId: linkedPerson ? linkedPerson.id : null,
+          name,
+          phone,
+          appPeerId: linkedPerson ? (linkedPerson.appPeerId || "") : "",
+          wishText,
+          wishlistUrl,
+          drawnTargetId: null,
+          notifiedVia: ""
+        });
+        g.isDrawn = false;
+        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; });
+        addLog(`Teilnehmer "${name}" zur Wichtelrunde "${g.groupName}" eingeladen.`);
+      }
+      wichtelParticipantModalState = null;
+      saveState();
+    }
+
+    function removeWichtelParticipant(groupId, participantId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g) return;
+      const part = g.participants.find(x => x.id === participantId);
+      if (!part) return;
+      askDeleteConfirm(`Teilnehmer „${part.name}" aus der Wichtelrunde entfernen?`, () => {
+        g.participants = g.participants.filter(x => x.id !== participantId);
+        g.isDrawn = false;
+        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; });
+        addLog(`Teilnehmer "${part.name}" aus "${g.groupName}" entfernt.`);
+        saveState();
+      });
+    }
+
+    function arePersonsCoupleInTree(personIdA, personIdB) {
+      if (!personIdA || !personIdB) return false;
+      return state.relations.some(r =>
+        ((r.fromPersonId === personIdA && r.toPersonId === personIdB) ||
+         (r.fromPersonId === personIdB && r.toPersonId === personIdA)) &&
+        isPartnerRelation(r.relationLabel)
+      );
+    }
+
+    function rollWichtelGroup(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g) return;
+      const parts = g.participants;
+      if (parts.length < 2) {
+        addLog("Mindestens 2 Teilnehmer werden zum Wichtel-Würfeln benötigt!");
+        return;
+      }
+
+      // Zufällige Derangement-Auslosung (niemand zieht sich selbst; optional keine Ehe-/Lebenspartner)
+      let bestAssignment = null;
+      for (let attempt = 0; attempt < 120; attempt++) {
+        const shuffled = [...parts].sort(() => Math.random() - 0.5);
+        // Bilde geschlossenen Kreis: shuffled[i] -> shuffled[(i+1)%n]
+        let valid = true;
+        const candidateMap = new Map();
+        for (let i = 0; i < shuffled.length; i++) {
+          const giver = shuffled[i];
+          const receiver = shuffled[(i + 1) % shuffled.length];
+          if (giver.id === receiver.id) {
+            valid = false;
+            break;
+          }
+          if (g.excludeCouples && parts.length > 2 && arePersonsCoupleInTree(giver.personId, receiver.personId)) {
+            valid = false;
+            break;
+          }
+          candidateMap.set(giver.id, receiver.id);
+        }
+        if (valid) {
+          bestAssignment = candidateMap;
+          break;
+        }
+      }
+
+      // Fallback ohne Paar-Sperre, falls nur Paare in kleiner Runde sind
+      if (!bestAssignment) {
+        const shuffled = [...parts].sort(() => Math.random() - 0.5);
+        bestAssignment = new Map();
+        for (let i = 0; i < shuffled.length; i++) {
+          bestAssignment.set(shuffled[i].id, shuffled[(i + 1) % shuffled.length].id);
+        }
+      }
+
+      parts.forEach(p => {
+        p.drawnTargetId = bestAssignment.get(p.id) || null;
+        p.notifiedVia = "";
+      });
+      g.isDrawn = true;
+      g.forceRevealed = false;
+      g.drawnAt = new Date().toLocaleTimeString("de-DE");
+      addLog(`🎲 Wichtelrunde "${g.groupName}" geheim ausgelost! Ergebnisse sind bis zum ${formatIsoToDdMmYyyy(g.revealDateIso)} geheim.`);
+      saveState();
+    }
+
+    function buildWichtelSecretMessage(group, giver, target) {
+      const revealStr = formatIsoToDdMmYyyy(group.revealDateIso) || "Weihnachten";
+      let msg = `🎄 Hallo ${giver.name.split(" ")[0]}! Hier ist dein geheimes Los für unsere Wichtelrunde „${group.groupName}“ (Gruppenadmin: ${group.adminName}):\n\n`;
+      msg += `🎁 Du beschenkst: *${target.name}*!\n`;
+      if (group.budget) msg += `💶 Budget: ${group.budget}\n`;
+      if (target.wishText) msg += `📝 Wunschzettel von ${target.name.split(" ")[0]}: ${target.wishText}\n`;
+      if (target.wishlistUrl) msg += `🛒 Amazon-Wunschliste / Link: ${target.wishlistUrl}\n`;
+      msg += `\n🤫 Pssst: Niemand sonst kennt dein Los! Erst ab dem ${revealStr} wird für alle aufgelöst, wer wen gezogen hat.`;
+      return msg;
+    }
+
+    function notifyWichtelParticipant(groupId, participantId, channel) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g) return;
+      const giver = g.participants.find(x => x.id === participantId);
+      const target = giver ? g.participants.find(x => x.id === giver.drawnTargetId) : null;
+      if (!giver || !target) return;
+
+      const msg = buildWichtelSecretMessage(g, giver, target);
+      giver.notifiedVia = channel;
+
+      if (channel === "WhatsApp") {
+        const cleanPhone = (giver.phone || "").replace(/[^0-9]/g, "");
+        addLog(`📲 Geheimes Wichtel-Los per WhatsApp an ${giver.name} vorbereitet (Gezogene Person bleibt im Log geheim!).`);
+        const url = cleanPhone
+          ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`
+          : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+        window.open(url, "_blank");
+      } else {
+        const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
+        state.directMessages.push({
+          id: state.nextId++,
+          personId: giver.personId || 0,
+          targetPeerId: giver.appPeerId || "KC-WICHTEL",
+          senderDisplayName: g.adminName || "Gruppenadmin",
+          direction: "OUTGOING",
+          text: msg,
+          timestampIso: nowStr,
+          isRead: true
+        });
+        addLog(`💬 Geheimes Wichtel-Los In-App an ${giver.name} zugestellt (Inhalt vor anderen Teilnehmern verborgen).`);
+      }
+      saveState();
+    }
+
+    function openWichtelSecretPeek(groupId, participantId) {
+      wichtelSecretPeekState = { groupId, participantId };
+      renderModals();
+    }
+
+    function toggleWichtelForceReveal(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g) return;
+      g.forceRevealed = !g.forceRevealed;
+      addLog(g.forceRevealed
+        ? `🔓 Auflösungs-Frist für "${g.groupName}" freigegeben – alle sehen jetzt, wer wen gezogen hatte!`
+        : `🔒 Wichtel-Zuordnungen für "${g.groupName}" wieder verborgen.`);
       saveState();
     }
 
@@ -2352,6 +3088,9 @@
         showCreateDialog = false;
         detailPersonId = null;
         popupState = null;
+        wichtelGroupModalState = null;
+        wichtelParticipantModalState = null;
+        wichtelSecretPeekState = null;
         renderModals();
       }
     }
@@ -2533,6 +3272,9 @@
         if (calendarPickerState.inputId === "c-bday") {
           createDraft.bday = formatted;
         }
+        if (calendarPickerState.inputId === "wg-reveal" && wichtelGroupModalState) {
+          wichtelGroupModalState.revealDate = formatted;
+        }
       }
       closeCalendarPicker();
     }
@@ -2607,7 +3349,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.8",
+        version: "1.0.9",
         createdAt: dateStr,
         state
       };
@@ -2683,7 +3425,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.8 gestartet.");
+      addLog("Remember Me v1.0.9 gestartet.");
       renderAll();
     }
   </script>
