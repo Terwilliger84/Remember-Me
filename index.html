@@ -1628,19 +1628,16 @@
                 <label class="field-label">Notiz</label>
                 <input id="c-notes" class="field-input" />
               </div>
-              <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                  <span style="font-size:12px; font-weight:600; color:var(--accent-steel);">Zusätzliche Infos:</span>
-                  <button class="compact-btn primary" style="padding:3px 9px; font-weight:700;" onclick="addCreateExtraInfoRow()">＋</button>
-                </div>
-                <div id="c-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
-                  ${createExtraInfos.map((info, idx) => `
-                    <div style="display:flex; gap:5px; align-items:center;">
-                      <input class="field-input" style="flex:0.85;" placeholder="z.B. 2. Telefon" value="${escapeHtml(info.label)}" oninput="createExtraInfos[${idx}].label = this.value" />
-                      <input class="field-input" style="flex:1.15;" placeholder="Nummer / Wert..." value="${escapeHtml(info.value)}" oninput="createExtraInfos[${idx}].value = this.value" />
-                      <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeCreateExtraInfoRow(${idx})">✕</span>
-                    </div>
-                  `).join("")}
+              <div id="c-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
+                ${createExtraInfos.map((info, idx) => `
+                  <div style="display:flex; gap:5px; align-items:center;">
+                    <input class="field-input" style="flex:0.85;" placeholder="Bezeichnung" value="${escapeHtml(info.label)}" oninput="createExtraInfos[${idx}].label = this.value" />
+                    <input class="field-input" style="flex:1.15;" placeholder="Wert" value="${escapeHtml(info.value)}" oninput="createExtraInfos[${idx}].value = this.value" />
+                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeCreateExtraInfoRow(${idx})">✕</span>
+                  </div>
+                `).join("")}
+                <div style="display:flex; justify-content:flex-start;">
+                  <button class="compact-btn primary" style="padding:3px 10px; font-weight:700;" onclick="addCreateExtraInfoRow()">+</button>
                 </div>
               </div>
               ${state.persons.length > 0 ? `
@@ -1702,19 +1699,16 @@
                 <input id="d-notes" class="field-input" value="${escapeHtml(dp.notes || '')}" />
               </div>
 
-              <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                  <span style="font-size:12px; font-weight:600; color:var(--accent-steel);">Zusätzliche Infos:</span>
-                  <button class="compact-btn primary" style="padding:3px 9px; font-weight:700;" onclick="addDetailExtraInfoRow()">＋</button>
-                </div>
-                <div id="d-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
-                  ${detailExtraInfos.map((info, idx) => `
-                    <div style="display:flex; gap:5px; align-items:center;">
-                      <input class="field-input" style="flex:0.85;" placeholder="Bezeichnung" value="${escapeHtml(info.label)}" oninput="detailExtraInfos[${idx}].label = this.value" />
-                      <input class="field-input" style="flex:1.15;" placeholder="Nummer / Wert..." value="${escapeHtml(info.value)}" oninput="detailExtraInfos[${idx}].value = this.value" />
-                      <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeDetailExtraInfoRow(${idx})">✕</span>
-                    </div>
-                  `).join("")}
+              <div id="d-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
+                ${detailExtraInfos.map((info, idx) => `
+                  <div style="display:flex; gap:5px; align-items:center;">
+                    <input class="field-input" style="flex:0.85;" placeholder="Bezeichnung" value="${escapeHtml(info.label)}" oninput="detailExtraInfos[${idx}].label = this.value" />
+                    <input class="field-input" style="flex:1.15;" placeholder="Wert" value="${escapeHtml(info.value)}" oninput="detailExtraInfos[${idx}].value = this.value" />
+                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeDetailExtraInfoRow(${idx})">✕</span>
+                  </div>
+                `).join("")}
+                <div style="display:flex; justify-content:flex-start;">
+                  <button class="compact-btn primary" style="padding:3px 10px; font-weight:700;" onclick="addDetailExtraInfoRow()">+</button>
                 </div>
               </div>
 

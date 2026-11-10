@@ -796,25 +796,7 @@ fun KontaktChronikApp(
                 OutlinedTextField(value = timerInterval, onValueChange = { timerInterval = it }, label = { Text("Melde-Timer (Tage)") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
 
-                // Zusätzliche Informationszeilen
-                Divider(color = BorderSlate)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Zusätzliche Infos:",
-                        color = AccentSteel,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    CompactButton("＋") {
-                        val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Weitere Info"
-                        extraInfos = extraInfos + (defaultLabel to "")
-                    }
-                }
+                // Zusätzliche Informationszeilen (nur + Button unten links)
                 extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -834,7 +816,7 @@ fun KontaktChronikApp(
                             onValueChange = { newV ->
                                 extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
                             },
-                            label = { Text("Nummer / Wert") },
+                            label = { Text("Wert") },
                             modifier = Modifier.weight(1.1f)
                         )
                         Text(
@@ -844,16 +826,28 @@ fun KontaktChronikApp(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier
                                 .clickable {
-                                    extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                    pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
+                                    pendingConfirmAction = {
+                                        extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                    }
                                 }
                                 .padding(horizontal = 4.dp)
                         )
                     }
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    CompactButton("+") {
+                        val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Info"
+                        extraInfos = extraInfos + (defaultLabel to "")
+                    }
+                }
 
                 if (persons.isNotEmpty()) {
                     Divider(color = BorderSlate)
-                    Text("Beziehung für Stammbaum (optional):", color = AccentSteel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Beziehungen:", color = AccentSteel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(RELATION_PRESETS) { preset ->
                             val selected = relLabel == preset
@@ -1053,25 +1047,7 @@ fun KontaktChronikApp(
                     OutlinedTextField(value = emailVal, onValueChange = { emailVal = it }, label = { Text("E-Mail-Adresse") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = notesVal, onValueChange = { notesVal = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
 
-                    // Abschnitt: Zusätzliche Informationszeilen
-                    Divider(color = BorderSlate)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Zusätzliche Infos:",
-                            color = AccentSteel,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        CompactButton("＋") {
-                            val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Weitere Info"
-                            extraInfos = extraInfos + (defaultLabel to "")
-                        }
-                    }
+                    // Zusätzliche Informationszeilen (nur + Button unten links)
                     extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1091,7 +1067,7 @@ fun KontaktChronikApp(
                                 onValueChange = { newV ->
                                     extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
                                 },
-                                label = { Text("Nummer / Wert") },
+                                label = { Text("Wert") },
                                 modifier = Modifier.weight(1.1f)
                             )
                             Text(
@@ -1108,6 +1084,15 @@ fun KontaktChronikApp(
                                     }
                                     .padding(horizontal = 4.dp)
                             )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        CompactButton("+") {
+                            val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Info"
+                            extraInfos = extraInfos + (defaultLabel to "")
                         }
                     }
 
