@@ -1,0 +1,1921 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Remember Me v1.0.2 – Interaktiver Testserver</title>
+  <style>
+    :root {
+      --bg-slate: #0F172A;
+      --card-slate: #1E293B;
+      --border-slate: #334155;
+      --text-primary: #F8FAFC;
+      --text-secondary: #CBD5E1;
+      --text-muted: #94A3B8;
+      --accent-steel: #38BDF8;
+      --warn-amber: #F59E0B;
+      --warn-bg: #3B2F1E;
+      --warn-text: #FDE68A;
+      --danger: #EF4444;
+      --success: #22C55E;
+      --partner-rose: #F43F5E;
+      --tree-green: #10B981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: #070B14;
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 16px;
+    }
+
+    .testbench-header {
+      width: 100%;
+      max-width: 1120px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      padding: 12px 16px;
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 10px;
+    }
+
+    .testbench-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .testbench-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .testbench-layout {
+      width: 100%;
+      max-width: 1120px;
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .testbench-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .phone-frame {
+      background: var(--bg-slate);
+      border: 2px solid var(--border-slate);
+      border-radius: 18px;
+      padding: 14px;
+      min-height: 700px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55);
+      position: relative;
+    }
+
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .app-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .app-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .compact-btn {
+      background: #334155;
+      color: var(--text-primary);
+      border: 1px solid var(--border-slate);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+
+    .compact-btn:hover {
+      background: #475569;
+      border-color: var(--accent-steel);
+    }
+
+    .compact-btn.primary {
+      background: #0284C7;
+      border-color: var(--accent-steel);
+    }
+
+    .compact-btn.danger {
+      background: #7F1D1D;
+      border-color: var(--danger);
+    }
+
+    .nav-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .nav-tab {
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 6px;
+      padding: 8px 4px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .nav-tab.active {
+      background: #334155;
+      color: var(--text-primary);
+      border-color: var(--accent-steel);
+    }
+
+    .card-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .card {
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .person-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .person-title-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .person-name-link {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent-steel);
+      cursor: pointer;
+    }
+
+    .person-name-link:hover {
+      text-decoration: underline;
+    }
+
+    .badge-app {
+      font-size: 11px;
+      color: var(--accent-steel);
+      background: rgba(56, 189, 248, 0.12);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .badge-nophone {
+      font-size: 11px;
+      color: var(--warn-amber);
+      background: rgba(245, 158, 11, 0.12);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .person-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    .person-meta {
+      font-size: 11px;
+      margin-top: 4px;
+    }
+
+    .meta-muted { color: var(--text-muted); }
+    .meta-accent { color: var(--accent-steel); }
+    .meta-secondary { color: var(--text-secondary); }
+
+    /* Stammbaum Styles */
+    .tree-container {
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 10px;
+      padding: 10px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .tree-row {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: center;
+      align-items: center;
+      gap: 4px;
+      width: 100%;
+      overflow-x: auto;
+      padding: 2px 0;
+    }
+
+    .tree-node {
+      background: var(--bg-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 6px;
+      padding: 5px 8px;
+      min-width: 72px;
+      max-width: 118px;
+      text-align: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: transform 0.12s, border-color 0.12s;
+    }
+
+    .tree-node:hover {
+      transform: translateY(-1px);
+      border-color: var(--accent-steel);
+    }
+
+    .tree-node.root {
+      background: #1E3A5F;
+      border: 1.5px solid var(--accent-steel);
+    }
+
+    .tree-node.partner {
+      border-color: var(--partner-rose);
+    }
+
+    .tree-line-vertical {
+      width: 2px;
+      height: 14px;
+      background: var(--accent-steel);
+      margin: 2px 0;
+    }
+
+    .tree-branch-bar {
+      height: 2px;
+      background: var(--accent-steel);
+      min-width: 90px;
+      margin-bottom: 2px;
+    }
+
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .widget-box {
+      background: var(--bg-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    }
+
+    .widget-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .widget-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .widget-tag {
+      font-size: 10px;
+      color: var(--accent-steel);
+      border: 1px solid var(--border-slate);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .widget-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .widget-row:hover {
+      background: var(--card-slate);
+    }
+
+    .widget-row-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .widget-row-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .widget-row-badge {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      background: #1E293B;
+      padding: 2px 7px;
+      border-radius: 4px;
+      border: 1px solid var(--border-slate);
+    }
+
+    .log-box {
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 12px;
+      padding: 14px;
+      max-height: 360px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .log-list {
+      margin-top: 8px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 11px;
+    }
+
+    .log-item {
+      padding: 6px 8px;
+      background: var(--bg-slate);
+      border-left: 3px solid var(--accent-steel);
+      border-radius: 4px;
+      color: var(--text-secondary);
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+
+    .modal {
+      width: 100%;
+      max-width: 460px;
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7);
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .field-input, .field-select {
+      background: var(--bg-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+    }
+
+    .field-input:focus, .field-select:focus {
+      border-color: var(--accent-steel);
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .warning-box {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-amber);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--warn-text);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+    }
+
+    .rel-item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="testbench-header">
+    <div class="testbench-title">
+      <span class="status-dot"></span>
+      <div>
+        <div style="font-size: 14px; font-weight: 700;">Remember Me – Interaktiver Web-Testserver</div>
+        <div style="font-size: 11px; color: var(--text-muted);">Mit automatischem Stammbaum, Beziehungs-Verwaltung, Namen-Antippen für Details & Erinnerungen</div>
+      </div>
+    </div>
+    <div class="testbench-controls">
+      <button class="compact-btn" onclick="runDailyReminderWorker()">🔔 DailyReminderWorker prüfen</button>
+      <button class="compact-btn" onclick="seedSampleData()">🌱 Beispieldaten mit Stammbaum laden</button>
+      <button class="compact-btn danger" onclick="resetDatabase()">🗑️ DB zurücksetzen</button>
+    </div>
+  </div>
+
+  <div class="testbench-layout">
+    <div class="phone-frame" id="app-root"></div>
+
+    <div class="side-panel">
+      <div class="widget-box">
+        <div class="widget-header">
+          <span class="widget-title">Anstehende Erinnerungen</span>
+          <span class="widget-tag">Glance Homescreen-Widget</span>
+        </div>
+        <div id="widget-rows"></div>
+      </div>
+
+      <div class="log-box">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size: 13px; font-weight: 700;">System- & Intent-Protokoll</span>
+          <button class="compact-btn" style="padding:2px 6px; font-size:10px;" onclick="clearLogs()">Leeren</button>
+        </div>
+        <div class="log-list" id="log-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+
+  <script>
+    const RELATION_PRESETS = [
+      "Kind von",
+      "Ehe-Partner von",
+      "Partner von",
+      "Bruder von",
+      "Schwester von",
+      "Mutter von",
+      "Vater von",
+      "Elternteil von",
+      "Oma/Opa von",
+      "Enkelkind von",
+      "Onkel/Tante von",
+      "Cousin/Cousine von"
+    ];
+
+    function inverseRelationLabel(label) {
+      const l = (label || "").trim().toLowerCase();
+      if (l.startsWith("kind") || l.startsWith("sohn") || l.startsWith("tochter")) return "Elternteil von";
+      if (l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil")) return "Kind von";
+      if (l.startsWith("ehe-partner") || l.startsWith("ehepartner")) return "Ehe-Partner von";
+      if (l.startsWith("partner")) return "Partner von";
+      if (l.startsWith("bruder") || l.startsWith("schwester") || l.startsWith("geschwister")) return "Geschwister von";
+      if (l.startsWith("oma") || l.startsWith("opa") || l.startsWith("großelter")) return "Enkelkind von";
+      if (l.startsWith("enkel")) return "Oma/Opa von";
+      if (l.startsWith("onkel") || l.startsWith("tante")) return "Neffe/Nichte von";
+      if (l.startsWith("neffe") || l.startsWith("nichte")) return "Onkel/Tante von";
+      if (l.startsWith("cousin")) return "Cousin/Cousine von";
+      return "Verknüpft mit";
+    }
+
+    function relationGenerationStep(label) {
+      const l = (label || "").trim().toLowerCase();
+      if (l.startsWith("kind") || l.startsWith("sohn") || l.startsWith("tochter")) return -1;
+      if (l.startsWith("enkel")) return -2;
+      if (l.startsWith("neffe") || l.startsWith("nichte")) return -1;
+      if (l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil")) return 1;
+      if (l.startsWith("oma") || l.startsWith("opa") || l.startsWith("großelter")) return 2;
+      if (l.startsWith("onkel") || l.startsWith("tante")) return 1;
+      return 0;
+    }
+
+    function isPartnerRelation(label) {
+      const l = (label || "").toLowerCase();
+      return l.includes("partner") || l.includes("ehe");
+    }
+
+    function isSiblingRelation(label) {
+      const l = (label || "").toLowerCase();
+      return l.includes("bruder") || l.includes("schwester") || l.includes("geschwister");
+    }
+
+    function todayIso() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function addDaysIso(baseIso, days) {
+      const d = new Date(baseIso + "T00:00:00");
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function withYearIso(baseIso, year) {
+      return year + baseIso.slice(4);
+    }
+
+    function daysBetween(date1Iso, date2Iso) {
+      const d1 = new Date(date1Iso + "T00:00:00");
+      const d2 = new Date(date2Iso + "T00:00:00");
+      return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+    }
+
+    const STORAGE_KEY = "rememberme_test_db_v2";
+    let state = loadState();
+    let activeTab = "Übersicht";
+    let selectedTreeRootId = null;
+    let syncStatus = `App-Code: ${state.ownPairingCode}`;
+    let logs = [];
+
+    let showCreateDialog = false;
+    let detailPersonId = null;
+    let popupState = null;
+
+    function loadState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        try { return JSON.parse(raw); } catch (e) {}
+      }
+      const code = "KC-ME-" + Math.floor(1000 + Math.random() * 9000);
+      return {
+        ownPairingCode: code,
+        nextId: 10,
+        persons: [],
+        relations: [],
+        specialEvents: [],
+        directMessages: []
+      };
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      renderAll();
+    }
+
+    function addLog(msg) {
+      const time = new Date().toLocaleTimeString("de-DE");
+      logs.unshift(`[${time}] ${msg}`);
+      renderLogs();
+    }
+
+    function clearLogs() {
+      logs = [];
+      renderLogs();
+    }
+
+    function addBidirectionalRelation(fromId, toId, label) {
+      if (!fromId || !toId || fromId === toId) return;
+      const clean = label.trim();
+      const existsFwd = state.relations.some(r => r.fromPersonId === fromId && r.toPersonId === toId && r.relationLabel.toLowerCase() === clean.toLowerCase());
+      if (!existsFwd) {
+        state.relations.push({ id: state.nextId++, fromPersonId: fromId, toPersonId: toId, relationLabel: clean, isFallbackContact: true });
+      }
+      const rev = inverseRelationLabel(clean);
+      const existsRev = state.relations.some(r => r.fromPersonId === toId && r.toPersonId === fromId);
+      if (!existsRev) {
+        state.relations.push({ id: state.nextId++, fromPersonId: toId, toPersonId: fromId, relationLabel: rev, isFallbackContact: isPartnerRelation(clean) });
+      }
+    }
+
+    const ContactResolver = {
+      resolveTarget(person, relationsForPerson) {
+        const ownPhone = (person.phone || "").trim();
+        const ownEmail = (person.email || "").trim();
+        const ownPeerId = (person.appPeerId || "").trim();
+
+        if ((!person.hasNoOwnPhone && (ownPhone !== "" || ownEmail !== "")) || ownPeerId !== "") {
+          const noPhoneButAppNotice = (person.hasNoOwnPhone && ownPhone === "" && ownPeerId !== "")
+            ? `Hinweis: ${person.name} hat keine Handynummer, ist aber direkt per App-Code (${ownPeerId}) gekoppelt.`
+            : null;
+          return {
+            targetPersonName: person.name,
+            phone: ownPhone,
+            email: ownEmail,
+            appPeerId: ownPeerId,
+            hasAppDirect: ownPeerId !== "",
+            isRedirectedToRelative: false,
+            relationDescription: null,
+            warningNotice: noPhoneButAppNotice
+          };
+        }
+
+        const fallbackPair = relationsForPerson.find(({ rel, target }) =>
+          rel.isFallbackContact && ((target.appPeerId || "").trim() || (target.phone || "").trim() || (target.email || "").trim())
+        ) || relationsForPerson.find(({ target }) =>
+          (target.appPeerId || "").trim() || (target.phone || "").trim() || (target.email || "").trim()
+        );
+
+        if (fallbackPair) {
+          const { rel, target: relative } = fallbackPair;
+          return {
+            targetPersonName: relative.name,
+            phone: (relative.phone || "").trim(),
+            email: (relative.email || "").trim(),
+            appPeerId: "",
+            hasAppDirect: false,
+            isRedirectedToRelative: true,
+            relationDescription: `${rel.relationLabel} ${relative.name}`,
+            warningNotice: `Hinweis: ${person.name} hat keine eigene Nummer. Nachricht wird an ${relative.name} (${rel.relationLabel}) gerichtet.`
+          };
+        }
+
+        return {
+          targetPersonName: person.name,
+          phone: "",
+          email: ownEmail,
+          appPeerId: "",
+          hasAppDirect: false,
+          isRedirectedToRelative: false,
+          relationDescription: null,
+          warningNotice: "Hinweis: Keine eigene Telefonnummer/E-Mail und kein erreichbarer verknüpfter Kontakt hinterlegt."
+        };
+      },
+
+      daysUntilNextBirthday(birthdayIso, today = todayIso()) {
+        if (!birthdayIso || !birthdayIso.trim()) return null;
+        try {
+          const clean = birthdayIso.replace(/^--/, "");
+          const parts = clean.split("-");
+          const month = parts.length === 3 ? parseInt(parts[1], 10) : parseInt(parts[0], 10);
+          const day = parts.length === 3 ? parseInt(parts[2], 10) : parseInt(parts[1], 10);
+          const tYear = parseInt(today.slice(0, 4), 10);
+          const pad = n => String(n).padStart(2, "0");
+          let nextBday = `${tYear}-${pad(month)}-${pad(day)}`;
+          if (nextBday < today) nextBday = `${tYear + 1}-${pad(month)}-${pad(day)}`;
+          return daysBetween(today, nextBday);
+        } catch (e) { return null; }
+      },
+
+      negativeDaysSinceLastBirthday(birthdayIso, today = todayIso()) {
+        if (!birthdayIso || !birthdayIso.trim()) return null;
+        try {
+          const clean = birthdayIso.replace(/^--/, "");
+          const parts = clean.split("-");
+          const month = parts.length === 3 ? parseInt(parts[1], 10) : parseInt(parts[0], 10);
+          const day = parts.length === 3 ? parseInt(parts[2], 10) : parseInt(parts[1], 10);
+          const tYear = parseInt(today.slice(0, 4), 10);
+          const pad = n => String(n).padStart(2, "0");
+          let lastBday = `${tYear}-${pad(month)}-${pad(day)}`;
+          if (lastBday > today) lastBday = `${tYear - 1}-${pad(month)}-${pad(day)}`;
+          return daysBetween(today, lastBday);
+        } catch (e) { return null; }
+      },
+
+      formatPassedAge(birthdayIso, today = todayIso()) {
+        if (!birthdayIso || birthdayIso.startsWith("--")) return "hatte Geburtstag";
+        try {
+          const bParts = birthdayIso.split("-").map(Number);
+          const tParts = today.split("-").map(Number);
+          if (bParts.length !== 3) return "hatte Geburtstag";
+          const pad = n => String(n).padStart(2, "0");
+          let lastYear = tParts[0];
+          const thisYearBday = `${tParts[0]}-${pad(bParts[1])}-${pad(bParts[2])}`;
+          if (thisYearBday > today) lastYear -= 1;
+          const passedAge = Math.max(0, lastYear - bParts[0]);
+          return `wurde ${passedAge}`;
+        } catch (e) { return "hatte Geburtstag"; }
+      },
+
+      formatUpcomingAge(birthdayIso, today = todayIso()) {
+        if (!birthdayIso || birthdayIso.startsWith("--")) return "Geburtstag";
+        try {
+          const bParts = birthdayIso.split("-").map(Number);
+          const tParts = today.split("-").map(Number);
+          if (bParts.length !== 3) return "Geburtstag";
+          const totalMonths = (tParts[0] - bParts[0]) * 12 + (tParts[1] - bParts[1]);
+          const thisYearBday = `${tParts[0]}-${String(bParts[1]).padStart(2, "0")}-${String(bParts[2]).padStart(2, "0")}`;
+          const nextYearAge = tParts[0] - bParts[0] + (thisYearBday < today ? 1 : 0);
+          if (totalMonths >= 0 && totalMonths <= 23) return `${totalMonths} Mon. (wird ${nextYearAge})`;
+          return `wird ${nextYearAge}`;
+        } catch (e) { return "Geburtstag"; }
+      },
+
+      nextTimerDate(person, today = todayIso()) {
+        if (!person.timerEnabled || person.timerInterval <= 0) return null;
+        const base = person.lastContactedIso || today;
+        const d = new Date(base + "T00:00:00");
+        const interval = Number(person.timerInterval) || 14;
+        switch (person.timerUnit) {
+          case "WEEKS": d.setDate(d.getDate() + interval * 7); break;
+          case "MONTHS": d.setMonth(d.getMonth() + interval); break;
+          case "YEARS": d.setFullYear(d.getFullYear() + interval); break;
+          default: d.setDate(d.getDate() + interval); break;
+        }
+        return d.toISOString().slice(0, 10);
+      }
+    };
+
+    function seedSampleData() {
+      const today = todayIso();
+      state.persons = [];
+      state.relations = [];
+      state.specialEvents = [];
+
+      const omaId = state.nextId++;
+      const annaId = state.nextId++;
+      const thomasId = state.nextId++;
+      const markusId = state.nextId++;
+      const leoId = state.nextId++;
+
+      state.persons.push(
+        {
+          id: omaId,
+          name: "Helga Weber (Oma)",
+          birthdayIso: withYearIso(addDaysIso(today, 18), 1958),
+          hasNoOwnPhone: false,
+          phone: "+491701112233",
+          email: "",
+          appPeerId: "",
+          notes: "Mag Gartenarbeit & Apfelkuchen",
+          timerEnabled: true,
+          timerInterval: 7,
+          timerUnit: "DAYS",
+          lastContactedIso: addDaysIso(today, -6)
+        },
+        {
+          id: annaId,
+          name: "Anna Weber",
+          birthdayIso: withYearIso(addDaysIso(today, 4), 1992),
+          hasNoOwnPhone: false,
+          phone: "+491712345678",
+          email: "anna.weber@beispiel.de",
+          appPeerId: "KC-ANNA-92",
+          notes: "Lieblingsblumen: Pfingstrosen",
+          timerEnabled: true,
+          timerInterval: 14,
+          timerUnit: "DAYS",
+          lastContactedIso: addDaysIso(today, -15)
+        },
+        {
+          id: thomasId,
+          name: "Thomas Weber",
+          birthdayIso: withYearIso(addDaysIso(today, -12), 1990),
+          hasNoOwnPhone: false,
+          phone: "+491719988776",
+          email: "thomas.weber@beispiel.de",
+          appPeerId: "",
+          notes: "Trinkt gerne Espresso",
+          timerEnabled: true,
+          timerInterval: 14,
+          timerUnit: "DAYS",
+          lastContactedIso: addDaysIso(today, -8)
+        },
+        {
+          id: markusId,
+          name: "Markus Weber",
+          birthdayIso: withYearIso(addDaysIso(today, -5), 1995),
+          hasNoOwnPhone: false,
+          phone: "+491605544332",
+          email: "",
+          appPeerId: "",
+          notes: "Annas Bruder",
+          timerEnabled: true,
+          timerInterval: 30,
+          timerUnit: "DAYS",
+          lastContactedIso: addDaysIso(today, -20)
+        },
+        {
+          id: leoId,
+          name: "Leo Weber (Baby)",
+          birthdayIso: withYearIso(today, 2026),
+          hasNoOwnPhone: true,
+          phone: "",
+          email: "",
+          appPeerId: "",
+          notes: "Kleidergröße 68, mag Holzrasseln",
+          timerEnabled: true,
+          timerInterval: 1,
+          timerUnit: "MONTHS",
+          lastContactedIso: addDaysIso(today, -10)
+        }
+      );
+
+      addBidirectionalRelation(annaId, omaId, "Kind von");
+      addBidirectionalRelation(markusId, omaId, "Kind von");
+      addBidirectionalRelation(markusId, annaId, "Bruder von");
+      addBidirectionalRelation(thomasId, annaId, "Ehe-Partner von");
+      addBidirectionalRelation(leoId, annaId, "Kind von");
+      addBidirectionalRelation(leoId, thomasId, "Kind von");
+
+      state.specialEvents.push({
+        id: state.nextId++,
+        personId: annaId,
+        title: "Kommt zu Besuch",
+        dateIso: addDaysIso(today, 7),
+        leadDays: 2,
+        note: "Mit Baby Leo übers Wochenende"
+      });
+
+      selectedTreeRootId = annaId;
+      addLog("Beispieldaten mit 3-Generationen-Stammbaum (Oma Helga -> Anna, Ehe-Partner Thomas & Bruder Markus -> Baby Leo) angelegt.");
+      saveState();
+    }
+
+    function syncDeviceContacts() {
+      const today = todayIso();
+      const existingNames = new Set(state.persons.map(p => p.name));
+      const deviceMocks = [
+        {
+          name: "Sabine Wagner",
+          birthdayIso: withYearIso(addDaysIso(today, 9), 1989),
+          phone: "+491609876543",
+          email: "sabine.wagner@beispiel.de",
+          appPeerId: "",
+          notes: "Aus Telefonkontakten synchronisiert",
+          timerEnabled: true,
+          timerInterval: 30,
+          timerUnit: "DAYS",
+          lastContactedIso: addDaysIso(today, -20)
+        }
+      ];
+      let count = 0;
+      deviceMocks.forEach(m => {
+        if (!existingNames.has(m.name)) {
+          state.persons.push({ id: state.nextId++, hasNoOwnPhone: false, ...m });
+          count++;
+        }
+      });
+      syncStatus = `${count} Kontakte synchronisiert`;
+      addLog(`${count} Telefonkontakte synchronisiert.`);
+      saveState();
+    }
+
+    function simulateIncomingMessage() {
+      if (state.persons.length === 0) seedSampleData();
+      const sender = state.persons[1] || state.persons[0];
+      const eventDate = addDaysIso(todayIso(), 5);
+      const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
+
+      state.directMessages.push({
+        id: state.nextId++,
+        personId: sender.id,
+        targetPeerId: sender.appPeerId || "KC-PEER",
+        senderDisplayName: sender.name,
+        direction: "INCOMING",
+        text: "Hallo! Wir kommen nächste Woche zu Besuch!",
+        sharedEventTitle: "Kommt zu Besuch",
+        sharedEventDateIso: eventDate,
+        timestampIso: nowStr,
+        isRead: false
+      });
+
+      state.specialEvents.push({
+        id: state.nextId++,
+        personId: sender.id,
+        title: "Kommt zu Besuch",
+        dateIso: eventDate,
+        leadDays: 1,
+        note: "Per App-Direktnachricht empfangen"
+      });
+
+      popupState = {
+        personId: sender.id,
+        reason: "Erinnerung: Kommt zu Besuch",
+        quickMessageText: "Super, wir freuen uns auf euch!"
+      };
+      addLog(`Eingehende Nachricht von ${sender.name} inkl. Erinnerung (${eventDate}).`);
+      saveState();
+    }
+
+    function runDailyReminderWorker() {
+      const today = todayIso();
+      for (const p of state.persons) {
+        const nextTimer = ContactResolver.nextTimerDate(p, today);
+        if (nextTimer && nextTimer <= today) {
+          openPopupForPerson(p.id, `Erinnerung: Melde-Timer (${p.timerInterval} ${p.timerUnit})`);
+          addLog(`DailyReminderWorker -> Nachricht-Dialog für ${p.name}`);
+          return;
+        }
+      }
+      addLog("DailyReminderWorker: Keine sofort fälligen Erinnerungen.");
+    }
+
+    function resetDatabase() {
+      localStorage.removeItem(STORAGE_KEY);
+      state = loadState();
+      syncStatus = `App-Code: ${state.ownPairingCode}`;
+      popupState = null;
+      detailPersonId = null;
+      showCreateDialog = false;
+      addLog("Datenbank zurückgesetzt.");
+      renderAll();
+    }
+
+    function getRelationsForPerson(personId) {
+      return state.relations
+        .filter(r => r.fromPersonId === personId)
+        .map(rel => {
+          const target = state.persons.find(p => p.id === rel.toPersonId);
+          return target ? { rel, target } : null;
+        })
+        .filter(Boolean);
+    }
+
+    function openPopupForPerson(personId, reason = "Erinnerung") {
+      const person = state.persons.find(p => p.id === personId);
+      if (!person) return;
+      const relPairs = getRelationsForPerson(person.id);
+      const resolved = ContactResolver.resolveTarget(person, relPairs);
+      const firstName = resolved.targetPersonName.split(" ")[0];
+      popupState = {
+        personId: person.id,
+        reason,
+        quickMessageText: `Hallo ${firstName}, herzliche Grüße!`
+      };
+      renderAll();
+    }
+
+    function sendDirectOrFallback() {
+      if (!popupState) return;
+      const person = state.persons.find(p => p.id === popupState.personId);
+      if (!person) return;
+      const resolved = ContactResolver.resolveTarget(person, getRelationsForPerson(person.id));
+      const text = (popupState.quickMessageText || "").trim() || "Herzliche Grüße!";
+      const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
+
+      if (resolved.hasAppDirect) {
+        state.directMessages.push({
+          id: state.nextId++,
+          personId: person.id,
+          targetPeerId: resolved.appPeerId,
+          senderDisplayName: "Ich",
+          direction: "OUTGOING",
+          text,
+          timestampIso: nowStr,
+          isRead: true
+        });
+        person.lastContactedIso = todayIso();
+        addLog(`App-Direkt gesendet an ${resolved.targetPersonName} (${resolved.appPeerId}): "${text}"`);
+      } else if (resolved.phone) {
+        addLog(`Fallback auf WhatsApp an ${resolved.targetPersonName} (${resolved.phone}): "${text}"`);
+        window.open(`https://wa.me/${resolved.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(text)}`, "_blank");
+      }
+      popupState = null;
+      saveState();
+    }
+
+    function dispatchChannel(channel) {
+      if (!popupState) return;
+      const person = state.persons.find(p => p.id === popupState.personId);
+      if (!person) return;
+      const resolved = ContactResolver.resolveTarget(person, getRelationsForPerson(person.id));
+      const text = popupState.quickMessageText || "";
+      const cleanPhone = (resolved.phone || "").replace(/[^0-9+]/g, "");
+
+      if (channel === "Mail") {
+        if (!resolved.email) return;
+        addLog(`Mail an ${resolved.email}`);
+        window.location.href = `mailto:${resolved.email}?subject=${encodeURIComponent(popupState.reason)}&body=${encodeURIComponent(text)}`;
+        return;
+      }
+      if (!cleanPhone) {
+        addLog(`Keine Telefonnummer für ${resolved.targetPersonName} hinterlegt!`);
+        return;
+      }
+      addLog(`${channel} geöffnet für ${resolved.targetPersonName} (${cleanPhone})`);
+      if (channel === "WhatsApp") {
+        window.open(`https://wa.me/${cleanPhone.replace(/^\+/, "")}?text=${encodeURIComponent(text)}`, "_blank");
+      }
+    }
+
+    function markPersonContacted(personId) {
+      const person = state.persons.find(p => p.id === personId);
+      if (person) {
+        person.lastContactedIso = todayIso();
+        addLog(`${person.name} als kontaktiert markiert.`);
+      }
+      popupState = null;
+      saveState();
+    }
+
+    function renderAll() {
+      renderPhoneApp();
+      renderWidget();
+      renderModals();
+      renderLogs();
+    }
+
+    function renderPhoneApp() {
+      const root = document.getElementById("app-root");
+      const tabs = ["Übersicht", "Stammbaum", "Timer", "Erinnerung"];
+      let contentHtml = "";
+
+      if (state.persons.length === 0) {
+        contentHtml += `
+          <div class="card" style="margin-bottom: 10px;">
+            <div style="font-size:14px; font-weight:600; margin-bottom:6px;">Noch keine Kontakte vorhanden</div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-bottom:10px; line-height:1.4;">
+              Tippe auf 'Beispieldaten mit Stammbaum anlegen' oder oben auf 'Neu'.
+            </div>
+            <button class="compact-btn primary" onclick="seedSampleData()">Beispieldaten mit Stammbaum anlegen</button>
+          </div>
+        `;
+      }
+
+      if (activeTab === "Stammbaum") {
+        contentHtml += renderFamilyTreeTab();
+      } else if (activeTab === "Timer") {
+        contentHtml += renderTimerTab();
+      } else if (activeTab === "Erinnerung") {
+        contentHtml += renderEventsTab();
+      } else {
+        contentHtml += renderPersonsList();
+      }
+
+      root.innerHTML = `
+        <div class="app-header">
+          <div>
+            <div class="app-title">Remember Me v1.0.2</div>
+            <div class="app-subtitle">Geburtstage, Stammbaum & Erinnerungen</div>
+          </div>
+          <div class="btn-row">
+            <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
+            <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
+          </div>
+        </div>
+
+        <div class="nav-tabs">
+          ${tabs.map(t => `
+            <div class="nav-tab ${activeTab === t ? 'active' : ''}" onclick="setTab('${t}')">${t}</div>
+          `).join("")}
+        </div>
+
+        <div class="card-list">
+          ${contentHtml}
+        </div>
+      `;
+    }
+
+    function formatIsoToDdMmYyyy(iso) {
+      if (!iso || !iso.trim()) return "";
+      const clean = iso.trim();
+      if (clean.startsWith("--")) {
+        const parts = clean.slice(2).split("-");
+        if (parts.length === 2) return `${parts[1].padStart(2, "0")}.${parts[0].padStart(2, "0")}.`;
+      }
+      const parts = clean.split("-");
+      return parts.length === 3 ? `${parts[2].padStart(2, "0")}.${parts[1].padStart(2, "0")}.${parts[0]}` : clean;
+    }
+
+    function formatCompactBirthdayLine(birthdayIso) {
+      if (!birthdayIso || !birthdayIso.trim()) return "";
+      const dateStr = formatIsoToDdMmYyyy(birthdayIso);
+      const ageStr = ContactResolver.formatUpcomingAge(birthdayIso);
+      const days = ContactResolver.daysUntilNextBirthday(birthdayIso);
+      const whenStr = days === null ? "" : (days === 0 ? "heute" : (days === 1 ? "in 1 Tag" : `in ${days} Tagen`));
+      return [dateStr, `${ageStr} ${whenStr}`.trim()].filter(Boolean).join("  •  ");
+    }
+
+    let showPastDates = false;
+
+    function formatPassedBirthdayLine(birthdayIso) {
+      if (!birthdayIso || !birthdayIso.trim()) return "";
+      const dateStr = formatIsoToDdMmYyyy(birthdayIso);
+      const passedAgeStr = ContactResolver.formatPassedAge(birthdayIso);
+      const negDays = ContactResolver.negativeDaysSinceLastBirthday(birthdayIso);
+      if (negDays === null) return dateStr;
+      const negLabel = negDays === 0 ? "0 Tage (heute)" : (negDays === -1 ? "-1 Tag" : `${negDays} Tage`);
+      return `${dateStr}  •  ${passedAgeStr} (${negLabel})`;
+    }
+
+    function renderPersonsList() {
+      const sorted = [...state.persons].sort((a, b) => {
+        if (!showPastDates) {
+          const da = ContactResolver.daysUntilNextBirthday(a.birthdayIso) ?? 999999;
+          const db = ContactResolver.daysUntilNextBirthday(b.birthdayIso) ?? 999999;
+          return da !== db ? da - db : a.name.localeCompare(b.name);
+        } else {
+          const na = ContactResolver.negativeDaysSinceLastBirthday(a.birthdayIso) ?? -999999;
+          const nb = ContactResolver.negativeDaysSinceLastBirthday(b.birthdayIso) ?? -999999;
+          return na !== nb ? nb - na : a.name.localeCompare(b.name);
+        }
+      });
+
+      const headerBar = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span style="font-size:11px; color:var(--text-muted); font-weight:500;">
+            ${showPastDates ? "Vergangene Geburtstage & Termine" : "Nächste Geburtstage zuerst"}
+          </span>
+          <button class="compact-btn ${showPastDates ? 'primary' : ''}" onclick="showPastDates=!showPastDates; renderPhoneApp();">
+            ${showPastDates ? "Anstehende zeigen" : "Vergangene Termine"}
+          </button>
+        </div>
+      `;
+
+      const listHtml = sorted.map(person => {
+        const personEvents = state.specialEvents.filter(e => e.personId === person.id);
+        const bdayLine = showPastDates
+          ? formatPassedBirthdayLine(person.birthdayIso)
+          : formatCompactBirthdayLine(person.birthdayIso);
+
+        return `
+          <div class="card" style="padding: 9px 12px;">
+            <div class="person-header" style="align-items: center;">
+              <div style="flex:1; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
+                <div style="font-size:15px; font-weight:600; color:var(--text-primary);">${escapeHtml(person.name)}</div>
+                ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : ""}
+                ${personEvents.length > 0 ? `
+                  <div class="person-meta meta-accent" style="margin-top:2px;">
+                    ${personEvents.map(e => `${escapeHtml(e.title)} (${escapeHtml(formatIsoToDdMmYyyy(e.dateIso))})`).join(" • ")}
+                  </div>
+                ` : ""}
+              </div>
+              <div class="btn-row">
+                <button class="compact-btn" onclick="openPopupForPerson(${person.id}, '${showPastDates ? 'Nachträglich zum Geburtstag' : 'Erinnerung'}')">Nachricht</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      return headerBar + listHtml;
+    }
+
+    function renderFamilyTreeTab() {
+      if (state.persons.length === 0) return "";
+      const rootPerson = state.persons.find(p => p.id === selectedTreeRootId) || state.persons[0];
+      const personMap = new Map(state.persons.map(p => [p.id, p]));
+
+      // BFS generation calculation
+      const genMap = new Map();
+      const queue = [rootPerson.id];
+      genMap.set(rootPerson.id, 0);
+
+      while (queue.length > 0) {
+        const currId = queue.shift();
+        const currGen = genMap.get(currId) || 0;
+
+        state.relations.filter(r => r.fromPersonId === currId).forEach(rel => {
+          if (!genMap.has(rel.toPersonId) && personMap.has(rel.toPersonId)) {
+            genMap.set(rel.toPersonId, currGen + relationGenerationStep(rel.relationLabel));
+            queue.push(rel.toPersonId);
+          }
+        });
+        state.relations.filter(r => r.toPersonId === currId).forEach(rel => {
+          if (!genMap.has(rel.fromPersonId) && personMap.has(rel.fromPersonId)) {
+            genMap.set(rel.fromPersonId, currGen - relationGenerationStep(rel.relationLabel));
+            queue.push(rel.fromPersonId);
+          }
+        });
+      }
+
+      function shortRelationName(rawLabel) {
+        const l = (rawLabel || "").trim().toLowerCase();
+        if (l.startsWith("mutter")) return "Mutter";
+        if (l.startsWith("vater")) return "Vater";
+        if (l.startsWith("elternteil") || l.startsWith("eltern")) return "Eltern";
+        if (l.startsWith("ehe-partner") || l.startsWith("ehepartner")) return "Ehe-Partner";
+        if (l.startsWith("partner")) return "Partner";
+        if (l.startsWith("bruder")) return "Bruder";
+        if (l.startsWith("schwester")) return "Schwester";
+        if (l.startsWith("geschwister")) return "Geschwister";
+        if (l.startsWith("kind")) return "Kind";
+        if (l.startsWith("oma") || l.startsWith("opa") || l.startsWith("großelter")) return "Oma/Opa";
+        if (l.startsWith("enkel")) return "Enkelkind";
+        if (l.startsWith("onkel") || l.startsWith("tante")) return "Onkel/Tante";
+        if (l.startsWith("neffe") || l.startsWith("nichte")) return "Neffe/Nichte";
+        if (l.startsWith("cousin")) return "Cousin/Cousine";
+        return rawLabel.replace(/\s+von$/i, "").trim() || "Familie";
+      }
+
+      function roleRelativeToRoot(p, genLevel) {
+        if (p.id === rootPerson.id) return "Fokus";
+        const directOut = state.relations.find(r => r.fromPersonId === p.id && r.toPersonId === rootPerson.id);
+        if (directOut) return shortRelationName(directOut.relationLabel);
+        const directIn = state.relations.find(r => r.fromPersonId === rootPerson.id && r.toPersonId === p.id);
+        if (directIn) return shortRelationName(inverseRelationLabel(directIn.relationLabel));
+
+        if (genLevel <= -2) return "Oma/Opa";
+        if (genLevel >= 2) return "Enkelkind";
+        if (genLevel === -1) {
+          // Check if partner of a parent -> Eltern, or sibling of a parent -> Onkel/Tante
+          const relToParent = state.relations.find(r =>
+            r.fromPersonId === p.id && genMap.get(r.toPersonId) === -1 &&
+            state.relations.some(pr =>
+              (pr.fromPersonId === r.toPersonId && pr.toPersonId === rootPerson.id && relationGenerationStep(pr.relationLabel) === 1) ||
+              (pr.fromPersonId === rootPerson.id && pr.toPersonId === r.toPersonId && relationGenerationStep(pr.relationLabel) === -1)
+            )
+          );
+          if (relToParent && isPartnerRelation(relToParent.relationLabel)) return "Eltern";
+          if (relToParent && isSiblingRelation(relToParent.relationLabel)) return "Onkel/Tante";
+          return "Eltern";
+        }
+        if (genLevel === 1) {
+          const isChildOfPartner = state.relations.some(r =>
+            r.fromPersonId === p.id && isPartnerRelation(
+              (state.relations.find(pr => pr.fromPersonId === r.toPersonId && pr.toPersonId === rootPerson.id) || {}).relationLabel || ""
+            ) && relationGenerationStep(r.relationLabel) === -1
+          );
+          if (isChildOfPartner) return "Kind";
+          return "Kind";
+        }
+        const anyRel = state.relations.find(r => r.fromPersonId === p.id);
+        if (anyRel) return shortRelationName(anyRel.relationLabel);
+        return "Familie";
+      }
+
+      function arePartnersOrCoParents(idA, idB) {
+        const directRel = state.relations.find(r =>
+          (r.fromPersonId === idA && r.toPersonId === idB) ||
+          (r.fromPersonId === idB && r.toPersonId === idA)
+        );
+        if (directRel && isPartnerRelation(directRel.relationLabel)) return true;
+        // Check if they share a common child
+        const childrenOfA = state.relations
+          .filter(r => r.toPersonId === idA && relationGenerationStep(r.relationLabel) === -1)
+          .map(r => r.fromPersonId);
+        return childrenOfA.some(cid =>
+          state.relations.some(r => r.fromPersonId === cid && r.toPersonId === idB && relationGenerationStep(r.relationLabel) === -1)
+        );
+      }
+
+      // Order members in a generation so parents / partners sit directly side-by-side (nebeneinander)
+      function orderRowMembers(members, genLevel) {
+        const visited = new Set();
+        const ordered = [];
+        const sortedSeed = [...members].sort((a, b) => {
+          if (a.id === rootPerson.id) return -1;
+          if (b.id === rootPerson.id) return 1;
+          const aRole = roleRelativeToRoot(a, genLevel);
+          const bRole = roleRelativeToRoot(b, genLevel);
+          const aIsParent = aRole === "Eltern" || aRole === "Mutter" || aRole === "Vater";
+          const bIsParent = bRole === "Eltern" || bRole === "Mutter" || bRole === "Vater";
+          if (aIsParent && !bIsParent) return -1;
+          if (!aIsParent && bIsParent) return 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        for (const m of sortedSeed) {
+          if (visited.has(m.id)) continue;
+          visited.add(m.id);
+          ordered.push(m);
+          // Immediately place partner / co-parent next to this person
+          for (const candidate of members) {
+            if (!visited.has(candidate.id) && arePartnersOrCoParents(m.id, candidate.id)) {
+              visited.add(candidate.id);
+              ordered.push(candidate);
+            }
+          }
+        }
+        return ordered;
+      }
+
+      const levelsMap = new Map();
+      for (const [pid, gen] of genMap.entries()) {
+        if (!levelsMap.has(gen)) levelsMap.set(gen, []);
+        levelsMap.get(gen).push(personMap.get(pid));
+      }
+      const sortedLevels = [...levelsMap.keys()].sort((a, b) => a - b);
+
+      const focusChips = state.persons.map(p => `
+        <button class="compact-btn ${p.id === rootPerson.id ? 'primary' : ''}" style="padding:3px 7px; font-size:11px;" onclick="selectedTreeRootId=${p.id}; renderPhoneApp();">
+          ${escapeHtml(p.name)}
+        </button>
+      `).join("");
+
+      const levelsHtml = sortedLevels.map((lvl, idx) => {
+        const members = orderRowMembers(levelsMap.get(lvl) || [], lvl);
+        const nodesHtml = members.map((m, mIdx) => {
+          const isRoot = m.id === rootPerson.id;
+          const role = roleRelativeToRoot(m, lvl);
+          const isPartner = isPartnerRelation(role);
+          let connector = "";
+          if (mIdx < members.length - 1) {
+            const nextM = members[mIdx + 1];
+            const coupled = arePartnersOrCoParents(m.id, nextM.id);
+            connector = coupled
+              ? `<span style="color:var(--partner-rose); font-size:12px; font-weight:700; padding:0 1px;">──</span>`
+              : `<span style="width:4px; display:inline-block;"></span>`;
+          }
+          return `
+            <div class="tree-node ${isRoot ? 'root' : ''} ${isPartner ? 'partner' : ''}" onclick="openDetailModal(${m.id})">
+              <div style="font-size:11.5px; font-weight:700; color:var(--text-primary); line-height:1.2;">${escapeHtml(m.name)}</div>
+              <div style="font-size:10px; color:${isRoot ? 'var(--accent-steel)' : (isPartner ? 'var(--partner-rose)' : 'var(--tree-green)')}; margin-top:2px; line-height:1.1;">
+                ${escapeHtml(role)}
+              </div>
+            </div>
+            ${connector}
+          `;
+        }).join("");
+
+        const nextMembers = idx < sortedLevels.length - 1 ? (levelsMap.get(sortedLevels[idx + 1]) || []) : [];
+        const connectorDown = idx < sortedLevels.length - 1 ? `
+          <div class="tree-line-vertical"></div>
+          ${nextMembers.length > 1 ? `<div class="tree-branch-bar"></div>` : ""}
+        ` : "";
+
+        return `
+          <div class="tree-row">${nodesHtml}</div>
+          ${connectorDown}
+        `;
+      }).join("");
+
+      return `
+        <div class="card" style="padding:8px 10px;">
+          <div class="btn-row" style="gap:4px;">${focusChips}</div>
+        </div>
+        <div class="tree-container">
+          ${levelsHtml}
+        </div>
+      `;
+    }
+
+    function renderDirectChatTab() {
+      if (state.directMessages.length === 0) {
+        return `<div class="card"><div style="font-size:12px; color:var(--text-secondary);">Noch keine Nachrichten vorhanden.</div></div>`;
+      }
+      return state.directMessages.map(m => {
+        const person = state.persons.find(p => p.id === m.personId);
+        return `
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted);">
+              <span>${escapeHtml(person ? person.name : m.senderDisplayName)} (${escapeHtml(m.targetPeerId)})</span>
+              <span>${escapeHtml(m.timestampIso)}</span>
+            </div>
+            <div style="font-size:13px; margin-top:4px;"><b>${escapeHtml(m.senderDisplayName)}:</b> ${escapeHtml(m.text)}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderTimerTab() {
+      const today = todayIso();
+      const timerPersons = state.persons.filter(p => p.timerEnabled);
+      return timerPersons.map(p => {
+        const nextDate = ContactResolver.nextTimerDate(p, today);
+        const diff = daysBetween(today, nextDate);
+        return `
+          <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="cursor:pointer;" onclick="openDetailModal(${p.id})">
+              <div class="person-name-link">${escapeHtml(p.name)}</div>
+              <div class="person-sub">Alle ${p.timerInterval} ${p.timerUnit} • Nächste: ${nextDate}</div>
+            </div>
+            <button class="compact-btn" onclick="openPopupForPerson(${p.id}, 'Melde-Timer')">Nachricht</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderEventsTab() {
+      const today = todayIso();
+      const rows = [];
+      state.specialEvents.forEach(ev => {
+        const person = state.persons.find(p => p.id === ev.personId);
+        const days = daysBetween(today, ev.dateIso);
+        rows.push({
+          days,
+          personId: ev.personId,
+          title: `Erinnerung: ${ev.title} (${person ? person.name : ""})`,
+          sub: `${ev.dateIso} ${ev.note ? "• " + ev.note : ""}`,
+          badge: days === 0 ? "Heute" : `in ${days}T`
+        });
+      });
+      state.persons.forEach(p => {
+        if (p.birthdayIso) {
+          const days = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
+          rows.push({
+            days: days ?? 999,
+            personId: p.id,
+            title: `Geburtstag: ${p.name}`,
+            sub: `${p.birthdayIso} (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`,
+            badge: days === 0 ? "Heute" : `in ${days}T`
+          });
+        }
+      });
+      rows.sort((a, b) => a.days - b.days);
+      return rows.map(r => `
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="cursor:pointer;" onclick="openDetailModal(${r.personId})">
+            <div class="person-name-link" style="font-size:14px;">${escapeHtml(r.title)}</div>
+            <div class="person-sub">${escapeHtml(r.sub)}</div>
+          </div>
+          <button class="compact-btn" onclick="openPopupForPerson(${r.personId}, '${escapeHtml(r.title)}')">Nachricht</button>
+        </div>
+      `).join("");
+    }
+
+    function renderWidget() {
+      const container = document.getElementById("widget-rows");
+      const today = todayIso();
+      const items = [];
+      for (const p of state.persons) {
+        const bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
+        if (bdayDays !== null && bdayDays <= 60) {
+          items.push({ sortKey: bdayDays, personId: p.id, name: p.name, subtitle: `Geburtstag (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`, badge: bdayDays === 0 ? "Heute" : `in ${bdayDays}T` });
+        }
+      }
+      for (const ev of state.specialEvents) {
+        const diff = daysBetween(today, ev.dateIso);
+        if (diff >= 0 && diff <= 45) {
+          const person = state.persons.find(p => p.id === ev.personId);
+          if (person) items.push({ sortKey: diff, personId: person.id, name: person.name, subtitle: `Erinnerung: ${ev.title}`, badge: diff === 0 ? "Heute" : `in ${diff}T` });
+        }
+      }
+      items.sort((a, b) => a.sortKey - b.sortKey);
+      container.innerHTML = items.slice(0, 5).map(item => `
+        <div class="widget-row" onclick="openPopupForPerson(${item.personId}, '${escapeHtml(item.subtitle)}')">
+          <div>
+            <div class="widget-row-name">${escapeHtml(item.name)}</div>
+            <div class="widget-row-sub">${escapeHtml(item.subtitle)}</div>
+          </div>
+          <div class="widget-row-badge">${escapeHtml(item.badge)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderModals() {
+      const modalRoot = document.getElementById("modal-root");
+      const relPresetOptions = RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
+
+      if (showCreateDialog) {
+        const existingOptions = state.persons.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+              <div class="modal-title">Kontakt anlegen</div>
+              <div class="field-group">
+                <label class="field-label">Name</label>
+                <input id="c-name" class="field-input" placeholder="Name" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Geburtsdatum (YYYY-MM-DD)</label>
+                <input id="c-bday" class="field-input" value="${todayIso()}" />
+              </div>
+              <label class="checkbox-row">
+                <input type="checkbox" id="c-nophone" />
+                <span>Keine eigene Nummer (z. B. Baby)</span>
+              </label>
+              <div class="field-group">
+                <label class="field-label">Telefon (optional)</label>
+                <input id="c-phone" class="field-input" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">E-Mail</label>
+                <input id="c-email" class="field-input" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Melde-Timer (Tage)</label>
+                <input id="c-timer" class="field-input" value="14" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Notiz</label>
+                <input id="c-notes" class="field-input" />
+              </div>
+              ${state.persons.length > 0 ? `
+                <div class="field-group">
+                  <label class="field-label">Beziehung für Stammbaum:</label>
+                  <select id="c-rellabel" class="field-select">${relPresetOptions}</select>
+                  <select id="c-reltarget" class="field-select" style="margin-top:4px;">
+                    <option value="-1">-- Keine Verknüpfung --</option>
+                    ${existingOptions}
+                  </select>
+                </div>
+              ` : ""}
+              <div class="modal-footer">
+                <button class="compact-btn" onclick="showCreateDialog=false; renderModals();">Abbrechen</button>
+                <button class="compact-btn primary" onclick="saveNewPerson()">Speichern</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (detailPersonId !== null) {
+        const dp = state.persons.find(p => p.id === detailPersonId);
+        if (!dp) { detailPersonId = null; modalRoot.innerHTML = ""; return; }
+        const otherPersons = state.persons.filter(p => p.id !== dp.id);
+        const currentRels = getRelationsForPerson(dp.id);
+        const currentEvs = state.specialEvents.filter(e => e.personId === dp.id);
+
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="modal-title">Details: ${escapeHtml(dp.name)}</div>
+                <button class="compact-btn" onclick="selectedTreeRootId=${dp.id}; detailPersonId=null; setTab('Stammbaum'); renderModals();">🌳 Stammbaum</button>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Name</label>
+                <input id="d-name" class="field-input" value="${escapeHtml(dp.name)}" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Geburtsdatum (YYYY-MM-DD)</label>
+                <input id="d-bday" class="field-input" value="${escapeHtml(dp.birthdayIso || '')}" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Telefon</label>
+                <input id="d-phone" class="field-input" value="${escapeHtml(dp.phone || '')}" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">E-Mail-Adresse</label>
+                <input id="d-email" class="field-input" value="${escapeHtml(dp.email || '')}" />
+              </div>
+              <div class="field-group">
+                <label class="field-label">Notiz</label>
+                <input id="d-notes" class="field-input" value="${escapeHtml(dp.notes || '')}" />
+              </div>
+
+              <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
+                <div style="font-size:12px; font-weight:600; color:var(--accent-steel); margin-bottom:6px;">Beziehungen (Stammbaum):</div>
+                <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
+                  ${currentRels.length === 0 ? `<div style="font-size:11px; color:var(--text-muted);">Noch keine Beziehungen verknüpft.</div>` :
+                    currentRels.map(r => `
+                      <div class="rel-item-row">
+                        <span>${escapeHtml(r.rel.relationLabel)} <b>${escapeHtml(r.target.name)}</b></span>
+                        <span style="color:var(--warn-amber); cursor:pointer; font-weight:700;" onclick="removeRelation(${r.rel.id})">✕</span>
+                      </div>
+                    `).join("")}
+                </div>
+                ${otherPersons.length > 0 ? `
+                  <div style="display:flex; gap:6px; align-items:center;">
+                    <select id="d-rellabel" class="field-select" style="flex:1;">${relPresetOptions}</select>
+                    <select id="d-reltarget" class="field-select" style="flex:1;">
+                      ${otherPersons.map(op => `<option value="${op.id}">${escapeHtml(op.name)}</option>`).join("")}
+                    </select>
+                    <button class="compact-btn primary" onclick="addRelationFromDetail(${dp.id})">+ Hinzu</button>
+                  </div>
+                ` : ""}
+              </div>
+
+              <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
+                <div style="font-size:12px; font-weight:600; color:var(--accent-steel); margin-bottom:6px;">Erinnerungen:</div>
+                <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
+                  ${currentEvs.map(ev => `
+                    <div class="rel-item-row">
+                      <span>${escapeHtml(ev.title)} (${escapeHtml(ev.dateIso)})</span>
+                      <span style="color:var(--warn-amber); cursor:pointer; font-weight:700;" onclick="removeEvent(${ev.id})">✕</span>
+                    </div>
+                  `).join("")}
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Neue Erinnerung (z. B. Operation, Besuch)</label>
+                  <input id="d-evtitle" class="field-input" placeholder="Erinnerung" />
+                </div>
+                <div class="field-group" style="margin-top:4px;">
+                  <label class="field-label">Datum (YYYY-MM-DD)</label>
+                  <input id="d-evdate" class="field-input" value="${addDaysIso(todayIso(), 3)}" />
+                </div>
+              </div>
+
+              <div class="modal-footer">
+                <button class="compact-btn danger" onclick="deletePerson(${dp.id})">Löschen</button>
+                <div class="btn-row">
+                  <button class="compact-btn" onclick="detailPersonId=null; renderModals();">Schließen</button>
+                  <button class="compact-btn primary" onclick="saveDetailPerson(${dp.id})">Speichern</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (popupState !== null) {
+        const p = state.persons.find(x => x.id === popupState.personId);
+        if (!p) { popupState = null; modalRoot.innerHTML = ""; return; }
+        const resolved = ContactResolver.resolveTarget(p, getRelationsForPerson(p.id));
+        const enabledExtras = state.enabledMessengers || [];
+
+        const CHANNEL_ICONS = {
+          WhatsApp: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#25D366" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`,
+          SMS: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+          Anruf: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+          Mail: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
+          Telegram: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2AABEE" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`,
+          Signal: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3A76F0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12c0 1.821.487 3.53 1.338 5L2 22l5-1.338A9.955 9.955 0 0 0 12 22z"/></svg>`,
+          Threema: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#05A63F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+          Messenger: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00B2FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+          Instagram: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E1306C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>`,
+          Viber: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7360F2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`
+        };
+
+        const AVAILABLE_EXTRA_MESSENGERS = ["Telegram", "Signal", "Threema", "Messenger", "Instagram", "Viber"];
+
+        const extraButtonsHtml = enabledExtras.map(ch => `
+          <button class="compact-btn" style="display:inline-flex; align-items:center; gap:6px;" onclick="dispatchChannel('${ch}')">
+            ${CHANNEL_ICONS[ch] || ""} <span>${ch}</span>
+          </button>
+        `).join("");
+
+        const pickerHtml = popupState.showAddMessenger ? `
+          <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:6px;">
+            <div style="font-size:11px; color:var(--text-secondary); font-weight:600;">Weitere Messenger ein-/ausblenden:</div>
+            <div class="btn-row">
+              ${AVAILABLE_EXTRA_MESSENGERS.map(m => {
+                const active = enabledExtras.includes(m);
+                return `
+                  <button class="compact-btn ${active ? 'primary' : ''}" style="display:inline-flex; align-items:center; gap:5px;" onclick="toggleExtraMessenger('${m}')">
+                    ${CHANNEL_ICONS[m] || ""} <span>${active ? '✓ ' : '+ '}${m}</span>
+                  </button>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        ` : "";
+
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+              <div>
+                <div class="modal-title" style="font-size:17px;">Nachricht an ${escapeHtml(p.name)}</div>
+                <div style="font-size:13px; color:var(--accent-steel); margin-top:2px;">${escapeHtml(popupState.reason)}</div>
+              </div>
+              ${resolved.warningNotice ? `<div class="warning-box">${escapeHtml(resolved.warningNotice)}</div>` : ""}
+              <div class="field-group">
+                <label class="field-label">Nachricht / Gruß</label>
+                <input id="p-msg" class="field-input" value="${escapeHtml(popupState.quickMessageText)}" oninput="popupState.quickMessageText = this.value" />
+              </div>
+              <div class="btn-row">
+                <button class="compact-btn primary" style="display:inline-flex; align-items:center; gap:6px;" onclick="dispatchChannel('WhatsApp')">
+                  ${CHANNEL_ICONS.WhatsApp} <span>WhatsApp</span>
+                </button>
+                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:6px;" onclick="dispatchChannel('SMS')">
+                  ${CHANNEL_ICONS.SMS} <span>SMS</span>
+                </button>
+                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:6px;" onclick="dispatchChannel('Anruf')">
+                  ${CHANNEL_ICONS.Anruf} <span>Anruf</span>
+                </button>
+                ${resolved.email ? `
+                  <button class="compact-btn" style="display:inline-flex; align-items:center; gap:6px;" onclick="dispatchChannel('Mail')">
+                    ${CHANNEL_ICONS.Mail} <span>Mail</span>
+                  </button>
+                ` : ""}
+                ${extraButtonsHtml}
+                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:5px; border-style:dashed;" onclick="popupState.showAddMessenger = !popupState.showAddMessenger; renderModals();">
+                  <span>＋ Hinzufügen</span>
+                </button>
+              </div>
+              ${pickerHtml}
+              <div class="modal-footer">
+                <button class="compact-btn" onclick="markPersonContacted(${p.id})">Kontaktiert</button>
+                <button class="compact-btn" onclick="popupState=null; renderModals();">Schließen</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      modalRoot.innerHTML = "";
+    }
+
+    function renderLogs() {
+      const el = document.getElementById("log-list");
+      if (!el) return;
+      el.innerHTML = logs.map(l => `<div class="log-item">${escapeHtml(l)}</div>`).join("");
+    }
+
+    function setTab(tab) {
+      activeTab = tab;
+      renderPhoneApp();
+    }
+
+    function openCreateModal() {
+      showCreateDialog = true;
+      renderModals();
+    }
+
+    function openDetailModal(id) {
+      detailPersonId = id;
+      renderModals();
+    }
+
+    function toggleExtraMessenger(name) {
+      if (!state.enabledMessengers) state.enabledMessengers = [];
+      const idx = state.enabledMessengers.indexOf(name);
+      if (idx >= 0) {
+        state.enabledMessengers.splice(idx, 1);
+      } else {
+        state.enabledMessengers.push(name);
+      }
+      saveState();
+    }
+
+    function closeModals(e) {
+      if (e.target.classList.contains("modal-backdrop")) {
+        showCreateDialog = false;
+        detailPersonId = null;
+        popupState = null;
+        renderModals();
+      }
+    }
+
+    function addRelationFromDetail(fromId) {
+      const label = document.getElementById("d-rellabel").value;
+      const targetId = parseInt(document.getElementById("d-reltarget").value, 10);
+      addBidirectionalRelation(fromId, targetId, label);
+      addLog(`Beziehung "${label}" gespeichert.`);
+      saveState();
+    }
+
+    function removeRelation(relId) {
+      state.relations = state.relations.filter(r => r.id !== relId);
+      saveState();
+    }
+
+    function removeEvent(evId) {
+      state.specialEvents = state.specialEvents.filter(e => e.id !== evId);
+      saveState();
+    }
+
+    function saveNewPerson() {
+      const name = document.getElementById("c-name").value.trim();
+      if (!name) return;
+      const bday = document.getElementById("c-bday").value.trim();
+      const noPhone = document.getElementById("c-nophone").checked;
+      const phone = document.getElementById("c-phone").value.trim();
+      const email = document.getElementById("c-email").value.trim();
+      const timerInterval = parseInt(document.getElementById("c-timer").value, 10) || 14;
+      const notes = document.getElementById("c-notes").value.trim();
+
+      const newId = state.nextId++;
+      state.persons.push({
+        id: newId,
+        name,
+        birthdayIso: bday,
+        hasNoOwnPhone: noPhone,
+        phone,
+        email,
+        appPeerId: "",
+        notes,
+        timerEnabled: true,
+        timerInterval,
+        timerUnit: "DAYS",
+        lastContactedIso: todayIso()
+      });
+
+      const relTargetEl = document.getElementById("c-reltarget");
+      const relLabelEl = document.getElementById("c-rellabel");
+      if (relTargetEl && relLabelEl) {
+        const targetId = parseInt(relTargetEl.value, 10);
+        const relLabel = relLabelEl.value.trim();
+        if (targetId > 0 && relLabel) {
+          addBidirectionalRelation(newId, targetId, relLabel);
+        }
+      }
+
+      selectedTreeRootId = newId;
+      showCreateDialog = false;
+      addLog(`Kontakt "${name}" angelegt.`);
+      saveState();
+    }
+
+    function saveDetailPerson(id) {
+      const dp = state.persons.find(p => p.id === id);
+      if (!dp) return;
+      dp.name = document.getElementById("d-name").value.trim() || dp.name;
+      dp.birthdayIso = document.getElementById("d-bday").value.trim();
+      dp.phone = document.getElementById("d-phone").value.trim();
+      dp.email = document.getElementById("d-email").value.trim();
+      dp.notes = document.getElementById("d-notes").value.trim();
+
+      const evTitle = document.getElementById("d-evtitle").value.trim();
+      const evDate = document.getElementById("d-evdate").value.trim();
+      if (evTitle) {
+        state.specialEvents.push({
+          id: state.nextId++,
+          personId: dp.id,
+          title: evTitle,
+          dateIso: evDate,
+          leadDays: 1,
+          note: ""
+        });
+        addLog(`Erinnerung "${evTitle}" am ${evDate} für ${dp.name} eingetragen.`);
+      } else {
+        addLog(`Details von ${dp.name} aktualisiert.`);
+      }
+      detailPersonId = null;
+      saveState();
+    }
+
+    function deletePerson(id) {
+      const dp = state.persons.find(p => p.id === id);
+      state.persons = state.persons.filter(p => p.id !== id);
+      state.relations = state.relations.filter(r => r.fromPersonId !== id && r.toPersonId !== id);
+      state.specialEvents = state.specialEvents.filter(e => e.personId !== id);
+      state.directMessages = state.directMessages.filter(m => m.personId !== id);
+      detailPersonId = null;
+      if (dp) addLog(`Kontakt "${dp.name}" gelöscht.`);
+      saveState();
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    if (state.persons.length === 0) {
+      seedSampleData();
+    } else {
+      selectedTreeRootId = state.persons[0].id;
+      addLog("Remember Me v1.0.2 gestartet.");
+      renderAll();
+    }
+  </script>
+</body>
+</html>
