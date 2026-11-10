@@ -424,6 +424,8 @@ fun KontaktChronikApp(
     var showCreateDialog by remember { mutableStateOf(false) }
     var detailPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var syncStatus by remember { mutableStateOf("") }
+    var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
+    var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     fun setPersonHidden(personId: Long, hidden: Boolean) {
         val next = if (hidden) hiddenPersonIds + personId else hiddenPersonIds - personId
@@ -1216,9 +1218,6 @@ fun KontaktChronikApp(
             }
         }
     }
-
-    var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
-    var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     if (pendingConfirmMessage != null) {
         AlertDialog(
