@@ -315,7 +315,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Remember Me v1.0.2", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("Remember Me v1.0.3", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Text(syncStatus, color = TextMuted, fontSize = 11.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
