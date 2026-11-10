@@ -1,6 +1,8 @@
 package de.kontaktchronik.app.ui
 
 import android.Manifest
+import android.app.DatePickerDialog
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -12,6 +14,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -38,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import de.kontaktchronik.app.data.AppDatabase
 import de.kontaktchronik.app.data.ContactsSyncRepository
 import de.kontaktchronik.app.messaging.DirectMessagingService
@@ -45,6 +50,9 @@ import de.kontaktchronik.app.model.*
 import de.kontaktchronik.app.reminders.DailyReminderWorker
 import de.kontaktchronik.app.reminders.QuickActionDispatcher
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -315,7 +323,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Remember Me v1.0.3", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("Remember Me v1.0.4", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Text(syncStatus, color = TextMuted, fontSize = 11.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -819,6 +827,7 @@ fun KontaktChronikApp(
 
     // Dialog: Optionen (oben rechts über ⚙)
     if (showOptionsDialog) {
+        var backupEmail by remember { mutableStateOf(appPrefs.getString("backup_email", "").orEmpty()) }
         Dialog(onDismissRequest = { showOptionsDialog = false }) {
             Column(
                 modifier = Modifier
@@ -826,7 +835,7 @@ fun KontaktChronikApp(
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
                     .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("Optionen", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
 
@@ -871,6 +880,98 @@ fun KontaktChronikApp(
 
                 Divider(color = BorderSlate)
 
+                Text("Sicherung", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(
+                    value = backupEmail,
+                    onValueChange = {
+                        backupEmail = it
+                        appPrefs.edit().putString("backup_email", it).apply()
+                    },
+                    label = { Text("Empfänger-Mail (optional)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                CompactButton("📧 Sicherung per Mail senden") {
+                    try {
+                        val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
+                        val rootJson = JSONObject().apply {
+                            put("app", "Remember Me")
+                            put("version", "1.0.4")
+                            put("createdAt", dateStr)
+                            val personsArr = JSONArray()
+                            persons.forEach { p ->
+                                personsArr.put(
+                                    JSONObject().apply {
+                                        put("id", p.id)
+                                        put("name", p.name)
+                                        put("birthdayIso", p.birthdayIso ?: "")
+                                        put("hasNoOwnPhone", p.hasNoOwnPhone)
+                                        put("phone", p.phone)
+                                        put("email", p.email)
+                                        put("notes", p.notes)
+                                        put("extraInfos", appPrefs.getString("extra_infos_${p.id}", "").orEmpty())
+                                        put("timerEnabled", p.timerEnabled)
+                                        put("timerInterval", p.timerInterval)
+                                        put("timerUnit", p.timerUnit)
+                                    }
+                                )
+                            }
+                            put("persons", personsArr)
+                            val relArr = JSONArray()
+                            relations.forEach { r ->
+                                relArr.put(
+                                    JSONObject().apply {
+                                        put("id", r.id)
+                                        put("fromPersonId", r.fromPersonId)
+                                        put("toPersonId", r.toPersonId)
+                                        put("relationLabel", r.relationLabel)
+                                    }
+                                )
+                            }
+                            put("relations", relArr)
+                            val evArr = JSONArray()
+                            specialEvents.forEach { ev ->
+                                evArr.put(
+                                    JSONObject().apply {
+                                        put("id", ev.id)
+                                        put("personId", ev.personId)
+                                        put("title", ev.title)
+                                        put("dateIso", ev.dateIso)
+                                    }
+                                )
+                            }
+                            put("specialEvents", evArr)
+                        }
+
+                        val fileName = "Remember-Me-Sicherung-$dateStr.json"
+                        val backupFile = File(context.cacheDir, fileName)
+                        backupFile.writeText(rootJson.toString(2))
+
+                        val uri = FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            backupFile
+                        )
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/json"
+                            if (backupEmail.isNotBlank()) {
+                                putExtra(Intent.EXTRA_EMAIL, arrayOf(backupEmail.trim()))
+                            }
+                            putExtra(Intent.EXTRA_SUBJECT, "Remember Me – Sicherung vom $dateStr")
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                "Anbei die Remember Me Sicherungsdatei ($fileName) vom $dateStr (${persons.size} Kontakte, ${relations.size} Beziehungen)."
+                            )
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(sendIntent, "Sicherung per Mail senden"))
+                    } catch (e: Exception) {
+                        syncStatus = "Fehler beim Erstellen der Sicherung"
+                    }
+                }
+
+                Divider(color = BorderSlate)
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -908,7 +1009,7 @@ fun KontaktChronikApp(
             ) {
                 Text("Kontakt anlegen", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = bday, onValueChange = { bday = it }, label = { Text("Geburtsdatum (TT.MM.JJJJ)") }, modifier = Modifier.fillMaxWidth())
+                DateInputWithCalendar(value = bday, onValueChange = { bday = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = noPhone, onCheckedChange = { noPhone = it })
@@ -1154,7 +1255,7 @@ fun KontaktChronikApp(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedTextField(value = nameVal, onValueChange = { nameVal = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = bdayVal, onValueChange = { bdayVal = it }, label = { Text("Geburtsdatum (TT.MM.JJJJ)") }, modifier = Modifier.fillMaxWidth())
+                    DateInputWithCalendar(value = bdayVal, onValueChange = { bdayVal = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
                     OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = noPhoneVal, onCheckedChange = { noPhoneVal = it })
@@ -1364,8 +1465,8 @@ fun KontaktChronikApp(
                     }
 
                     Text("Neue Erinnerung eintragen:", color = TextSecondary, fontSize = 12.sp)
-                    OutlinedTextField(value = newEvTitle, onValueChange = { newEvTitle = it }, label = { Text("Erinnerung (z.B. Operation, Besuch)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = newEvDate, onValueChange = { newEvDate = it }, label = { Text("Datum (TT.MM.JJJJ)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = newEvTitle, onValueChange = { newEvTitle = it }, label = { Text("Neue Erinnerung") }, modifier = Modifier.fillMaxWidth())
+                    DateInputWithCalendar(value = newEvDate, onValueChange = { newEvDate = it }, label = "Datum (TT.MM.JJJJ)")
                 }
 
                 Divider(color = BorderSlate)
@@ -2066,6 +2167,61 @@ fun ChannelSymbolIcon(channel: String) {
             }
         }
     }
+}
+
+@Composable
+fun DateInputWithCalendar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String
+) {
+    val context = LocalContext.current
+    val interactionSource = remember { MutableInteractionSource() }
+
+    fun showCalendar() {
+        val iso = normalizeDateInputToIso(value)
+        val parsed = runCatching {
+            val clean = if (iso.startsWith("--")) "${LocalDate.now().year}-${iso.removePrefix("--")}" else iso
+            LocalDate.parse(clean)
+        }.getOrElse { LocalDate.now() }
+
+        DatePickerDialog(
+            context,
+            { _, y, m, d ->
+                val dayStr = d.toString().padStart(2, '0')
+                val monthStr = (m + 1).toString().padStart(2, '0')
+                onValueChange("$dayStr.$monthStr.$y")
+            },
+            parsed.year,
+            parsed.monthValue - 1,
+            parsed.dayOfMonth
+        ).show()
+    }
+
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect { interaction ->
+            if (interaction is PressInteraction.Release) {
+                showCalendar()
+            }
+        }
+    }
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        interactionSource = interactionSource,
+        trailingIcon = {
+            Text(
+                "📅",
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .clickable { showCalendar() }
+                    .padding(6.dp)
+            )
+        },
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable

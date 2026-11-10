@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.3 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.4 – Interaktiver Testserver</title>
   <style>
     :root {
       --bg-slate: #0F172A;
@@ -588,6 +588,8 @@
   </div>
 
   <div id="modal-root"></div>
+  <div id="calendar-root"></div>
+  <input type="file" id="backup-file-input" accept=".json" style="display:none;" onchange="importBackupFile(event)" />
 
   <script>
     const RELATION_PRESETS = [
@@ -1176,7 +1178,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.3</div>
+            <div class="app-title">Remember Me v1.0.4</div>
             <div class="app-subtitle">Geburtstage, Stammbaum & Erinnerungen</div>
           </div>
           <div class="btn-row">
@@ -1634,7 +1636,7 @@
         const isLight = (state.themeMode || "dark") === "light";
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
-            <div class="modal" style="max-width:330px;" onclick="event.stopPropagation()">
+            <div class="modal" style="max-width:340px;" onclick="event.stopPropagation()">
               <div class="modal-title">Optionen</div>
 
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
@@ -1645,11 +1647,20 @@
                 </div>
               </div>
 
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
                 <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Darstellung</span>
                 <div class="btn-row">
                   <button class="compact-btn ${!isLight ? 'primary' : ''}" onclick="setThemeMode('dark')">🌙 Dunkel</button>
                   <button class="compact-btn ${isLight ? 'primary' : ''}" onclick="setThemeMode('light')">☀️ Hell</button>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:6px; padding:6px 0;">
+                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Sicherung</span>
+                <input id="opt-backup-email" class="field-input" placeholder="Empfänger-Mail (optional)" value="${escapeHtml(state.backupEmail || '')}" oninput="state.backupEmail=this.value" />
+                <div class="btn-row">
+                  <button class="compact-btn primary" style="flex:1; text-align:center;" onclick="sendBackupViaEmail()">📧 Sicherung per Mail</button>
+                  <button class="compact-btn" onclick="document.getElementById('backup-file-input').click()">📂 Laden</button>
                 </div>
               </div>
 
@@ -1674,7 +1685,10 @@
               </div>
               <div class="field-group">
                 <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
-                <input id="c-bday" class="field-input" placeholder="TT.MM.JJJJ" value="${escapeHtml(createDraft.bday)}" oninput="createDraft.bday=this.value" />
+                <div style="display:flex; gap:5px; align-items:center;">
+                  <input id="c-bday" class="field-input" style="flex:1; cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(createDraft.bday)}" onclick="openCalendarPicker('c-bday')" onfocus="openCalendarPicker('c-bday')" oninput="createDraft.bday=this.value" />
+                  <button class="compact-btn" style="padding:5px 8px;" onclick="openCalendarPicker('c-bday')" title="Kalender öffnen">📅</button>
+                </div>
               </div>
               <label class="checkbox-row">
                 <input type="checkbox" id="c-nophone" ${createDraft.noPhone ? 'checked' : ''} onchange="createDraft.noPhone=this.checked" />
@@ -1758,7 +1772,7 @@
                 </div>
                 <div class="field-group" style="flex:1;">
                   <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
-                  <input id="d-bday" class="field-input" placeholder="TT.MM.JJJJ" value="${escapeHtml(formatIsoToDdMmYyyy(dp.birthdayIso || ''))}" />
+                  <input id="d-bday" class="field-input" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(formatIsoToDdMmYyyy(dp.birthdayIso || ''))}" onclick="openCalendarPicker('d-bday')" onfocus="openCalendarPicker('d-bday')" />
                 </div>
               </div>
               <div style="display:flex; gap:6px;">
@@ -1839,7 +1853,7 @@
                   </div>
                   <div class="field-group" style="flex:1;">
                     <label class="field-label">Datum (TT.MM.JJJJ)</label>
-                    <input id="d-evdate" class="field-input" placeholder="TT.MM.JJJJ" value="${formatIsoToDdMmYyyy(addDaysIso(todayIso(), 3))}" />
+                    <input id="d-evdate" class="field-input" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${formatIsoToDdMmYyyy(addDaysIso(todayIso(), 3))}" onclick="openCalendarPicker('d-evdate')" onfocus="openCalendarPicker('d-evdate')" />
                   </div>
                 </div>
               </div>
@@ -2214,6 +2228,201 @@
       });
     }
 
+    let calendarPickerState = null;
+    const MONTH_NAMES_DE = [
+      "Januar", "Februar", "März", "April", "Mai", "Juni",
+      "Juli", "August", "September", "Oktober", "November", "Dezember"
+    ];
+
+    function openCalendarPicker(inputId) {
+      const el = document.getElementById(inputId);
+      const rawVal = el ? el.value : "";
+      const iso = normalizeDateInputToIso(rawVal) || todayIso();
+      const parts = iso.replace(/^--/, "2000-").split("-").map(Number);
+      const tParts = todayIso().split("-").map(Number);
+      const year = (parts.length === 3 && parts[0] >= 1900 && parts[0] <= 2100) ? parts[0] : tParts[0];
+      const month = (parts.length === 3 && parts[1] >= 1 && parts[1] <= 12) ? (parts[1] - 1) : (tParts[1] - 1);
+      const day = (parts.length === 3 && parts[2] >= 1 && parts[2] <= 31) ? parts[2] : tParts[2];
+      calendarPickerState = { inputId, year, month, selectedDay: day };
+      renderCalendarPopup();
+    }
+
+    function closeCalendarPicker() {
+      calendarPickerState = null;
+      const calRoot = document.getElementById("calendar-root");
+      if (calRoot) calRoot.innerHTML = "";
+    }
+
+    function changeCalendarMonth(delta) {
+      if (!calendarPickerState) return;
+      let m = calendarPickerState.month + delta;
+      let y = calendarPickerState.year;
+      if (m < 0) { m = 11; y -= 1; }
+      if (m > 11) { m = 0; y += 1; }
+      calendarPickerState.month = m;
+      calendarPickerState.year = y;
+      renderCalendarPopup();
+    }
+
+    function setCalendarYear(yearStr) {
+      if (!calendarPickerState) return;
+      calendarPickerState.year = parseInt(yearStr, 10) || calendarPickerState.year;
+      renderCalendarPopup();
+    }
+
+    function setCalendarMonth(monthStr) {
+      if (!calendarPickerState) return;
+      calendarPickerState.month = parseInt(monthStr, 10) || 0;
+      renderCalendarPopup();
+    }
+
+    function selectCalendarDay(day) {
+      if (!calendarPickerState) return;
+      const pad = n => String(n).padStart(2, "0");
+      const formatted = `${pad(day)}.${pad(calendarPickerState.month + 1)}.${calendarPickerState.year}`;
+      const el = document.getElementById(calendarPickerState.inputId);
+      if (el) {
+        el.value = formatted;
+        if (calendarPickerState.inputId === "c-bday") {
+          createDraft.bday = formatted;
+        }
+      }
+      closeCalendarPicker();
+    }
+
+    function selectCalendarToday() {
+      const tParts = todayIso().split("-").map(Number);
+      if (!calendarPickerState) return;
+      calendarPickerState.year = tParts[0];
+      calendarPickerState.month = tParts[1] - 1;
+      selectCalendarDay(tParts[2]);
+    }
+
+    function renderCalendarPopup() {
+      const calRoot = document.getElementById("calendar-root");
+      if (!calRoot) return;
+      if (!calendarPickerState) {
+        calRoot.innerHTML = "";
+        return;
+      }
+      const { year, month, selectedDay } = calendarPickerState;
+      const firstDayJs = new Date(year, month, 1).getDay(); // 0=Sun..6=Sat
+      const startOffset = (firstDayJs + 6) % 7; // Monday=0..Sunday=6
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      const yearOptions = [];
+      for (let y = 2035; y >= 1920; y--) {
+        yearOptions.push(`<option value="${y}" ${y === year ? "selected" : ""}>${y}</option>`);
+      }
+      const monthOptions = MONTH_NAMES_DE.map((name, idx) =>
+        `<option value="${idx}" ${idx === month ? "selected" : ""}>${name}</option>`
+      ).join("");
+
+      const cells = [];
+      for (let i = 0; i < startOffset; i++) {
+        cells.push(`<div></div>`);
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        const isSel = d === selectedDay;
+        cells.push(`
+          <button class="compact-btn ${isSel ? 'primary' : ''}" style="padding:6px 0; font-size:12px; font-weight:${isSel ? '700' : '500'}; text-align:center;" onclick="selectCalendarDay(${d})">
+            ${d}
+          </button>
+        `);
+      }
+
+      calRoot.innerHTML = `
+        <div class="modal-backdrop" style="z-index:200;" onclick="if(event.target===this) closeCalendarPicker()">
+          <div class="modal" style="max-width:310px;" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
+              <button class="compact-btn" style="padding:4px 8px;" onclick="changeCalendarMonth(-1)">◀</button>
+              <select class="field-select" style="flex:1.1;" onchange="setCalendarMonth(this.value)">${monthOptions}</select>
+              <select class="field-select" style="flex:0.9;" onchange="setCalendarYear(this.value)">${yearOptions.join("")}</select>
+              <button class="compact-btn" style="padding:4px 8px;" onclick="changeCalendarMonth(1)">▶</button>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; text-align:center; font-size:11px; color:var(--text-muted); font-weight:600; margin-top:4px;">
+              <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px;">
+              ${cells.join("")}
+            </div>
+            <div class="modal-footer" style="justify-content:space-between;">
+              <button class="compact-btn" onclick="selectCalendarToday()">Heute</button>
+              <button class="compact-btn" onclick="closeCalendarPicker()">Schließen</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function sendBackupViaEmail() {
+      const dateStr = formatIsoToDdMmYyyy(todayIso());
+      const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
+      const backupPayload = {
+        app: "Remember Me",
+        version: "1.0.4",
+        createdAt: dateStr,
+        state
+      };
+      const jsonStr = JSON.stringify(backupPayload, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+
+      // Sicherungsdatei herunterladen
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+
+      // Falls Web Share API mit Dateien verfügbar ist (Mobilbrowser)
+      try {
+        const file = new File([blob], fileName, { type: "application/json" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `Remember Me Sicherung (${dateStr})`,
+            text: `Sicherungsdatei (${state.persons.length} Kontakte, ${state.relations.length} Beziehungen)`,
+            files: [file]
+          });
+          addLog(`Sicherungsdatei "${fileName}" geteilt.`);
+          return;
+        }
+      } catch (e) {}
+
+      // Mail-Programm öffnen
+      const recipient = (state.backupEmail || "").trim();
+      const subject = `Remember Me – Sicherung vom ${dateStr}`;
+      const body = `Hallo,\n\nanbei die Remember Me Sicherung vom ${dateStr} (${state.persons.length} Kontakte, ${state.relations.length} Beziehungen).\nDie Datei "${fileName}" wurde heruntergeladen und kann dieser E-Mail angehängt werden.\n\n--- Sicherungsdaten (JSON) ---\n${jsonStr}`;
+      window.location.href = `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      addLog(`Sicherungsdatei "${fileName}" erstellt und Mail-Versand geöffnet.`);
+      saveState();
+    }
+
+    function importBackupFile(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          const importedState = parsed.state || parsed;
+          if (importedState && Array.isArray(importedState.persons)) {
+            state = importedState;
+            selectedTreeRootId = state.persons[0] ? state.persons[0].id : null;
+            showOptionsDialog = false;
+            addLog(`Sicherung aus "${file.name}" erfolgreich wiederhergestellt (${state.persons.length} Kontakte).`);
+            saveState();
+          }
+        } catch (err) {
+          addLog("Fehler beim Laden der Sicherungsdatei.");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    }
+
     function escapeHtml(str) {
       return String(str ?? "")
         .replace(/&/g, "&amp;")
@@ -2227,7 +2436,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.3 gestartet.");
+      addLog("Remember Me v1.0.4 gestartet.");
       renderAll();
     }
   </script>
