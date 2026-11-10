@@ -963,6 +963,38 @@ fun KontaktChronikApp(
         }
         var newEvTitle by remember { mutableStateOf("") }
         var newEvDate by remember { mutableStateOf(formatIsoToDdMmYyyy(LocalDate.now().plusDays(3).toString())) }
+        var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
+        var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+        if (pendingConfirmMessage != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    pendingConfirmMessage = null
+                    pendingConfirmAction = null
+                },
+                containerColor = CardSlate,
+                title = {
+                    Text("Sicherheitsabfrage", color = WarnAmber, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Text(pendingConfirmMessage.orEmpty(), color = TextPrimary, fontSize = 13.sp)
+                },
+                dismissButton = {
+                    CompactButton("Abbrechen") {
+                        pendingConfirmMessage = null
+                        pendingConfirmAction = null
+                    }
+                },
+                confirmButton = {
+                    CompactButton("Ja, löschen") {
+                        val action = pendingConfirmAction
+                        pendingConfirmMessage = null
+                        pendingConfirmAction = null
+                        action?.invoke()
+                    }
+                }
+            )
+        }
 
         // Neue Beziehung hinzufügen
         val otherPersons = persons.filter { it.id != dp.id }
@@ -1069,7 +1101,10 @@ fun KontaktChronikApp(
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier
                                     .clickable {
-                                        extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                        pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
+                                        pendingConfirmAction = {
+                                            extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                        }
                                     }
                                     .padding(horizontal = 4.dp)
                             )
@@ -1106,8 +1141,11 @@ fun KontaktChronikApp(
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier
                                         .clickable {
-                                            scope.launch {
-                                                db.deleteRelation(rel)
+                                            pendingConfirmMessage = "Beziehung „${rel.relationLabel} ${targetPerson.name}\" wirklich löschen?"
+                                            pendingConfirmAction = {
+                                                scope.launch {
+                                                    db.deleteRelation(rel)
+                                                }
                                             }
                                         }
                                         .padding(horizontal = 6.dp)
@@ -1191,7 +1229,10 @@ fun KontaktChronikApp(
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier
                                     .clickable {
-                                        scope.launch { db.deleteSpecialEvent(ev) }
+                                        pendingConfirmMessage = "Erinnerung „${ev.title}\" wirklich löschen?"
+                                        pendingConfirmAction = {
+                                            scope.launch { db.deleteSpecialEvent(ev) }
+                                        }
                                     }
                                     .padding(horizontal = 6.dp)
                             )
@@ -1206,9 +1247,12 @@ fun KontaktChronikApp(
                 Divider(color = BorderSlate)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     CompactButton("Löschen") {
-                        scope.launch {
-                            db.deletePerson(dp)
-                            detailPerson = null
+                        pendingConfirmMessage = "Kontakt „${dp.name}\" wirklich unwiderruflich löschen?"
+                        pendingConfirmAction = {
+                            scope.launch {
+                                db.deletePerson(dp)
+                                detailPerson = null
+                            }
                         }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

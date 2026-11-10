@@ -1006,14 +1006,16 @@
     }
 
     function resetDatabase() {
-      localStorage.removeItem(STORAGE_KEY);
-      state = loadState();
-      syncStatus = `App-Code: ${state.ownPairingCode}`;
-      popupState = null;
-      detailPersonId = null;
-      showCreateDialog = false;
-      addLog("Datenbank zurückgesetzt.");
-      renderAll();
+      askDeleteConfirm("Gesamte Datenbank wirklich zurücksetzen?", () => {
+        localStorage.removeItem(STORAGE_KEY);
+        state = loadState();
+        syncStatus = `App-Code: ${state.ownPairingCode}`;
+        popupState = null;
+        detailPersonId = null;
+        showCreateDialog = false;
+        addLog("Datenbank zurückgesetzt.");
+        renderAll();
+      });
     }
 
     function getRelationsForPerson(personId) {
@@ -1574,6 +1576,24 @@
       const modalRoot = document.getElementById("modal-root");
       const relPresetOptions = RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
 
+      if (pendingDeleteConfirm !== null) {
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" style="max-width:320px;" onclick="event.stopPropagation()">
+              <div class="modal-title" style="color:var(--warn-amber);">Sicherheitsabfrage</div>
+              <div style="font-size:13px; color:var(--text-primary); line-height:1.4;">
+                ${escapeHtml(pendingDeleteConfirm.message)}
+              </div>
+              <div class="modal-footer" style="justify-content:flex-end;">
+                <button class="compact-btn" onclick="cancelDeleteConfirm()">Abbrechen</button>
+                <button class="compact-btn danger" onclick="executeDeleteConfirm()">Ja, löschen</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       if (showCreateDialog) {
         const existingOptions = state.persons.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
         modalRoot.innerHTML = `
@@ -1859,6 +1879,29 @@
 
     let createExtraInfos = [];
     let detailExtraInfos = [];
+    let pendingDeleteConfirm = null;
+
+    function askDeleteConfirm(message, onConfirm) {
+      syncDetailDraftBeforeRerender();
+      pendingDeleteConfirm = { message, onConfirm };
+      renderModals();
+    }
+
+    function executeDeleteConfirm() {
+      if (pendingDeleteConfirm && typeof pendingDeleteConfirm.onConfirm === "function") {
+        const fn = pendingDeleteConfirm.onConfirm;
+        pendingDeleteConfirm = null;
+        fn();
+      } else {
+        pendingDeleteConfirm = null;
+        renderModals();
+      }
+    }
+
+    function cancelDeleteConfirm() {
+      pendingDeleteConfirm = null;
+      renderModals();
+    }
 
     function openCreateModal() {
       showCreateDialog = true;
@@ -1882,8 +1925,10 @@
     }
 
     function removeCreateExtraInfoRow(idx) {
-      createExtraInfos.splice(idx, 1);
-      renderModals();
+      askDeleteConfirm("Zusätzliche Info-Zeile wirklich löschen?", () => {
+        createExtraInfos.splice(idx, 1);
+        renderModals();
+      });
     }
 
     function syncDetailDraftBeforeRerender() {
@@ -1910,9 +1955,10 @@
     }
 
     function removeDetailExtraInfoRow(idx) {
-      syncDetailDraftBeforeRerender();
-      detailExtraInfos.splice(idx, 1);
-      renderModals();
+      askDeleteConfirm("Zusätzliche Info-Zeile wirklich löschen?", () => {
+        detailExtraInfos.splice(idx, 1);
+        renderModals();
+      });
     }
 
     function toggleExtraMessenger(name) {
@@ -1928,6 +1974,11 @@
 
     function closeModals(e) {
       if (e.target.classList.contains("modal-backdrop")) {
+        if (pendingDeleteConfirm) {
+          pendingDeleteConfirm = null;
+          renderModals();
+          return;
+        }
         showCreateDialog = false;
         detailPersonId = null;
         popupState = null;
@@ -1944,13 +1995,17 @@
     }
 
     function removeRelation(relId) {
-      state.relations = state.relations.filter(r => r.id !== relId);
-      saveState();
+      askDeleteConfirm("Beziehung wirklich löschen?", () => {
+        state.relations = state.relations.filter(r => r.id !== relId);
+        saveState();
+      });
     }
 
     function removeEvent(evId) {
-      state.specialEvents = state.specialEvents.filter(e => e.id !== evId);
-      saveState();
+      askDeleteConfirm("Erinnerung wirklich löschen?", () => {
+        state.specialEvents = state.specialEvents.filter(e => e.id !== evId);
+        saveState();
+      });
     }
 
     function saveNewPerson() {
@@ -2027,13 +2082,16 @@
 
     function deletePerson(id) {
       const dp = state.persons.find(p => p.id === id);
-      state.persons = state.persons.filter(p => p.id !== id);
-      state.relations = state.relations.filter(r => r.fromPersonId !== id && r.toPersonId !== id);
-      state.specialEvents = state.specialEvents.filter(e => e.personId !== id);
-      state.directMessages = state.directMessages.filter(m => m.personId !== id);
-      detailPersonId = null;
-      if (dp) addLog(`Kontakt "${dp.name}" gelöscht.`);
-      saveState();
+      const name = dp ? dp.name : "Kontakt";
+      askDeleteConfirm(`Kontakt „${name}" wirklich unwiderruflich löschen?`, () => {
+        state.persons = state.persons.filter(p => p.id !== id);
+        state.relations = state.relations.filter(r => r.fromPersonId !== id && r.toPersonId !== id);
+        state.specialEvents = state.specialEvents.filter(e => e.personId !== id);
+        state.directMessages = state.directMessages.filter(m => m.personId !== id);
+        detailPersonId = null;
+        if (dp) addLog(`Kontakt "${dp.name}" gelöscht.`);
+        saveState();
+      });
     }
 
     function escapeHtml(str) {
