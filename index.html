@@ -9,6 +9,9 @@
       --bg-slate: #0F172A;
       --card-slate: #1E293B;
       --border-slate: #334155;
+      --btn-bg: #334155;
+      --btn-hover: #475569;
+      --root-node-bg: #1E3A5F;
       --text-primary: #F8FAFC;
       --text-secondary: #CBD5E1;
       --text-muted: #94A3B8;
@@ -20,6 +23,27 @@
       --success: #22C55E;
       --partner-rose: #F43F5E;
       --tree-green: #10B981;
+    }
+
+    body[data-theme="light"] {
+      background-color: #CBD5E1;
+      --bg-slate: #F1F5F9;
+      --card-slate: #FFFFFF;
+      --border-slate: #CBD5E1;
+      --btn-bg: #E2E8F0;
+      --btn-hover: #CBD5E1;
+      --root-node-bg: #E0F2FE;
+      --text-primary: #0F172A;
+      --text-secondary: #334155;
+      --text-muted: #64748B;
+      --accent-steel: #0284C7;
+      --warn-amber: #D97706;
+      --warn-bg: #FEF3C7;
+      --warn-text: #92400E;
+      --danger: #DC2626;
+      --success: #16A34A;
+      --partner-rose: #E11D48;
+      --tree-green: #059669;
     }
 
     * {
@@ -129,7 +153,7 @@
     }
 
     .compact-btn {
-      background: #334155;
+      background: var(--btn-bg);
       color: var(--text-primary);
       border: 1px solid var(--border-slate);
       border-radius: 6px;
@@ -142,23 +166,25 @@
     }
 
     .compact-btn:hover {
-      background: #475569;
+      background: var(--btn-hover);
       border-color: var(--accent-steel);
     }
 
     .compact-btn.primary {
       background: #0284C7;
+      color: #FFFFFF;
       border-color: var(--accent-steel);
     }
 
     .compact-btn.danger {
       background: #7F1D1D;
+      color: #FFFFFF;
       border-color: var(--danger);
     }
 
     .nav-tabs {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
       gap: 6px;
       margin-bottom: 12px;
     }
@@ -177,7 +203,7 @@
     }
 
     .nav-tab.active {
-      background: #334155;
+      background: var(--btn-bg);
       color: var(--text-primary);
       border-color: var(--accent-steel);
     }
@@ -293,7 +319,7 @@
     }
 
     .tree-node.root {
-      background: #1E3A5F;
+      background: var(--root-node-bg);
       border: 1.5px solid var(--accent-steel);
     }
 
@@ -1106,6 +1132,8 @@
     }
 
     function renderAll() {
+      const theme = state.themeMode || "dark";
+      document.body.setAttribute("data-theme", theme);
       renderPhoneApp();
       renderWidget();
       renderModals();
@@ -1114,7 +1142,13 @@
 
     function renderPhoneApp() {
       const root = document.getElementById("app-root");
-      const tabs = ["Übersicht", "Stammbaum", "Timer", "Erinnerung"];
+      const treeActive = state.treeEnabled !== false;
+      if (!treeActive && activeTab === "Stammbaum") {
+        activeTab = "Übersicht";
+      }
+      const tabs = treeActive
+        ? ["Übersicht", "Stammbaum", "Timer", "Erinnerung"]
+        : ["Übersicht", "Timer", "Erinnerung"];
       let contentHtml = "";
 
       if (state.persons.length === 0) {
@@ -1129,7 +1163,7 @@
         `;
       }
 
-      if (activeTab === "Stammbaum") {
+      if (activeTab === "Stammbaum" && treeActive) {
         contentHtml += renderFamilyTreeTab();
       } else if (activeTab === "Timer") {
         contentHtml += renderTimerTab();
@@ -1148,6 +1182,7 @@
           <div class="btn-row">
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
+            <button class="compact-btn" title="Optionen" onclick="openOptionsModal()">⚙</button>
           </div>
         </div>
 
@@ -1575,6 +1610,7 @@
     function renderModals() {
       const modalRoot = document.getElementById("modal-root");
       const relPresetOptions = RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
+      const treeActive = state.treeEnabled !== false;
 
       if (pendingDeleteConfirm !== null) {
         modalRoot.innerHTML = `
@@ -1594,6 +1630,38 @@
         return;
       }
 
+      if (showOptionsDialog) {
+        const isLight = (state.themeMode || "dark") === "light";
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" style="max-width:330px;" onclick="event.stopPropagation()">
+              <div class="modal-title">Optionen</div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
+                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Stammbaum</span>
+                <div class="btn-row">
+                  <button class="compact-btn ${treeActive ? 'primary' : ''}" onclick="setTreeEnabled(true)">Aktiviert</button>
+                  <button class="compact-btn ${!treeActive ? 'primary' : ''}" onclick="setTreeEnabled(false)">Deaktiviert</button>
+                </div>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0;">
+                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Darstellung</span>
+                <div class="btn-row">
+                  <button class="compact-btn ${!isLight ? 'primary' : ''}" onclick="setThemeMode('dark')">🌙 Dunkel</button>
+                  <button class="compact-btn ${isLight ? 'primary' : ''}" onclick="setThemeMode('light')">☀️ Hell</button>
+                </div>
+              </div>
+
+              <div class="modal-footer" style="justify-content:flex-end;">
+                <button class="compact-btn primary" onclick="showOptionsDialog=false; renderModals();">Schließen</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       if (showCreateDialog) {
         const existingOptions = state.persons.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
         modalRoot.innerHTML = `
@@ -1602,31 +1670,31 @@
               <div class="modal-title">Kontakt anlegen</div>
               <div class="field-group">
                 <label class="field-label">Name</label>
-                <input id="c-name" class="field-input" placeholder="Name" />
+                <input id="c-name" class="field-input" placeholder="Name" value="${escapeHtml(createDraft.name)}" oninput="createDraft.name=this.value" />
               </div>
               <div class="field-group">
                 <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
-                <input id="c-bday" class="field-input" placeholder="TT.MM.JJJJ" value="${formatIsoToDdMmYyyy(todayIso())}" />
+                <input id="c-bday" class="field-input" placeholder="TT.MM.JJJJ" value="${escapeHtml(createDraft.bday)}" oninput="createDraft.bday=this.value" />
               </div>
               <label class="checkbox-row">
-                <input type="checkbox" id="c-nophone" />
+                <input type="checkbox" id="c-nophone" ${createDraft.noPhone ? 'checked' : ''} onchange="createDraft.noPhone=this.checked" />
                 <span>Keine eigene Nummer</span>
               </label>
               <div class="field-group">
                 <label class="field-label">Telefon</label>
-                <input id="c-phone" class="field-input" />
+                <input id="c-phone" class="field-input" value="${escapeHtml(createDraft.phone)}" oninput="createDraft.phone=this.value" />
               </div>
               <div class="field-group">
                 <label class="field-label">E-Mail</label>
-                <input id="c-email" class="field-input" />
+                <input id="c-email" class="field-input" value="${escapeHtml(createDraft.email)}" oninput="createDraft.email=this.value" />
               </div>
               <div class="field-group">
                 <label class="field-label">Melde-Timer (Tage)</label>
-                <input id="c-timer" class="field-input" value="14" />
+                <input id="c-timer" class="field-input" value="${escapeHtml(createDraft.timer)}" oninput="createDraft.timer=this.value" />
               </div>
               <div class="field-group">
                 <label class="field-label">Notiz</label>
-                <input id="c-notes" class="field-input" />
+                <input id="c-notes" class="field-input" value="${escapeHtml(createDraft.notes)}" oninput="createDraft.notes=this.value" />
               </div>
               <div id="c-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
                 ${createExtraInfos.map((info, idx) => `
@@ -1640,14 +1708,23 @@
                   <button class="compact-btn primary" style="padding:3px 10px; font-weight:700;" onclick="addCreateExtraInfoRow()">+</button>
                 </div>
               </div>
-              ${state.persons.length > 0 ? `
-                <div class="field-group">
-                  <label class="field-label">Beziehung für Stammbaum:</label>
-                  <select id="c-rellabel" class="field-select">${relPresetOptions}</select>
-                  <select id="c-reltarget" class="field-select" style="margin-top:4px;">
-                    <option value="-1">-- Keine Verknüpfung --</option>
-                    ${existingOptions}
-                  </select>
+              ${treeActive && state.persons.length > 0 ? `
+                <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" onclick="createRelationsExpanded=!createRelationsExpanded; renderModals();">
+                    <span style="font-size:12px; font-weight:600; color:var(--accent-steel);">
+                      ${createRelationsExpanded ? '▼' : '▶'} Beziehungen
+                    </span>
+                    <span style="font-size:11px; color:var(--text-muted);">${createRelationsExpanded ? 'Einklappen' : 'Ausklappen'}</span>
+                  </div>
+                  ${createRelationsExpanded ? `
+                    <div class="field-group" style="margin-top:6px;">
+                      <select id="c-rellabel" class="field-select">${relPresetOptions}</select>
+                      <select id="c-reltarget" class="field-select" style="margin-top:4px;">
+                        <option value="-1">-- Keine Verknüpfung --</option>
+                        ${existingOptions}
+                      </select>
+                    </div>
+                  ` : ""}
                 </div>
               ` : ""}
               <div class="modal-footer">
@@ -1672,7 +1749,7 @@
             <div class="modal" onclick="event.stopPropagation()">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                 <div class="modal-title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Details: ${escapeHtml(dp.name)}</div>
-                <button class="compact-btn" style="flex-shrink:0;" onclick="selectedTreeRootId=${dp.id}; detailPersonId=null; setTab('Stammbaum'); renderModals();">🌳 Stammbaum</button>
+                ${treeActive ? `<button class="compact-btn" style="flex-shrink:0;" onclick="selectedTreeRootId=${dp.id}; detailPersonId=null; setTab('Stammbaum'); renderModals();">🌳 Stammbaum</button>` : ""}
               </div>
               <div style="display:flex; gap:6px;">
                 <div class="field-group" style="flex:1.2;">
@@ -1712,29 +1789,38 @@
                 </div>
               </div>
 
-              <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
-                <div style="font-size:12px; font-weight:600; color:var(--accent-steel); margin-bottom:6px;">Beziehungen:</div>
-                <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:6px;">
-                  ${currentRels.length === 0 ? `<div style="font-size:11px; color:var(--text-muted);">Noch keine Beziehungen verknüpft.</div>` :
-                    currentRels.map(r => `
-                      <div class="rel-item-row">
-                        <span>${escapeHtml(r.rel.relationLabel)} <b>${escapeHtml(r.target.name)}</b></span>
-                        <span style="color:var(--warn-amber); cursor:pointer; font-weight:700;" onclick="removeRelation(${r.rel.id})">✕</span>
-                      </div>
-                    `).join("")}
-                </div>
-                ${otherPersons.length > 0 ? `
-                  <div style="display:flex; flex-direction:column; gap:5px; width:100%;">
-                    <div style="display:flex; gap:5px; width:100%;">
-                      <select id="d-rellabel" class="field-select" style="flex:1; min-width:0;">${relPresetOptions}</select>
-                      <select id="d-reltarget" class="field-select" style="flex:1; min-width:0;">
-                        ${otherPersons.map(op => `<option value="${op.id}">${escapeHtml(op.name)}</option>`).join("")}
-                      </select>
-                    </div>
-                    <button class="compact-btn primary" style="width:100%; text-align:center;" onclick="addRelationFromDetail(${dp.id})">+ Beziehung hinzufügen</button>
+              ${treeActive ? `
+                <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" onclick="toggleDetailRelations()">
+                    <span style="font-size:12px; font-weight:600; color:var(--accent-steel);">
+                      ${detailRelationsExpanded ? '▼' : '▶'} Beziehungen (${currentRels.length})
+                    </span>
+                    <span style="font-size:11px; color:var(--text-muted);">${detailRelationsExpanded ? 'Einklappen' : 'Ausklappen'}</span>
                   </div>
-                ` : ""}
-              </div>
+                  ${detailRelationsExpanded ? `
+                    <div style="display:flex; flex-direction:column; gap:4px; margin:6px 0;">
+                      ${currentRels.length === 0 ? `<div style="font-size:11px; color:var(--text-muted);">Noch keine Beziehungen verknüpft.</div>` :
+                        currentRels.map(r => `
+                          <div class="rel-item-row">
+                            <span>${escapeHtml(r.rel.relationLabel)} <b>${escapeHtml(r.target.name)}</b></span>
+                            <span style="color:var(--warn-amber); cursor:pointer; font-weight:700;" onclick="removeRelation(${r.rel.id})">✕</span>
+                          </div>
+                        `).join("")}
+                    </div>
+                    ${otherPersons.length > 0 ? `
+                      <div style="display:flex; flex-direction:column; gap:5px; width:100%;">
+                        <div style="display:flex; gap:5px; width:100%;">
+                          <select id="d-rellabel" class="field-select" style="flex:1; min-width:0;">${relPresetOptions}</select>
+                          <select id="d-reltarget" class="field-select" style="flex:1; min-width:0;">
+                            ${otherPersons.map(op => `<option value="${op.id}">${escapeHtml(op.name)}</option>`).join("")}
+                          </select>
+                        </div>
+                        <button class="compact-btn primary" style="width:100%; text-align:center;" onclick="addRelationFromDetail(${dp.id})">+ Beziehung hinzufügen</button>
+                      </div>
+                    ` : ""}
+                  ` : ""}
+                </div>
+              ` : ""}
 
               <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
                 <div style="font-size:12px; font-weight:600; color:var(--accent-steel); margin-bottom:6px;">Erinnerungen:</div>
@@ -1874,6 +1960,34 @@
     let createExtraInfos = [];
     let detailExtraInfos = [];
     let pendingDeleteConfirm = null;
+    let showOptionsDialog = false;
+    let detailRelationsExpanded = false;
+    let createRelationsExpanded = false;
+    let createDraft = { name: "", bday: "", noPhone: false, phone: "", email: "", timer: "14", notes: "" };
+
+    function openOptionsModal() {
+      showOptionsDialog = true;
+      renderModals();
+    }
+
+    function setTreeEnabled(enabled) {
+      state.treeEnabled = !!enabled;
+      if (!state.treeEnabled && activeTab === "Stammbaum") {
+        activeTab = "Übersicht";
+      }
+      saveState();
+    }
+
+    function setThemeMode(mode) {
+      state.themeMode = mode === "light" ? "light" : "dark";
+      saveState();
+    }
+
+    function toggleDetailRelations() {
+      syncDetailDraftBeforeRerender();
+      detailRelationsExpanded = !detailRelationsExpanded;
+      renderModals();
+    }
 
     function askDeleteConfirm(message, onConfirm) {
       syncDetailDraftBeforeRerender();
@@ -1899,12 +2013,23 @@
 
     function openCreateModal() {
       showCreateDialog = true;
+      createRelationsExpanded = false;
       createExtraInfos = [];
+      createDraft = {
+        name: "",
+        bday: formatIsoToDdMmYyyy(todayIso()),
+        noPhone: false,
+        phone: "",
+        email: "",
+        timer: "14",
+        notes: ""
+      };
       renderModals();
     }
 
     function openDetailModal(id) {
       detailPersonId = id;
+      detailRelationsExpanded = false;
       const dp = state.persons.find(p => p.id === id);
       detailExtraInfos = dp && Array.isArray(dp.extraInfos)
         ? dp.extraInfos.map(x => ({ label: x.label || "", value: x.value || "" }))
@@ -1973,6 +2098,7 @@
           renderModals();
           return;
         }
+        showOptionsDialog = false;
         showCreateDialog = false;
         detailPersonId = null;
         popupState = null;

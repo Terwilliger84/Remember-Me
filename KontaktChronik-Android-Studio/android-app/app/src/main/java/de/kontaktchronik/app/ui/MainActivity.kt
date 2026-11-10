@@ -48,16 +48,20 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-private val BgSlate = Color(0xFF0F172A)
-private val CardSlate = Color(0xFF1E293B)
-private val BorderSlate = Color(0xFF334155)
-private val TextPrimary = Color(0xFFF8FAFC)
-private val TextSecondary = Color(0xFFCBD5E1)
-private val TextMuted = Color(0xFF94A3B8)
-private val AccentSteel = Color(0xFF38BDF8)
-private val WarnAmber = Color(0xFFF59E0B)
-private val PartnerRose = Color(0xFFF43F5E)
-private val TreeGreen = Color(0xFF10B981)
+private var isLightMode by mutableStateOf(false)
+
+private val BgSlate: Color get() = if (isLightMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
+private val CardSlate: Color get() = if (isLightMode) Color(0xFFFFFFFF) else Color(0xFF1E293B)
+private val BorderSlate: Color get() = if (isLightMode) Color(0xFFCBD5E1) else Color(0xFF334155)
+private val BtnBg: Color get() = if (isLightMode) Color(0xFFE2E8F0) else Color(0xFF334155)
+private val RootNodeBg: Color get() = if (isLightMode) Color(0xFFE0F2FE) else Color(0xFF1E3A5F)
+private val TextPrimary: Color get() = if (isLightMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+private val TextSecondary: Color get() = if (isLightMode) Color(0xFF334155) else Color(0xFFCBD5E1)
+private val TextMuted: Color get() = if (isLightMode) Color(0xFF64748B) else Color(0xFF94A3B8)
+private val AccentSteel: Color get() = if (isLightMode) Color(0xFF0284C7) else Color(0xFF38BDF8)
+private val WarnAmber: Color get() = if (isLightMode) Color(0xFFD97706) else Color(0xFFF59E0B)
+private val PartnerRose: Color get() = if (isLightMode) Color(0xFFE11D48) else Color(0xFFF43F5E)
+private val TreeGreen: Color get() = if (isLightMode) Color(0xFF059669) else Color(0xFF10B981)
 
 val RELATION_PRESETS = listOf(
     "Kind von",
@@ -183,15 +187,24 @@ class MainActivity : ComponentActivity() {
         val initialPopupReason = intent?.getStringExtra("POPUP_REASON") ?: "Erinnerung"
 
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
+            val scheme = if (isLightMode) {
+                lightColorScheme(
                     background = BgSlate,
                     surface = CardSlate,
                     primary = AccentSteel,
                     onBackground = TextPrimary,
                     onSurface = TextPrimary
                 )
-            ) {
+            } else {
+                darkColorScheme(
+                    background = BgSlate,
+                    surface = CardSlate,
+                    primary = AccentSteel,
+                    onBackground = TextPrimary,
+                    onSurface = TextPrimary
+                )
+            }
+            MaterialTheme(colorScheme = scheme) {
                 KontaktChronikApp(
                     initialPopupPersonId = initialPopupPersonId,
                     initialPopupReason = initialPopupReason
@@ -210,12 +223,15 @@ fun KontaktChronikApp(
     val scope = rememberCoroutineScope()
     val db = remember { AppDatabase.getInstance(context).dao() }
     val syncRepo = remember { ContactsSyncRepository(db) }
+    val appPrefs = remember { context.getSharedPreferences("remember_me_prefs", android.content.Context.MODE_PRIVATE) }
 
     val persons by db.observeAllPersons().collectAsState(initial = emptyList())
     val relations by db.observeAllRelations().collectAsState(initial = emptyList())
     val specialEvents by db.observeAllSpecialEvents().collectAsState(initial = emptyList())
 
     var activeTab by remember { mutableStateOf("Übersicht") }
+    var treeEnabled by remember { mutableStateOf(appPrefs.getBoolean("tree_enabled", true)) }
+    var showOptionsDialog by remember { mutableStateOf(false) }
     var showPastDates by remember { mutableStateOf(false) }
     var selectedTreeRootId by remember { mutableStateOf<Long?>(null) }
     var popupPerson by remember { mutableStateOf<PersonEntity?>(null) }
@@ -224,6 +240,10 @@ fun KontaktChronikApp(
     var showCreateDialog by remember { mutableStateOf(false) }
     var detailPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var syncStatus by remember { mutableStateOf("Geburtstage, Stammbaum & Erinnerungen") }
+
+    LaunchedEffect(Unit) {
+        isLightMode = appPrefs.getBoolean("light_mode", false)
+    }
 
     LaunchedEffect(persons, initialPopupPersonId) {
         if (initialPopupPersonId > 0 && popupPerson == null) {
@@ -314,22 +334,28 @@ fun KontaktChronikApp(
                     }
                 }
                 CompactButton("Neu") { showCreateDialog = true }
+                CompactButton("⚙") { showOptionsDialog = true }
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
         // Navigation inkl. Stammbaum & Erinnerung
+        val visibleTabs = if (treeEnabled) {
+            listOf("Übersicht", "Stammbaum", "Timer", "Erinnerung")
+        } else {
+            listOf("Übersicht", "Timer", "Erinnerung")
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            listOf("Übersicht", "Stammbaum", "Timer", "Erinnerung").forEach { tab ->
+            visibleTabs.forEach { tab ->
                 val active = activeTab == tab
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .background(if (active) Color(0xFF334155) else CardSlate, RoundedCornerShape(6.dp))
+                        .background(if (active) BtnBg else CardSlate, RoundedCornerShape(6.dp))
                         .border(1.dp, if (active) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
                         .clickable { activeTab = tab }
                         .padding(vertical = 8.dp),
@@ -791,6 +817,70 @@ fun KontaktChronikApp(
         )
     }
 
+    // Dialog: Optionen (oben rechts über ⚙)
+    if (showOptionsDialog) {
+        Dialog(onDismissRequest = { showOptionsDialog = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Optionen", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Stammbaum", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactButton(if (treeEnabled) "✓ Aktiviert" else "Aktiviert") {
+                            treeEnabled = true
+                            appPrefs.edit().putBoolean("tree_enabled", true).apply()
+                        }
+                        CompactButton(if (!treeEnabled) "✓ Deaktiviert" else "Deaktiviert") {
+                            treeEnabled = false
+                            if (activeTab == "Stammbaum") activeTab = "Übersicht"
+                            appPrefs.edit().putBoolean("tree_enabled", false).apply()
+                        }
+                    }
+                }
+
+                Divider(color = BorderSlate)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Darstellung", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactButton(if (!isLightMode) "✓ 🌙 Dunkel" else "🌙 Dunkel") {
+                            isLightMode = false
+                            appPrefs.edit().putBoolean("light_mode", false).apply()
+                        }
+                        CompactButton(if (isLightMode) "✓ ☀️ Hell" else "☀️ Hell") {
+                            isLightMode = true
+                            appPrefs.edit().putBoolean("light_mode", true).apply()
+                        }
+                    }
+                }
+
+                Divider(color = BorderSlate)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    CompactButton("Schließen") { showOptionsDialog = false }
+                }
+            }
+        }
+    }
+
     // Dialog: Neuen Kontakt anlegen (inkl. Beziehungen für den Stammbaum)
     if (showCreateDialog) {
         val prefs = remember { context.getSharedPreferences("remember_me_prefs", android.content.Context.MODE_PRIVATE) }
@@ -804,6 +894,7 @@ fun KontaktChronikApp(
         var timerInterval by remember { mutableStateOf("14") }
         var relLabel by remember { mutableStateOf("Kind von") }
         var selectedRelTargetId by remember { mutableStateOf(-1L) }
+        var createRelExpanded by remember { mutableStateOf(false) }
 
         Dialog(onDismissRequest = { showCreateDialog = false }) {
             Column(
@@ -878,58 +969,79 @@ fun KontaktChronikApp(
                     }
                 }
 
-                if (persons.isNotEmpty()) {
+                if (treeEnabled && persons.isNotEmpty()) {
                     Divider(color = BorderSlate)
-                    Text("Beziehungen:", color = AccentSteel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(RELATION_PRESETS) { preset ->
-                            val selected = relLabel == preset
-                            Box(
-                                modifier = Modifier
-                                    .background(if (selected) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                    .border(1.dp, if (selected) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                    .clickable { relLabel = preset }
-                                    .padding(horizontal = 8.dp, vertical = 5.dp)
-                            ) {
-                                Text(
-                                    preset,
-                                    color = if (selected) BgSlate else TextSecondary,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { createRelExpanded = !createRelExpanded }
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${if (createRelExpanded) "▼" else "▶"} Beziehungen",
+                            color = AccentSteel,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            if (createRelExpanded) "Einklappen" else "Ausklappen",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
                     }
-
-                    Text("Ziel-Kontakt auswählen:", color = TextSecondary, fontSize = 11.sp)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        item {
-                            val noneSelected = selectedRelTargetId == -1L
-                            Box(
-                                modifier = Modifier
-                                    .background(if (noneSelected) Color(0xFF334155) else BgSlate, RoundedCornerShape(6.dp))
-                                    .border(1.dp, if (noneSelected) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                    .clickable { selectedRelTargetId = -1L }
-                                    .padding(horizontal = 8.dp, vertical = 5.dp)
-                            ) {
-                                Text("Keine", color = TextPrimary, fontSize = 11.sp)
+                    if (createRelExpanded) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(RELATION_PRESETS) { preset ->
+                                val selected = relLabel == preset
+                                Box(
+                                    modifier = Modifier
+                                        .background(if (selected) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
+                                        .border(1.dp, if (selected) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable { relLabel = preset }
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                ) {
+                                    Text(
+                                        preset,
+                                        color = if (selected) BgSlate else TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
                             }
                         }
-                        items(persons) { targetP ->
-                            val isSel = selectedRelTargetId == targetP.id
-                            Box(
-                                modifier = Modifier
-                                    .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                    .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                    .clickable { selectedRelTargetId = targetP.id }
-                                    .padding(horizontal = 8.dp, vertical = 5.dp)
-                            ) {
-                                Text(
-                                    targetP.name,
-                                    color = if (isSel) BgSlate else TextPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
-                                )
+
+                        Text("Ziel-Kontakt auswählen:", color = TextSecondary, fontSize = 11.sp)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            item {
+                                val noneSelected = selectedRelTargetId == -1L
+                                Box(
+                                    modifier = Modifier
+                                        .background(if (noneSelected) BtnBg else BgSlate, RoundedCornerShape(6.dp))
+                                        .border(1.dp, if (noneSelected) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable { selectedRelTargetId = -1L }
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                ) {
+                                    Text("Keine", color = TextPrimary, fontSize = 11.sp)
+                                }
+                            }
+                            items(persons) { targetP ->
+                                val isSel = selectedRelTargetId == targetP.id
+                                Box(
+                                    modifier = Modifier
+                                        .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
+                                        .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable { selectedRelTargetId = targetP.id }
+                                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                                ) {
+                                    Text(
+                                        targetP.name,
+                                        color = if (isSel) BgSlate else TextPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
                             }
                         }
                     }
@@ -1002,6 +1114,7 @@ fun KontaktChronikApp(
             .filter { it.fromPersonId == dp.id }
             .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
         val currentReminders = specialEvents.filter { it.personId == dp.id }
+        var detailRelExpanded by remember(dp) { mutableStateOf(false) }
 
         Dialog(onDismissRequest = { detailPerson = null }) {
             Column(
@@ -1024,11 +1137,13 @@ fun KontaktChronikApp(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    CompactButton("🌳 Stammbaum") {
-                        selectedTreeRootId = dp.id
-                        detailPerson = null
-                        activeTab = "Stammbaum"
+                    if (treeEnabled) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        CompactButton("🌳 Stammbaum") {
+                            selectedTreeRootId = dp.id
+                            detailPerson = null
+                            activeTab = "Stammbaum"
+                        }
                     }
                 }
 
@@ -1097,93 +1212,116 @@ fun KontaktChronikApp(
                         }
                     }
 
-                    // Abschnitt: Beziehungen für Stammbaum
-                    Divider(color = BorderSlate)
-                    Text("Beziehungen:", color = AccentSteel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    // Abschnitt: Beziehungen für Stammbaum (standardmäßig eingeklappt)
+                    if (treeEnabled) {
+                        Divider(color = BorderSlate)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { detailRelExpanded = !detailRelExpanded }
+                                .padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "${if (detailRelExpanded) "▼" else "▶"} Beziehungen (${currentRelations.size})",
+                                color = AccentSteel,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                if (detailRelExpanded) "Einklappen" else "Ausklappen",
+                                color = TextMuted,
+                                fontSize = 11.sp
+                            )
+                        }
 
-                    if (currentRelations.isEmpty()) {
-                        Text("Noch keine Beziehungen verknüpft.", color = TextMuted, fontSize = 11.sp)
-                    } else {
-                        currentRelations.forEach { (rel, targetPerson) ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(BgSlate, RoundedCornerShape(6.dp))
-                                    .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    "${rel.relationLabel} ${targetPerson.name}",
-                                    color = TextPrimary,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    "✕",
-                                    color = WarnAmber,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .clickable {
-                                            pendingConfirmMessage = "Beziehung „${rel.relationLabel} ${targetPerson.name}\" wirklich löschen?"
-                                            pendingConfirmAction = {
-                                                scope.launch {
-                                                    db.deleteRelation(rel)
+                        if (detailRelExpanded) {
+                            if (currentRelations.isEmpty()) {
+                                Text("Noch keine Beziehungen verknüpft.", color = TextMuted, fontSize = 11.sp)
+                            } else {
+                                currentRelations.forEach { (rel, targetPerson) ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(BgSlate, RoundedCornerShape(6.dp))
+                                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "${rel.relationLabel} ${targetPerson.name}",
+                                            color = TextPrimary,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            "✕",
+                                            color = WarnAmber,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .clickable {
+                                                    pendingConfirmMessage = "Beziehung „${rel.relationLabel} ${targetPerson.name}\" wirklich löschen?"
+                                                    pendingConfirmAction = {
+                                                        scope.launch {
+                                                            db.deleteRelation(rel)
+                                                        }
+                                                    }
                                                 }
-                                            }
-                                        }
-                                        .padding(horizontal = 6.dp)
-                                )
+                                                .padding(horizontal = 6.dp)
+                                        )
+                                    }
+                                }
                             }
-                        }
-                    }
 
-                    if (otherPersons.isNotEmpty()) {
-                        Text("Beziehung hinzufügen:", color = TextSecondary, fontSize = 11.sp)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(RELATION_PRESETS) { preset ->
-                                val isSel = newRelLabel == preset
-                                Box(
-                                    modifier = Modifier
-                                        .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                        .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                        .clickable { newRelLabel = preset }
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                                ) {
-                                    Text(
-                                        preset,
-                                        color = if (isSel) BgSlate else TextSecondary,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
-                                    )
+                            if (otherPersons.isNotEmpty()) {
+                                Text("Beziehung hinzufügen:", color = TextSecondary, fontSize = 11.sp)
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(RELATION_PRESETS) { preset ->
+                                        val isSel = newRelLabel == preset
+                                        Box(
+                                            modifier = Modifier
+                                                .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
+                                                .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
+                                                .clickable { newRelLabel = preset }
+                                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                                        ) {
+                                            Text(
+                                                preset,
+                                                color = if (isSel) BgSlate else TextSecondary,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(otherPersons) { op ->
-                                val isSel = newRelTargetId == op.id
-                                Box(
-                                    modifier = Modifier
-                                        .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
-                                        .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                        .clickable { newRelTargetId = op.id }
-                                        .padding(horizontal = 8.dp, vertical = 5.dp)
-                                ) {
-                                    Text(
-                                        op.name,
-                                        color = if (isSel) BgSlate else TextPrimary,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
-                                    )
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(otherPersons) { op ->
+                                        val isSel = newRelTargetId == op.id
+                                        Box(
+                                            modifier = Modifier
+                                                .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
+                                                .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
+                                                .clickable { newRelTargetId = op.id }
+                                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                                        ) {
+                                            Text(
+                                                op.name,
+                                                color = if (isSel) BgSlate else TextPrimary,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        CompactButton("+ Beziehung speichern") {
-                            if (newRelTargetId > 0) {
-                                scope.launch {
-                                    addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
+                                CompactButton("+ Beziehung speichern") {
+                                    if (newRelTargetId > 0) {
+                                        scope.launch {
+                                            addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1689,7 +1827,7 @@ fun FamilyTreeScreen(
                             modifier = Modifier
                                 .widthIn(min = 76.dp, max = 122.dp)
                                 .background(
-                                    if (isRoot) Color(0xFF1E3A5F) else BgSlate,
+                                    if (isRoot) RootNodeBg else BgSlate,
                                     RoundedCornerShape(6.dp)
                                 )
                                 .border(
@@ -1822,7 +1960,7 @@ fun ChannelButton(
 ) {
     Row(
         modifier = Modifier
-            .background(if (isPrimary) Color(0xFF0284C7) else Color(0xFF334155), RoundedCornerShape(6.dp))
+            .background(if (isPrimary) Color(0xFF0284C7) else BtnBg, RoundedCornerShape(6.dp))
             .border(1.dp, if (isPrimary) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -1832,7 +1970,7 @@ fun ChannelButton(
         ChannelSymbolIcon(channel)
         Text(
             text = labelOverride ?: channel,
-            color = TextPrimary,
+            color = if (isPrimary) Color.White else TextPrimary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium
         )
@@ -1934,7 +2072,7 @@ fun ChannelSymbolIcon(channel: String) {
 fun CompactButton(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .background(Color(0xFF334155), RoundedCornerShape(6.dp))
+            .background(BtnBg, RoundedCornerShape(6.dp))
             .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 6.dp),
