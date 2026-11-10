@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.16 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.17 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Warm & Persönlich ("Family & Cozy") */
     :root,
@@ -975,7 +975,8 @@
           const totalMonths = (tParts[0] - bParts[0]) * 12 + (tParts[1] - bParts[1]);
           const thisYearBday = `${tParts[0]}-${String(bParts[1]).padStart(2, "0")}-${String(bParts[2]).padStart(2, "0")}`;
           const nextYearAge = tParts[0] - bParts[0] + (thisYearBday < today ? 1 : 0);
-          if (totalMonths >= 0 && totalMonths <= 23) return `${totalMonths} Mon. (wird ${nextYearAge})`;
+          if (totalMonths === 0 && nextYearAge === 0) return "Neugeboren (0 Mon.)";
+          if (totalMonths >= 0 && totalMonths <= 23) return `${totalMonths} Mon. (wird ${Math.max(1, nextYearAge)})`;
           return `wird ${nextYearAge}`;
         } catch (e) { return "Geburtstag"; }
       },
@@ -1205,33 +1206,96 @@
       ];
 
       selectedTreeRootId = annaId;
-      addLog("Beispieldaten mit 3-Generationen-Stammbaum & Weihnachts-Wichtelrunde angelegt.");
+      ensureAllPersonsHavePhotos();
+      addLog("Beispieldaten mit 3-Generationen-Stammbaum, Kontaktfotos & Weihnachts-Wichtelrunde angelegt.");
       saveState();
     }
 
-    function makePortraitSvgDataUrl(bg1, bg2, emoji) {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient></defs><rect width="128" height="128" rx="64" fill="url(#g)"/><text x="64" y="82" font-size="64" text-anchor="middle">${emoji}</text></svg>`;
+    function makeIllustratedPortraitDataUrl(name) {
+      const n = String(name || "").toLowerCase();
+      let bg1 = "#D96B43", bg2 = "#9E3B18", skin = "#F6D0B8", hair = "#5C3A21", shirt = "#2E7D5B", style = "woman", glasses = false, beard = false;
+      if (n.includes("helga") || n.includes("oma")) {
+        bg1 = "#D96B43"; bg2 = "#8F391A"; skin = "#F7D5BE"; hair = "#D9D9E0"; shirt = "#8E3A59"; style = "oma"; glasses = true;
+      } else if (n.includes("anna")) {
+        bg1 = "#D6336C"; bg2 = "#881641"; skin = "#F8D6C0"; hair = "#6B3E26"; shirt = "#2E7D5B"; style = "woman";
+      } else if (n.includes("sabine")) {
+        bg1 = "#8B5CF6"; bg2 = "#4C1D95"; skin = "#F7D4BC"; hair = "#B44C27"; shirt = "#D97706"; style = "woman";
+      } else if (n.includes("thomas")) {
+        bg1 = "#2E7D5B"; bg2 = "#164A33"; skin = "#F0C5A8"; hair = "#3B281E"; shirt = "#2B4C7E"; style = "man";
+      } else if (n.includes("markus")) {
+        bg1 = "#3B82F6"; bg2 = "#1E3A8A"; skin = "#F2C8AD"; hair = "#7A5230"; shirt = "#C85A32"; style = "man";
+      } else if (n.includes("max")) {
+        bg1 = "#0EA5E9"; bg2 = "#0C4A6E"; skin = "#EFC2A5"; hair = "#2C1E16"; shirt = "#374151"; style = "man"; beard = true;
+      } else if (n.includes("leo") || n.includes("baby")) {
+        bg1 = "#F59E0B"; bg2 = "#B45309"; skin = "#FBE0CD"; hair = "#C68B59"; shirt = "#38BDF8"; style = "baby";
+      } else if (n.includes("praxis") || n.includes("dr.")) {
+        bg1 = "#10B981"; bg2 = "#065F46"; skin = "#F3CBB2"; hair = "#9CA3AF"; shirt = "#FFFFFF"; style = "man"; glasses = true;
+      } else {
+        let h = 0;
+        for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
+        const bgPairs = [["#C85A32","#7C2D12"],["#2E7D5B","#14532D"],["#6366F1","#312E81"],["#EC4899","#831843"]];
+        const pair = bgPairs[h % bgPairs.length];
+        bg1 = pair[0]; bg2 = pair[1];
+        const hairs = ["#3B281E", "#6B3E26", "#B44C27", "#2C1E16", "#8D6E63"];
+        hair = hairs[h % hairs.length];
+        const shirts = ["#2B4C7E", "#2E7D5B", "#9E3B18", "#6D28D9"];
+        shirt = shirts[(h >> 2) % shirts.length];
+        style = (h % 2 === 0) ? "woman" : "man";
+      }
+
+      const hairBack = (style === "woman")
+        ? `<path d="M30 58 C28 92, 34 108, 42 114 L86 114 C94 108, 100 92, 98 58 Z" fill="${hair}"/>`
+        : (style === "oma" ? `<circle cx="64" cy="26" r="14" fill="${hair}"/>` : "");
+
+      const hairTop = (style === "baby")
+        ? `<path d="M58 28 Q66 18 70 27 Q75 21 72 31" stroke="${hair}" stroke-width="4" fill="none" stroke-linecap="round"/>`
+        : (style === "woman" || style === "oma")
+          ? `<path d="M32 58 C32 30, 96 30, 96 58 C84 42, 48 42, 32 58 Z" fill="${hair}"/>`
+          : `<path d="M34 54 C34 28, 94 28, 94 54 C84 40, 44 40, 34 54 Z" fill="${hair}"/>`;
+
+      const glassesSvg = glasses
+        ? `<g stroke="#374151" stroke-width="2.4" fill="none"><circle cx="52" cy="60" r="8"/><circle cx="76" cy="60" r="8"/><line x1="60" y1="60" x2="68" y2="60"/></g>`
+        : "";
+
+      const beardSvg = beard
+        ? `<path d="M40 68 C42 88, 86 88, 88 68 C82 76, 46 76, 40 68 Z" fill="${hair}" opacity="0.85"/>`
+        : "";
+
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+        <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/></linearGradient></defs>
+        <rect width="128" height="128" rx="64" fill="url(#bg)"/>
+        ${hairBack}
+        <path d="M22 128 C26 98, 44 92, 64 92 C84 92, 102 98, 106 128 Z" fill="${shirt}"/>
+        <rect x="54" y="78" width="20" height="18" rx="8" fill="${skin}"/>
+        <ellipse cx="64" cy="60" rx="${style === 'baby' ? 24 : 26}" ry="${style === 'baby' ? 24 : 28}" fill="${skin}"/>
+        ${hairTop}
+        <circle cx="52" cy="60" r="3" fill="#2C201B"/>
+        <circle cx="76" cy="60" r="3" fill="#2C201B"/>
+        ${glassesSvg}
+        ${beardSvg}
+        <path d="M55 72 Q64 79 73 72" stroke="#A84A3A" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+      </svg>`;
       return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+    }
+
+    function ensureAllPersonsHavePhotos() {
+      if (!state || !Array.isArray(state.persons)) return false;
+      let changed = false;
+      for (const p of state.persons) {
+        if (p.photoRemovedByUser) continue;
+        // Aktualisiere fehlende Fotos oder alte Emoji-Platzhalter automatisch auf die echten Kontaktporträts
+        if (!p.photoBase64 || p.photoBase64.includes("font-size%3D%2264%22")) {
+          p.photoBase64 = makeIllustratedPortraitDataUrl(p.name);
+          changed = true;
+        }
+      }
+      return changed;
     }
 
     function syncDeviceContacts() {
       const today = todayIso();
       const existingNames = new Set(state.persons.map(p => p.name));
-      // Vorhandenen Kontakten aus dem Adressbuch ebenfalls Kontaktfotos synchronisieren (falls noch kein eigenes Foto gesetzt ist)
-      const familyPhotoMap = {
-        "Helga Weber (Oma)": makePortraitSvgDataUrl("#D96B43", "#9E3B18", "👵"),
-        "Anna Weber": makePortraitSvgDataUrl("#D6336C", "#9C1949", "👩"),
-        "Thomas Weber": makePortraitSvgDataUrl("#2E7D5B", "#1B523A", "👨"),
-        "Markus Weber": makePortraitSvgDataUrl("#3B82F6", "#1D4ED8", "🧑"),
-        "Leo Weber (Baby)": makePortraitSvgDataUrl("#F59E0B", "#B45309", "👶")
-      };
-      let photoUpdatedCount = 0;
-      state.persons.forEach(p => {
-        if (!p.photoBase64 && familyPhotoMap[p.name]) {
-          p.photoBase64 = familyPhotoMap[p.name];
-          photoUpdatedCount++;
-        }
-      });
+      ensureAllPersonsHavePhotos();
 
       const deviceMocks = [
         {
@@ -1241,7 +1305,7 @@
           email: "sabine.wagner@beispiel.de",
           appPeerId: "",
           notes: "Aus Telefonkontakten synchronisiert (inkl. Kontaktfoto)",
-          photoBase64: makePortraitSvgDataUrl("#8B5CF6", "#5B21B6", "👩‍🦰"),
+          photoBase64: makeIllustratedPortraitDataUrl("Sabine Wagner"),
           timerEnabled: true,
           timerInterval: 30,
           timerUnit: "DAYS",
@@ -1254,7 +1318,7 @@
           email: "max.berger@beispiel.de",
           appPeerId: "",
           notes: "Nachbar (ohne Geburtsdatum, mit Kontaktfoto)",
-          photoBase64: makePortraitSvgDataUrl("#0EA5E9", "#0369A1", "🧔"),
+          photoBase64: makeIllustratedPortraitDataUrl("Max Berger"),
           timerEnabled: false,
           timerInterval: 30,
           timerUnit: "DAYS",
@@ -1267,7 +1331,7 @@
           email: "",
           appPeerId: "",
           notes: "Hausarzt (ohne Datum)",
-          photoBase64: makePortraitSvgDataUrl("#10B981", "#047857", "🩺"),
+          photoBase64: makeIllustratedPortraitDataUrl("Praxis Dr. Klein"),
           timerEnabled: false,
           timerInterval: 30,
           timerUnit: "DAYS",
@@ -1283,12 +1347,11 @@
           const ex = state.persons.find(p => p.name === m.name);
           if (ex && !ex.photoBase64 && m.photoBase64) {
             ex.photoBase64 = m.photoBase64;
-            photoUpdatedCount++;
           }
         }
       });
-      syncStatus = `${count} Kontakte & ${count + photoUpdatedCount} Fotos synchronisiert`;
-      addLog(`Kontakt-Sync abgeschlossen: ${count} neue Telefonkontakte und ${count + photoUpdatedCount} Kontaktfotos aus Handykontakten übernommen.`);
+      syncStatus = `${count} Kontakte & Fotos synchronisiert`;
+      addLog(`Kontakt-Sync abgeschlossen: ${count} neue Telefonkontakte inkl. Kontaktfotos übernommen.`);
       saveState();
     }
 
@@ -1571,6 +1634,9 @@
       } else if (state.themeMode === "dark") {
         state.themeMode = "cozy-dark";
       }
+      if (ensureAllPersonsHavePhotos()) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
       document.body.setAttribute("data-theme", state.themeMode);
       renderPhoneApp();
       renderWidget();
@@ -1632,7 +1698,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.16</div>
+            <div class="app-title">Remember Me v1.0.17</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -3692,6 +3758,8 @@
       } else {
         syncDetailDraftBeforeRerender();
         detailDraftPhotoBase64 = "";
+        const dp = state.persons.find(p => p.id === detailPersonId);
+        if (dp) dp.photoRemovedByUser = true;
       }
       renderModals();
     }
@@ -3719,6 +3787,8 @@
             createDraft.photoBase64 = dataUrl;
           } else {
             detailDraftPhotoBase64 = dataUrl;
+            const dp = state.persons.find(p => p.id === detailPersonId);
+            if (dp) dp.photoRemovedByUser = false;
           }
           addLog(`📷 Kontaktfoto ("${file.name}") geladen & auf ${w}×${h}px optimiert.`);
           renderModals();
@@ -4919,7 +4989,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.16",
+        version: "1.0.17",
         createdAt: dateStr,
         state
       };
@@ -4937,7 +5007,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.16",
+        version: "1.0.17",
         createdAt: dateStr,
         state
       };
@@ -5013,7 +5083,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.16 gestartet.");
+      addLog("Remember Me v1.0.17 gestartet.");
       renderAll();
     }
   </script>

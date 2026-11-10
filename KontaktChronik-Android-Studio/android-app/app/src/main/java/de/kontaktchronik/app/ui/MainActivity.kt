@@ -234,15 +234,16 @@ fun encodeUriToBase64Jpeg(context: android.content.Context, uri: android.net.Uri
 
 @Composable
 fun PersonAvatar(name: String, photoBase64: String = "", sizeDp: Int = 36) {
-    val imageBitmap = remember(photoBase64) {
-        if (photoBase64.isBlank()) {
-            null
-        } else {
+    val imageBitmap = remember(photoBase64, name) {
+        val raw = photoBase64.trim()
+        if (raw.isNotBlank()) {
             runCatching {
-                val clean = photoBase64.substringAfter("base64,", photoBase64).trim()
+                val clean = raw.substringAfter("base64,", raw).trim()
                 val bytes = Base64.decode(clean, Base64.DEFAULT)
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
             }.getOrNull()
+        } else {
+            null
         }
     }
     if (imageBitmap != null) {
@@ -257,23 +258,67 @@ fun PersonAvatar(name: String, photoBase64: String = "", sizeDp: Int = 36) {
         )
         return
     }
-    val initials = remember(name) { getPersonInitials(name) }
+    // Sofortiges illustriertes Kontaktporträt (auch bevor die DB-Synchronisation durchgelaufen ist)
+    val n = remember(name) { name.lowercase() }
     val gradColors = remember(name) {
         val hash = abs(name.fold(0) { acc, ch -> ch.code + ((acc shl 5) - acc) })
         AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.size]
     }
-    Box(
+    Canvas(
         modifier = Modifier
             .size(sizeDp.dp)
             .clip(CircleShape)
-            .background(Brush.linearGradient(gradColors)),
-        contentAlignment = Alignment.Center
+            .border(1.dp, BorderSlate, CircleShape)
     ) {
-        Text(
-            text = initials,
-            color = Color.White,
-            fontSize = (sizeDp * 0.36f).sp,
-            fontWeight = FontWeight.Bold
+        val w = size.width
+        val h = size.height
+        drawRect(brush = Brush.linearGradient(gradColors))
+        val skinColor = Color(0xFFF6D0B8)
+        val hairColor = when {
+            n.contains("helga") || n.contains("oma") -> Color(0xFFD9D9E0)
+            n.contains("sabine") -> Color(0xFFB44C27)
+            n.contains("leo") || n.contains("baby") -> Color(0xFFC68B59)
+            else -> Color(0xFF4E3222)
+        }
+        val shirtColor = when {
+            n.contains("helga") || n.contains("oma") -> Color(0xFF8E3A59)
+            n.contains("anna") -> Color(0xFF2E7D5B)
+            n.contains("thomas") -> Color(0xFF2B4C7E)
+            else -> Color(0xFF334155)
+        }
+        // Schultern
+        drawOval(
+            color = shirtColor,
+            topLeft = Offset(w * 0.16f, h * 0.72f),
+            size = Size(w * 0.68f, h * 0.45f)
+        )
+        // Kopf
+        drawOval(
+            color = skinColor,
+            topLeft = Offset(w * 0.29f, h * 0.24f),
+            size = Size(w * 0.42f, h * 0.44f)
+        )
+        // Haare oben
+        drawArc(
+            color = hairColor,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = true,
+            topLeft = Offset(w * 0.27f, h * 0.20f),
+            size = Size(w * 0.46f, h * 0.34f)
+        )
+        // Augen
+        drawCircle(color = Color(0xFF2C201B), radius = w * 0.025f, center = Offset(w * 0.41f, h * 0.46f))
+        drawCircle(color = Color(0xFF2C201B), radius = w * 0.025f, center = Offset(w * 0.59f, h * 0.46f))
+        // Lächeln
+        drawArc(
+            color = Color(0xFFA84A3A),
+            startAngle = 20f,
+            sweepAngle = 140f,
+            useCenter = false,
+            topLeft = Offset(w * 0.41f, h * 0.49f),
+            size = Size(w * 0.18f, h * 0.10f),
+            style = Stroke(width = w * 0.025f, cap = StrokeCap.Round)
         )
     }
 }
@@ -908,6 +953,17 @@ fun KontaktChronikApp(
         if (selectedTreeRootId == null && persons.isNotEmpty()) {
             selectedTreeRootId = persons.first().id
         }
+        if (persons.any { it.photoBase64.isBlank() }) {
+            val hasRead = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (hasRead) {
+                syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver)
+            } else {
+                syncRepo.ensureDefaultPhotosForAllPersons()
+            }
+        }
     }
 
     val contactPermissionLauncher = rememberLauncherForActivityResult(
@@ -970,7 +1026,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.16", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.17", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1775,7 +1831,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.16")
+                put("version", "1.0.17")
                 put("createdAt", dateStr)
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
                 put("wichtelHistory", JSONArray(serializeWichtelHistoryJson(wichtelHistory)))

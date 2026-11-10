@@ -183,8 +183,10 @@ object ContactResolver {
             val totalMonths = ChronoUnit.MONTHS.between(birthDate, today)
             val nextYearAge = today.year - birthDate.year +
                 if (LocalDate.of(today.year, birthDate.month, birthDate.dayOfMonth).isBefore(today)) 1 else 0
-            if (totalMonths in 0..23) {
-                "$totalMonths Mon. (wird $nextYearAge)"
+            if (totalMonths == 0L && nextYearAge == 0) {
+                "Neugeboren (0 Mon.)"
+            } else if (totalMonths in 0..23) {
+                "$totalMonths Mon. (wird ${maxOf(1, nextYearAge)})"
             } else {
                 "wird $nextYearAge"
             }

@@ -6,9 +6,16 @@ import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Shader
 import android.provider.ContactsContract
 import android.util.Base64
 import java.io.ByteArrayOutputStream
+import kotlin.math.abs
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -203,8 +210,192 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
         }
     }
 
+    fun generateDefaultPortraitBase64(name: String): String {
+        return try {
+            val n = name.lowercase()
+            var bg1 = 0xFFD96B43.toInt()
+            var bg2 = 0xFF9E3B18.toInt()
+            var skin = 0xFFF6D0B8.toInt()
+            var hair = 0xFF5C3A21.toInt()
+            var shirt = 0xFF2E7D5B.toInt()
+            var style = "woman"
+            var glasses = false
+            var beard = false
+
+            when {
+                n.contains("helga") || n.contains("oma") -> {
+                    bg1 = 0xFFD96B43.toInt(); bg2 = 0xFF8F391A.toInt()
+                    skin = 0xFFF7D5BE.toInt(); hair = 0xFFD9D9E0.toInt(); shirt = 0xFF8E3A59.toInt()
+                    style = "oma"; glasses = true
+                }
+                n.contains("anna") -> {
+                    bg1 = 0xFFD6336C.toInt(); bg2 = 0xFF881641.toInt()
+                    skin = 0xFFF8D6C0.toInt(); hair = 0xFF6B3E26.toInt(); shirt = 0xFF2E7D5B.toInt()
+                    style = "woman"
+                }
+                n.contains("sabine") -> {
+                    bg1 = 0xFF8B5CF6.toInt(); bg2 = 0xFF4C1D95.toInt()
+                    skin = 0xFFF7D4BC.toInt(); hair = 0xFFB44C27.toInt(); shirt = 0xFFD97706.toInt()
+                    style = "woman"
+                }
+                n.contains("thomas") -> {
+                    bg1 = 0xFF2E7D5B.toInt(); bg2 = 0xFF164A33.toInt()
+                    skin = 0xFFF0C5A8.toInt(); hair = 0xFF3B281E.toInt(); shirt = 0xFF2B4C7E.toInt()
+                    style = "man"
+                }
+                n.contains("markus") -> {
+                    bg1 = 0xFF3B82F6.toInt(); bg2 = 0xFF1E3A8A.toInt()
+                    skin = 0xFFF2C8AD.toInt(); hair = 0xFF7A5230.toInt(); shirt = 0xFFC85A32.toInt()
+                    style = "man"
+                }
+                n.contains("max") -> {
+                    bg1 = 0xFF0EA5E9.toInt(); bg2 = 0xFF0C4A6E.toInt()
+                    skin = 0xFFEFC2A5.toInt(); hair = 0xFF2C1E16.toInt(); shirt = 0xFF374151.toInt()
+                    style = "man"; beard = true
+                }
+                n.contains("leo") || n.contains("baby") -> {
+                    bg1 = 0xFFF59E0B.toInt(); bg2 = 0xFFB45309.toInt()
+                    skin = 0xFFFBE0CD.toInt(); hair = 0xFFC68B59.toInt(); shirt = 0xFF38BDF8.toInt()
+                    style = "baby"
+                }
+                n.contains("praxis") || n.contains("dr.") -> {
+                    bg1 = 0xFF10B981.toInt(); bg2 = 0xFF065F46.toInt()
+                    skin = 0xFFF3CBB2.toInt(); hair = 0xFF9CA3AF.toInt(); shirt = 0xFFFFFFFF.toInt()
+                    style = "man"; glasses = true
+                }
+                else -> {
+                    val h = abs(n.fold(0) { acc, ch -> ch.code + ((acc shl 5) - acc) })
+                    val bgPairs = listOf(
+                        0xFFC85A32.toInt() to 0xFF7C2D12.toInt(),
+                        0xFF2E7D5B.toInt() to 0xFF14532D.toInt(),
+                        0xFF6366F1.toInt() to 0xFF312E81.toInt(),
+                        0xFFEC4899.toInt() to 0xFF831843.toInt()
+                    )
+                    val pair = bgPairs[h % bgPairs.size]
+                    bg1 = pair.first; bg2 = pair.second
+                    val hairs = listOf(0xFF3B281E.toInt(), 0xFF6B3E26.toInt(), 0xFFB44C27.toInt(), 0xFF2C1E16.toInt())
+                    hair = hairs[h % hairs.size]
+                    val shirts = listOf(0xFF2B4C7E.toInt(), 0xFF2E7D5B.toInt(), 0xFF9E3B18.toInt(), 0xFF6D28D9.toInt())
+                    shirt = shirts[(h shr 2) % shirts.size]
+                    style = if (h % 2 == 0) "woman" else "man"
+                }
+            }
+
+            val bmp = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bmp)
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+            // Hintergrund-Verlauf
+            paint.shader = LinearGradient(0f, 0f, 128f, 128f, bg1, bg2, Shader.TileMode.CLAMP)
+            canvas.drawOval(RectF(0f, 0f, 128f, 128f), paint)
+            paint.shader = null
+
+            // Haare hinten (Damen / Oma-Dutt)
+            paint.color = hair
+            paint.style = Paint.Style.FILL
+            if (style == "woman") {
+                canvas.drawRoundRect(RectF(30f, 44f, 98f, 112f), 26f, 26f, paint)
+            } else if (style == "oma") {
+                canvas.drawCircle(64f, 26f, 14f, paint)
+            }
+
+            // Schultern / Oberteil
+            paint.color = shirt
+            canvas.drawOval(RectF(20f, 92f, 108f, 148f), paint)
+
+            // Hals & Kopf
+            paint.color = skin
+            canvas.drawRoundRect(RectF(54f, 76f, 74f, 96f), 8f, 8f, paint)
+            val headRx = if (style == "baby") 24f else 26f
+            val headRy = if (style == "baby") 24f else 28f
+            canvas.drawOval(RectF(64f - headRx, 60f - headRy, 64f + headRx, 60f + headRy), paint)
+
+            // Haare oben
+            paint.color = hair
+            if (style == "baby") {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 4.5f
+                paint.strokeCap = Paint.Cap.ROUND
+                val curl = Path().apply {
+                    moveTo(58f, 30f)
+                    quadTo(66f, 18f, 70f, 28f)
+                }
+                canvas.drawPath(curl, paint)
+                paint.style = Paint.Style.FILL
+            } else {
+                val topHair = Path().apply {
+                    moveTo(36f, 54f)
+                    cubicTo(36f, 26f, 92f, 26f, 92f, 54f)
+                    cubicTo(80f, 40f, 48f, 40f, 36f, 54f)
+                    close()
+                }
+                canvas.drawPath(topHair, paint)
+            }
+
+            // Augen
+            paint.color = 0xFF2C201B.toInt()
+            canvas.drawCircle(52f, 60f, 3f, paint)
+            canvas.drawCircle(76f, 60f, 3f, paint)
+
+            // Optional: Brille
+            if (glasses) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 2.4f
+                paint.color = 0xFF374151.toInt()
+                canvas.drawCircle(52f, 60f, 8f, paint)
+                canvas.drawCircle(76f, 60f, 8f, paint)
+                canvas.drawLine(60f, 60f, 68f, 60f, paint)
+                paint.style = Paint.Style.FILL
+            }
+
+            // Optional: Bart
+            if (beard) {
+                paint.color = hair
+                paint.alpha = 215
+                val beardPath = Path().apply {
+                    moveTo(40f, 66f)
+                    cubicTo(42f, 88f, 86f, 88f, 88f, 66f)
+                    cubicTo(80f, 76f, 48f, 76f, 40f, 66f)
+                    close()
+                }
+                canvas.drawPath(beardPath, paint)
+                paint.alpha = 255
+            }
+
+            // Lächeln
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2.8f
+            paint.strokeCap = Paint.Cap.ROUND
+            paint.color = 0xFFA84A3A.toInt()
+            val smile = Path().apply {
+                moveTo(55f, 72f)
+                quadTo(64f, 79f, 73f, 72f)
+            }
+            canvas.drawPath(smile, paint)
+
+            bitmapToBase64Jpeg(bmp, 128)
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    suspend fun ensureDefaultPhotosForAllPersons() {
+        val all = dao.getAllPersonsOnce()
+        for (p in all) {
+            if (p.photoBase64.isBlank()) {
+                val generated = generateDefaultPortraitBase64(p.name)
+                if (generated.isNotBlank()) {
+                    dao.updatePerson(p.copy(photoBase64 = generated))
+                }
+            }
+        }
+    }
+
     suspend fun syncDeviceContactsWithBirthdays(contentResolver: ContentResolver): Int {
-        val existing = dao.getAllPersonsOnce().associateBy { it.importedFromDeviceContactId }
+        val allPersonsInDb = dao.getAllPersonsOnce()
+        val existingByCid = allPersonsInDb
+            .filter { !it.importedFromDeviceContactId.isNullOrBlank() }
+            .associateBy { it.importedFromDeviceContactId }
         val allNamesByContactId = mutableMapOf<String, String>()
         val birthdaysByContactId = mutableMapOf<String, String>()
         val phonesByContactId = mutableMapOf<String, String>()
@@ -312,9 +503,16 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             val bday = birthdaysByContactId[cid]
             val phone = phonesByContactId[cid].orEmpty()
             val email = emailsByContactId[cid].orEmpty()
-            val photoBase64 = readContactPhotoAsBase64(contentResolver, cid)
-            val current = existing[cid]
+            val devicePhoto = readContactPhotoAsBase64(contentResolver, cid)
+            val cleanDevicePhone = phone.replace(Regex("[^0-9]"), "")
+
+            val current = existingByCid[cid] ?: allPersonsInDb.find { p ->
+                p.name.equals(name, ignoreCase = true) ||
+                    p.name.substringBefore(" (").trim().equals(name, ignoreCase = true) ||
+                    (cleanDevicePhone.length >= 6 && p.phone.replace(Regex("[^0-9]"), "").endsWith(cleanDevicePhone.takeLast(7)))
+            }
             if (current == null) {
+                val finalPhoto = devicePhoto.ifBlank { generateDefaultPortraitBase64(name) }
                 dao.upsertPerson(
                     PersonEntity(
                         name = name,
@@ -324,21 +522,28 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                         email = email,
                         timerEnabled = !bday.isNullOrBlank(),
                         importedFromDeviceContactId = cid,
-                        photoBase64 = photoBase64
+                        photoBase64 = finalPhoto
                     )
                 )
                 importedCount++
             } else {
+                val finalPhoto = when {
+                    devicePhoto.isNotBlank() -> devicePhoto
+                    current.photoBase64.isNotBlank() -> current.photoBase64
+                    else -> generateDefaultPortraitBase64(current.name)
+                }
                 dao.updatePerson(
                     current.copy(
+                        importedFromDeviceContactId = current.importedFromDeviceContactId ?: cid,
                         birthdayIso = if (!bday.isNullOrBlank()) bday else current.birthdayIso,
                         phone = if (current.phone.isBlank()) phone else current.phone,
                         email = if (current.email.isBlank()) email else current.email,
-                        photoBase64 = if (photoBase64.isNotBlank()) photoBase64 else current.photoBase64
+                        photoBase64 = finalPhoto
                     )
                 )
             }
         }
+        ensureDefaultPhotosForAllPersons()
         return importedCount
     }
 
