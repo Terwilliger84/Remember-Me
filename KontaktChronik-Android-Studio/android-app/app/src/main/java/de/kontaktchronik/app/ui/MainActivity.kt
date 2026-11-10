@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,21 +24,27 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,22 +65,218 @@ import org.json.JSONObject
 import java.io.File
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private var isLightMode by mutableStateOf(false)
+// "warm" (Standard: Warm & Persönlich), "cozy-dark", "xmas" (Weihnachts-Modus), "classic"
+private var appThemeMode by mutableStateOf("warm")
+private val isLightMode: Boolean get() = appThemeMode == "warm"
 
-private val BgSlate: Color get() = if (isLightMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
-private val CardSlate: Color get() = if (isLightMode) Color(0xFFFFFFFF) else Color(0xFF1E293B)
-private val BorderSlate: Color get() = if (isLightMode) Color(0xFFCBD5E1) else Color(0xFF334155)
-private val BtnBg: Color get() = if (isLightMode) Color(0xFFE2E8F0) else Color(0xFF334155)
-private val RootNodeBg: Color get() = if (isLightMode) Color(0xFFE0F2FE) else Color(0xFF1E3A5F)
-private val TextPrimary: Color get() = if (isLightMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-private val TextSecondary: Color get() = if (isLightMode) Color(0xFF334155) else Color(0xFFCBD5E1)
-private val TextMuted: Color get() = if (isLightMode) Color(0xFF64748B) else Color(0xFF94A3B8)
-private val AccentSteel: Color get() = if (isLightMode) Color(0xFF0284C7) else Color(0xFF38BDF8)
-private val WarnAmber: Color get() = if (isLightMode) Color(0xFFD97706) else Color(0xFFF59E0B)
-private val PartnerRose: Color get() = if (isLightMode) Color(0xFFE11D48) else Color(0xFFF43F5E)
-private val TreeGreen: Color get() = if (isLightMode) Color(0xFF059669) else Color(0xFF10B981)
+private val BgSlate: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFFFDF8F2)
+        "cozy-dark" -> Color(0xFF1C1917)
+        "xmas" -> Color(0xFF0F241D)
+        else -> Color(0xFF0F172A)
+    }
+
+private val CardSlate: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFFFFFFFF)
+        "cozy-dark" -> Color(0xFF292524)
+        "xmas" -> Color(0xFF163329)
+        else -> Color(0xFF1E293B)
+    }
+
+private val BorderSlate: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFFEADBC8)
+        "cozy-dark" -> Color(0xFF44403C)
+        "xmas" -> Color(0xFF265444)
+        else -> Color(0xFF334155)
+    }
+
+private val BtnBg: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFFF5EBE0)
+        "cozy-dark" -> Color(0xFF35302D)
+        "xmas" -> Color(0xFF20483A)
+        else -> Color(0xFF334155)
+    }
+
+private val RootNodeBg: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFFFEF3C7)
+        "cozy-dark" -> Color(0xFF452719)
+        "xmas" -> Color(0xFF3F1D24)
+        else -> Color(0xFF1E3A5F)
+    }
+
+private val TextPrimary: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFF2C1E16)
+        "cozy-dark" -> Color(0xFFFAF5F0)
+        "xmas" -> Color(0xFFFEFCE8)
+        else -> Color(0xFFF8FAFC)
+    }
+
+private val TextSecondary: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFF6B5344)
+        "cozy-dark" -> Color(0xFFD6CEC2)
+        "xmas" -> Color(0xFFD1FAE5)
+        else -> Color(0xFFCBD5E1)
+    }
+
+private val TextMuted: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFF9C8270)
+        "cozy-dark" -> Color(0xFFA89F91)
+        "xmas" -> Color(0xFF86EFAC)
+        else -> Color(0xFF94A3B8)
+    }
+
+private val AccentSteel: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFFD97706)
+        "cozy-dark" -> Color(0xFFF59E0B)
+        "xmas" -> Color(0xFFFBBF24)
+        else -> Color(0xFF38BDF8)
+    }
+
+private val WarnAmber: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFFDC2626)
+        "cozy-dark" -> Color(0xFFFB923C)
+        "xmas" -> Color(0xFFF87171)
+        else -> Color(0xFFF59E0B)
+    }
+
+private val PartnerRose: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFFE11D48)
+        "cozy-dark" -> Color(0xFFFB7185)
+        "xmas" -> Color(0xFFFB7185)
+        else -> Color(0xFFF43F5E)
+    }
+
+private val TreeGreen: Color
+    get() = when (appThemeMode) {
+        "warm" -> Color(0xFF15803D)
+        "cozy-dark" -> Color(0xFF34D399)
+        "xmas" -> Color(0xFF34D399)
+        else -> Color(0xFF10B981)
+    }
+
+fun getThemeIcon(mode: String): String = when (mode) {
+    "warm" -> "☀️"
+    "cozy-dark" -> "🌙"
+    "xmas" -> "🎄"
+    else -> "💎"
+}
+
+fun nextThemeMode(mode: String): String = when (mode) {
+    "warm" -> "cozy-dark"
+    "cozy-dark" -> "xmas"
+    "xmas" -> "classic"
+    else -> "warm"
+}
+
+private val AVATAR_GRADIENTS = listOf(
+    listOf(Color(0xFFEA580C), Color(0xFFD97706)),
+    listOf(Color(0xFFE11D48), Color(0xFFDB2777)),
+    listOf(Color(0xFF059669), Color(0xFF15803D)),
+    listOf(Color(0xFF2563EB), Color(0xFF4F46E5)),
+    listOf(Color(0xFF9333EA), Color(0xFF7C3AED)),
+    listOf(Color(0xFF0D9488), Color(0xFF0284C7)),
+    listOf(Color(0xFFB45309), Color(0xFFA16207))
+)
+
+fun getPersonInitials(name: String): String {
+    val clean = stripNameRoleSuffix(name)
+    val parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (parts.isEmpty()) return "?"
+    if (parts.size == 1) return parts[0].take(2).uppercase()
+    return "${parts.first().first()}${parts.last().first()}".uppercase()
+}
+
+@Composable
+fun PersonAvatar(name: String, sizeDp: Int = 36) {
+    val initials = remember(name) { getPersonInitials(name) }
+    val gradColors = remember(name) {
+        val hash = abs(name.fold(0) { acc, ch -> ch.code + ((acc shl 5) - acc) })
+        AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.size]
+    }
+    Box(
+        modifier = Modifier
+            .size(sizeDp.dp)
+            .clip(CircleShape)
+            .background(Brush.linearGradient(gradColors)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = initials,
+            color = Color.White,
+            fontSize = (sizeDp * 0.36f).sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun BirthdayCountdownPill(birthdayIso: String?, isPastMode: Boolean) {
+    if (birthdayIso.isNullOrBlank()) return
+    val today = LocalDate.now()
+    if (isPastMode) {
+        val neg = ContactResolver.negativeDaysSinceLastBirthday(birthdayIso, today) ?: return
+        val label = when (neg) {
+            0L -> "🎂 Heute!"
+            -1L -> "vor 1 Tag"
+            else -> "vor ${abs(neg)}T"
+        }
+        Box(
+            modifier = Modifier
+                .background(BtnBg, RoundedCornerShape(999.dp))
+                .border(1.dp, BorderSlate, RoundedCornerShape(999.dp))
+                .padding(horizontal = 7.dp, vertical = 2.dp)
+        ) {
+            Text(label, color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+        return
+    }
+    val days = ContactResolver.daysUntilNextBirthday(birthdayIso, today) ?: return
+    val isToday = days == 0L
+    val isSoon = days in 1L..14L
+    val label = when {
+        days == 0L -> "🎂 Heute!"
+        days == 1L -> "🎂 Morgen!"
+        days <= 30L -> "🎂 in $days Tagen"
+        else -> "in ${days}T"
+    }
+    val bgColor = when {
+        isToday -> WarnAmber
+        isSoon -> AccentSteel.copy(alpha = 0.16f)
+        else -> BtnBg
+    }
+    val borderColor = when {
+        isToday -> WarnAmber
+        isSoon -> AccentSteel
+        else -> BorderSlate
+    }
+    val textColor = when {
+        isToday -> Color.White
+        isSoon -> AccentSteel
+        else -> TextSecondary
+    }
+    Box(
+        modifier = Modifier
+            .background(bgColor, RoundedCornerShape(999.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(999.dp))
+            .padding(horizontal = 7.dp, vertical = 2.dp)
+    ) {
+        Text(label, color = textColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+    }
+}
 
 val RELATION_PRESETS = listOf(
     "Kind von",
@@ -606,7 +809,7 @@ fun KontaktChronikApp(
         mutableStateOf(rawSet.mapNotNull { it.toLongOrNull() }.toSet())
     }
     val visiblePersons = remember(persons, hiddenPersonIds) {
-        persons.filter { !hiddenPersonIds.contains(it.id) }
+        persons.filter { !it.isHidden && !hiddenPersonIds.contains(it.id) }
     }
     var selectedTreeRootId by remember { mutableStateOf<Long?>(null) }
     var popupPerson by remember { mutableStateOf<PersonEntity?>(null) }
@@ -617,15 +820,30 @@ fun KontaktChronikApp(
     var syncStatus by remember { mutableStateOf("") }
     var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
     var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val clipboardManager = LocalClipboardManager.current
 
     fun setPersonHidden(personId: Long, hidden: Boolean) {
         val next = if (hidden) hiddenPersonIds + personId else hiddenPersonIds - personId
         hiddenPersonIds = next
         appPrefs.edit().putStringSet("hidden_person_ids", next.map { it.toString() }.toSet()).apply()
+        val p = persons.find { it.id == personId }
+        if (p != null && p.isHidden != hidden) {
+            scope.launch { db.updatePerson(p.copy(isHidden = hidden)) }
+        }
+    }
+
+    fun applyThemeMode(mode: String) {
+        appThemeMode = mode
+        appPrefs.edit().putString("theme_mode", mode).apply()
     }
 
     LaunchedEffect(Unit) {
-        isLightMode = appPrefs.getBoolean("light_mode", false)
+        val savedTheme = appPrefs.getString("theme_mode", null)
+        appThemeMode = if (savedTheme != null) {
+            savedTheme
+        } else {
+            "warm"
+        }
     }
 
     LaunchedEffect(persons, initialPopupPersonId) {
@@ -691,14 +909,17 @@ fun KontaktChronikApp(
             .background(BgSlate)
             .padding(12.dp)
     ) {
-        // Kompakte Kopfzeile mit Optionen oben rechts
+        // Kompakte Kopfzeile mit Schnell-Design-Umschalter & Optionen oben rechts
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.14", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Remember Me v1.0.15", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                CompactButton(getThemeIcon(appThemeMode)) {
+                    applyThemeMode(nextThemeMode(appThemeMode))
+                }
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
                         context,
@@ -729,45 +950,40 @@ fun KontaktChronikApp(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Navigation inkl. Alle Kontakte, Stammbaum, Erinnerung & Wichteln (2-zeiliges Raster)
-        val visibleTabs = buildList {
-            add("Übersicht")
-            add("Alle Kontakte")
-            if (treeEnabled) add("Stammbaum")
-            add("Timer")
-            add("Erinnerung")
-            if (wichtelEnabled) add("🎄 Wichteln")
+        // Kompakte Icon-Navigation (Übersicht, Kontakte, Stammbaum, Timer, Erinnerung, Wichteln)
+        val navTabItems = buildList {
+            add(Triple("Übersicht", "🎂", "Übersicht"))
+            add(Triple("Alle Kontakte", "👥", "Kontakte"))
+            if (treeEnabled) add(Triple("Stammbaum", "🌳", "Stammbaum"))
+            add(Triple("Timer", "⏳", "Timer"))
+            add(Triple("Erinnerung", "🔔", "Erinnerung"))
+            if (wichtelEnabled) add(Triple("🎄 Wichteln", "🎄", "Wichteln"))
         }
-        Column(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            visibleTabs.chunked(3).forEach { rowTabs ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+            navTabItems.forEach { (tabId, iconStr, shortLabel) ->
+                val active = activeTab == tabId
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(if (active) BtnBg else CardSlate, RoundedCornerShape(10.dp))
+                        .border(if (active) 1.5.dp else 1.dp, if (active) AccentSteel else BorderSlate, RoundedCornerShape(10.dp))
+                        .clickable { activeTab = tabId }
+                        .padding(vertical = 6.dp, horizontal = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    rowTabs.forEach { tab ->
-                        val active = activeTab == tab
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(if (active) BtnBg else CardSlate, RoundedCornerShape(6.dp))
-                                .border(1.dp, if (active) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
-                                .clickable { activeTab = tab }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                tab,
-                                color = if (active) TextPrimary else TextMuted,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
+                    Text(iconStr, fontSize = 14.sp)
+                    Text(
+                        shortLabel,
+                        color = if (active) TextPrimary else TextMuted,
+                        fontSize = 9.5.sp,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
@@ -959,9 +1175,12 @@ fun KontaktChronikApp(
 
         when (activeTab) {
             "Alle Kontakte" -> {
+                val hiddenCount = remember(persons, hiddenPersonIds) {
+                    persons.count { it.isHidden || hiddenPersonIds.contains(it.id) }
+                }
                 val baseList = remember(persons, hiddenPersonIds, allContactsFilter) {
                     if (allContactsFilter == "hidden") {
-                        persons.filter { hiddenPersonIds.contains(it.id) }
+                        persons.filter { it.isHidden || hiddenPersonIds.contains(it.id) }
                     } else {
                         persons
                     }
@@ -1009,8 +1228,8 @@ fun KontaktChronikApp(
                                 allContactsFilter = "all"
                             }
                             CompactButton(
-                                if (allContactsFilter == "hidden") "✓ Ausgeblendet (${hiddenPersonIds.size})"
-                                else "Ausgeblendet (${hiddenPersonIds.size})"
+                                if (allContactsFilter == "hidden") "✓ Ausgeblendet ($hiddenCount)"
+                                else "Ausgeblendet ($hiddenCount)"
                             ) {
                                 allContactsFilter = "hidden"
                             }
@@ -1022,20 +1241,22 @@ fun KontaktChronikApp(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(sortedAll) { person ->
-                            val isHidden = hiddenPersonIds.contains(person.id)
+                            val isHidden = person.isHidden || hiddenPersonIds.contains(person.id)
                             val bdayLine = formatCompactBirthdayLine(person.birthdayIso)
                             val subText = bdayLine ?: if (person.phone.isNotBlank()) "Ohne Datum • ${person.phone}" else "Ohne Datumsangabe"
 
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(CardSlate, RoundedCornerShape(8.dp))
-                                    .border(1.dp, if (isHidden) WarnAmber else BorderSlate, RoundedCornerShape(8.dp))
+                                    .background(CardSlate, RoundedCornerShape(10.dp))
+                                    .border(1.dp, if (isHidden) WarnAmber else BorderSlate, RoundedCornerShape(10.dp))
                                     .clickable { detailPerson = person }
                                     .padding(horizontal = 12.dp, vertical = 9.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                PersonAvatar(name = person.name)
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
@@ -1052,6 +1273,7 @@ fun KontaktChronikApp(
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.SemiBold
                                         )
+                                        BirthdayCountdownPill(birthdayIso = person.birthdayIso, isPastMode = false)
                                         if (isHidden) {
                                             Text(
                                                 text = "Ausgeblendet",
@@ -1116,12 +1338,14 @@ fun KontaktChronikApp(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(CardSlate, RoundedCornerShape(8.dp))
-                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                .background(CardSlate, RoundedCornerShape(10.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
                                 .padding(10.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            PersonAvatar(name = p.name)
+                            Spacer(modifier = Modifier.width(10.dp))
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
@@ -1193,12 +1417,14 @@ fun KontaktChronikApp(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(CardSlate, RoundedCornerShape(8.dp))
-                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                .background(CardSlate, RoundedCornerShape(10.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
                                 .padding(10.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            PersonAvatar(name = p?.name ?: "?")
+                            Spacer(modifier = Modifier.width(10.dp))
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
@@ -1232,23 +1458,31 @@ fun KontaktChronikApp(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(CardSlate, RoundedCornerShape(8.dp))
-                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                .background(CardSlate, RoundedCornerShape(10.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
                                 .padding(10.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            PersonAvatar(name = p.name)
+                            Spacer(modifier = Modifier.width(10.dp))
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { detailPerson = p }
                             ) {
-                                Text(
-                                    "Geburtstag: ${p.name}",
-                                    color = TextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "🎂 ${p.name}",
+                                        color = TextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    BirthdayCountdownPill(birthdayIso = p.birthdayIso, isPastMode = false)
+                                }
                                 Text(
                                     formatCompactBirthdayLine(p.birthdayIso).orEmpty(),
                                     color = TextSecondary,
@@ -1370,25 +1604,33 @@ fun KontaktChronikApp(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(CardSlate, RoundedCornerShape(8.dp))
-                                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                    .background(CardSlate, RoundedCornerShape(10.dp))
+                                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
                                     .clickable { detailPerson = person }
                                     .padding(horizontal = 12.dp, vertical = 9.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                PersonAvatar(name = person.name)
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
                                         .padding(end = 8.dp),
                                     verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
-                                    Text(
-                                        text = person.name,
-                                        color = TextPrimary,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = person.name,
+                                            color = TextPrimary,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        BirthdayCountdownPill(birthdayIso = person.birthdayIso, isPastMode = showPastDates)
+                                    }
                                     if (!bdayLine.isNullOrBlank()) {
                                         Text(
                                             text = bdayLine,
@@ -1471,23 +1713,82 @@ fun KontaktChronikApp(
     // Dialog: Optionen (oben rechts über ⚙)
     if (showOptionsDialog) {
         var backupEmail by remember { mutableStateOf(appPrefs.getString("backup_email", "").orEmpty()) }
+        var showRestoreInput by remember { mutableStateOf(false) }
+        var restoreJsonText by remember { mutableStateOf("") }
+
+        fun buildBackupJsonObject(): JSONObject {
+            val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
+            return JSONObject().apply {
+                put("app", "Remember Me")
+                put("version", "1.0.15")
+                put("createdAt", dateStr)
+                put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
+                put("wichtelHistory", JSONArray(serializeWichtelHistoryJson(wichtelHistory)))
+                val personsArr = JSONArray()
+                persons.forEach { p ->
+                    personsArr.put(
+                        JSONObject().apply {
+                            put("id", p.id)
+                            put("name", p.name)
+                            put("birthdayIso", p.birthdayIso ?: "")
+                            put("hasNoOwnPhone", p.hasNoOwnPhone)
+                            put("isHidden", p.isHidden || hiddenPersonIds.contains(p.id))
+                            put("phone", p.phone)
+                            put("email", p.email)
+                            put("notes", p.notes)
+                            put("extraInfos", appPrefs.getString("extra_infos_${p.id}", "").orEmpty())
+                            put("timerEnabled", p.timerEnabled)
+                            put("timerInterval", p.timerInterval)
+                            put("timerUnit", p.timerUnit)
+                        }
+                    )
+                }
+                put("persons", personsArr)
+                val relArr = JSONArray()
+                relations.forEach { r ->
+                    relArr.put(
+                        JSONObject().apply {
+                            put("id", r.id)
+                            put("fromPersonId", r.fromPersonId)
+                            put("toPersonId", r.toPersonId)
+                            put("relationLabel", r.relationLabel)
+                        }
+                    )
+                }
+                put("relations", relArr)
+                val evArr = JSONArray()
+                specialEvents.forEach { ev ->
+                    evArr.put(
+                        JSONObject().apply {
+                            put("id", ev.id)
+                            put("personId", ev.personId)
+                            put("title", ev.title)
+                            put("dateIso", ev.dateIso)
+                        }
+                    )
+                }
+                put("specialEvents", evArr)
+            }
+        }
+
         Dialog(onDismissRequest = { showOptionsDialog = false }) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(CardSlate, RoundedCornerShape(10.dp))
-                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                    .padding(14.dp),
+                    .background(CardSlate, RoundedCornerShape(12.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Optionen", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("⚙ Optionen & Design", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Stammbaum", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("🌳 Stammbaum", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         CompactButton(if (treeEnabled) "✓ Aktiviert" else "Aktiviert") {
                             treeEnabled = true
@@ -1501,7 +1802,7 @@ fun KontaktChronikApp(
                     }
                 }
 
-                Divider(color = BorderSlate)
+                HorizontalDivider(color = BorderSlate)
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1522,29 +1823,39 @@ fun KontaktChronikApp(
                     }
                 }
 
-                Divider(color = BorderSlate)
+                HorizontalDivider(color = BorderSlate)
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Darstellung", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        CompactButton(if (!isLightMode) "✓ 🌙 Dunkel" else "🌙 Dunkel") {
-                            isLightMode = false
-                            appPrefs.edit().putBoolean("light_mode", false).apply()
+                Text("🎨 Design-Theme (Warm / Cozy / Festlich)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            CompactButton(if (appThemeMode == "warm") "✓ ☀️ Warm & Hell" else "☀️ Warm & Hell") {
+                                applyThemeMode("warm")
+                            }
                         }
-                        CompactButton(if (isLightMode) "✓ ☀️ Hell" else "☀️ Hell") {
-                            isLightMode = true
-                            appPrefs.edit().putBoolean("light_mode", true).apply()
+                        Box(modifier = Modifier.weight(1f)) {
+                            CompactButton(if (appThemeMode == "cozy-dark") "✓ 🌙 Cozy-Dark" else "🌙 Cozy-Dark") {
+                                applyThemeMode("cozy-dark")
+                            }
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            CompactButton(if (appThemeMode == "xmas") "✓ 🎄 Weihnachten" else "🎄 Weihnachten") {
+                                applyThemeMode("xmas")
+                            }
+                        }
+                        Box(modifier = Modifier.weight(1f)) {
+                            CompactButton(if (appThemeMode == "classic") "✓ 💎 Klassisch" else "💎 Klassisch") {
+                                applyThemeMode("classic")
+                            }
                         }
                     }
                 }
 
-                Divider(color = BorderSlate)
+                HorizontalDivider(color = BorderSlate)
 
-                Text("Sicherung", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("💾 Vollständiges Backup & Restore (.json)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
                     value = backupEmail,
                     onValueChange = {
@@ -1554,89 +1865,103 @@ fun KontaktChronikApp(
                     label = { Text("Empfänger-Mail (optional)") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                CompactButton("📧 Sicherung per Mail senden") {
-                    try {
-                        val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
-                        val rootJson = JSONObject().apply {
-                            put("app", "Remember Me")
-                            put("version", "1.0.10")
-                            put("createdAt", dateStr)
-                            put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
-                            val personsArr = JSONArray()
-                            persons.forEach { p ->
-                                personsArr.put(
-                                    JSONObject().apply {
-                                        put("id", p.id)
-                                        put("name", p.name)
-                                        put("birthdayIso", p.birthdayIso ?: "")
-                                        put("hasNoOwnPhone", p.hasNoOwnPhone)
-                                        put("isHidden", hiddenPersonIds.contains(p.id))
-                                        put("phone", p.phone)
-                                        put("email", p.email)
-                                        put("notes", p.notes)
-                                        put("extraInfos", appPrefs.getString("extra_infos_${p.id}", "").orEmpty())
-                                        put("timerEnabled", p.timerEnabled)
-                                        put("timerInterval", p.timerInterval)
-                                        put("timerUnit", p.timerUnit)
-                                    }
-                                )
-                            }
-                            put("persons", personsArr)
-                            val relArr = JSONArray()
-                            relations.forEach { r ->
-                                relArr.put(
-                                    JSONObject().apply {
-                                        put("id", r.id)
-                                        put("fromPersonId", r.fromPersonId)
-                                        put("toPersonId", r.toPersonId)
-                                        put("relationLabel", r.relationLabel)
-                                    }
-                                )
-                            }
-                            put("relations", relArr)
-                            val evArr = JSONArray()
-                            specialEvents.forEach { ev ->
-                                evArr.put(
-                                    JSONObject().apply {
-                                        put("id", ev.id)
-                                        put("personId", ev.personId)
-                                        put("title", ev.title)
-                                        put("dateIso", ev.dateIso)
-                                    }
-                                )
-                            }
-                            put("specialEvents", evArr)
-                        }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    CompactButton("📧 Backup senden") {
+                        try {
+                            val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
+                            val rootJson = buildBackupJsonObject()
+                            val fileName = "Remember-Me-Sicherung-$dateStr.json"
+                            val backupFile = File(context.cacheDir, fileName)
+                            backupFile.writeText(rootJson.toString(2))
 
-                        val fileName = "Remember-Me-Sicherung-$dateStr.json"
-                        val backupFile = File(context.cacheDir, fileName)
-                        backupFile.writeText(rootJson.toString(2))
-
-                        val uri = FileProvider.getUriForFile(
-                            context,
-                            "${context.packageName}.fileprovider",
-                            backupFile
-                        )
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "application/json"
-                            if (backupEmail.isNotBlank()) {
-                                putExtra(Intent.EXTRA_EMAIL, arrayOf(backupEmail.trim()))
-                            }
-                            putExtra(Intent.EXTRA_SUBJECT, "Remember Me – Sicherung vom $dateStr")
-                            putExtra(
-                                Intent.EXTRA_TEXT,
-                                "Anbei die Remember Me Sicherungsdatei ($fileName) vom $dateStr (${persons.size} Kontakte, ${relations.size} Beziehungen)."
+                            val uri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                backupFile
                             )
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/json"
+                                if (backupEmail.isNotBlank()) {
+                                    putExtra(Intent.EXTRA_EMAIL, arrayOf(backupEmail.trim()))
+                                }
+                                putExtra(Intent.EXTRA_SUBJECT, "Remember Me – Sicherung vom $dateStr")
+                                putExtra(
+                                    Intent.EXTRA_TEXT,
+                                    "Anbei die Remember Me Sicherungsdatei ($fileName) vom $dateStr (${persons.size} Kontakte, ${relations.size} Beziehungen, ${wichtelGroups.size} Wichtelrunden, ${wichtelHistory.size} Historie)."
+                                )
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "Sicherung per Mail senden"))
+                        } catch (e: Exception) {
+                            syncStatus = "Fehler beim Erstellen der Sicherung"
                         }
-                        context.startActivity(Intent.createChooser(sendIntent, "Sicherung per Mail senden"))
-                    } catch (e: Exception) {
-                        syncStatus = "Fehler beim Erstellen der Sicherung"
+                    }
+                    CompactButton("📋 Kopieren") {
+                        runCatching {
+                            clipboardManager.setText(AnnotatedString(buildBackupJsonObject().toString(2)))
+                            syncStatus = "Backup in Zwischenablage kopiert"
+                        }
+                    }
+                    CompactButton("📂 Laden") {
+                        showRestoreInput = !showRestoreInput
                     }
                 }
 
-                Divider(color = BorderSlate)
+                if (showRestoreInput) {
+                    OutlinedTextField(
+                        value = restoreJsonText,
+                        onValueChange = { restoreJsonText = it },
+                        label = { Text("JSON-Backup hier einfügen") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    CompactButton("📥 Sicherung jetzt wiederherstellen") {
+                        scope.launch {
+                            runCatching {
+                                val parsed = JSONObject(restoreJsonText.trim())
+                                val stateObj = parsed.optJSONObject("state") ?: parsed
+                                val wgArr = stateObj.optJSONArray("wichtelGroups")
+                                if (wgArr != null) {
+                                    saveWichtelGroups(parseWichtelGroupsJson(wgArr.toString()))
+                                }
+                                val whArr = stateObj.optJSONArray("wichtelHistory")
+                                if (whArr != null) {
+                                    saveWichtelHistory(parseWichtelHistoryJson(whArr.toString()))
+                                }
+                                val pArr = stateObj.optJSONArray("persons")
+                                if (pArr != null) {
+                                    for (i in 0 until pArr.length()) {
+                                        val po = pArr.getJSONObject(i)
+                                        val isHid = po.optBoolean("isHidden", false)
+                                        val newId = db.upsertPerson(
+                                            PersonEntity(
+                                                name = po.optString("name", "Kontakt"),
+                                                birthdayIso = po.optString("birthdayIso", "").ifBlank { null },
+                                                hasNoOwnPhone = po.optBoolean("hasNoOwnPhone", false),
+                                                phone = po.optString("phone", ""),
+                                                email = po.optString("email", ""),
+                                                notes = po.optString("notes", ""),
+                                                timerEnabled = po.optBoolean("timerEnabled", true),
+                                                timerInterval = po.optInt("timerInterval", 14),
+                                                timerUnit = po.optString("timerUnit", TimerUnit.DAYS.name),
+                                                isHidden = isHid
+                                            )
+                                        )
+                                        if (isHid) setPersonHidden(newId, true)
+                                    }
+                                }
+                                showRestoreInput = false
+                                restoreJsonText = ""
+                                showOptionsDialog = false
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = BorderSlate)
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1743,7 +2068,7 @@ fun KontaktChronikApp(
                 }
 
                 if (treeEnabled && persons.isNotEmpty()) {
-                    Divider(color = BorderSlate)
+                    HorizontalDivider(color = BorderSlate)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1897,7 +2222,7 @@ fun KontaktChronikApp(
         var phoneVal by remember(dp) { mutableStateOf(dp.phone) }
         var noPhoneVal by remember(dp) { mutableStateOf(dp.hasNoOwnPhone) }
         var saveInDeviceVal by remember(dp) { mutableStateOf(true) }
-        var isHiddenVal by remember(dp, hiddenPersonIds) { mutableStateOf(hiddenPersonIds.contains(dp.id)) }
+        var isHiddenVal by remember(dp, hiddenPersonIds) { mutableStateOf(dp.isHidden || hiddenPersonIds.contains(dp.id)) }
         var emailVal by remember(dp) { mutableStateOf(dp.email) }
         var notesVal by remember(dp) { mutableStateOf(dp.notes) }
         var extraInfos by remember(dp) {
@@ -2033,7 +2358,7 @@ fun KontaktChronikApp(
 
                     // Abschnitt: Beziehungen für Stammbaum (standardmäßig eingeklappt)
                     if (treeEnabled) {
-                        Divider(color = BorderSlate)
+                        HorizontalDivider(color = BorderSlate)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2147,7 +2472,7 @@ fun KontaktChronikApp(
                     }
 
                     // Abschnitt: Erinnerungen
-                    Divider(color = BorderSlate)
+                    HorizontalDivider(color = BorderSlate)
                     Text("Erinnerungen:", color = AccentSteel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     currentReminders.forEach { ev ->
                         Row(
@@ -2276,7 +2601,7 @@ fun KontaktChronikApp(
                     }
                 }
 
-                Divider(color = BorderSlate)
+                HorizontalDivider(color = BorderSlate)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     CompactButton("Löschen") {
                         pendingConfirmMessage = "Kontakt „${dp.name}\" wirklich unwiderruflich löschen?"
@@ -2297,7 +2622,8 @@ fun KontaktChronikApp(
                                     phone = phoneVal.trim(),
                                     hasNoOwnPhone = noPhoneVal,
                                     email = emailVal.trim(),
-                                    notes = notesVal.trim()
+                                    notes = notesVal.trim(),
+                                    isHidden = isHiddenVal
                                 )
                                 if (saveInDeviceVal) {
                                     val hasWrite = ContextCompat.checkSelfPermission(
@@ -2672,6 +2998,8 @@ fun FamilyTreeScreen(
 
     var dropdownExpanded by remember { mutableStateOf(false) }
     var treeZoom by remember { mutableStateOf(1.0f) }
+    var treePanX by remember { mutableStateOf(0f) }
+    var treePanY by remember { mutableStateOf(0f) }
     val zoomPct = (treeZoom * 100f).roundToInt()
 
     Column(
@@ -2750,7 +3078,7 @@ fun FamilyTreeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "🔍 Zoom (2 Finger / Buttons):",
+                    text = "🔍 Zoom & ✋ Ziehen:",
                     color = TextMuted,
                     fontSize = 11.sp
                 )
@@ -2763,6 +3091,8 @@ fun FamilyTreeScreen(
                     }
                     CompactButton("$zoomPct%") {
                         treeZoom = 1.0f
+                        treePanX = 0f
+                        treePanY = 0f
                     }
                     CompactButton("➕") {
                         treeZoom = (treeZoom + 0.15f).coerceIn(0.35f, 2.2f)
@@ -2771,37 +3101,53 @@ fun FamilyTreeScreen(
                         val widthScale = if (maxRowCount > 2) 2.9f / maxRowCount else 1.0f
                         val heightScale = if (levelCount > 4) 4.0f / levelCount else 1.0f
                         treeZoom = minOf(1.0f, widthScale, heightScale).coerceIn(0.4f, 1.0f)
+                        treePanX = 0f
+                        treePanY = 0f
                     }
                 }
             }
         }
 
-        // Zoombarer & scrollbarer visueller Stammbaum (2-Finger Pinch-to-Zoom + 1-Finger Scroll)
+        // Zoombarer & frei verschiebbarer (2D-Pan) visueller Stammbaum
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 170.dp)
+                .heightIn(min = 190.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(CardSlate, RoundedCornerShape(10.dp))
                 .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         do {
                             val event = awaitPointerEvent()
-                            if (event.changes.count { it.pressed } >= 2) {
+                            val pressedCount = event.changes.count { it.pressed }
+                            if (pressedCount >= 2) {
                                 val zoomChange = event.calculateZoom()
-                                if (zoomChange != 1f) {
+                                val panChange = event.calculatePan()
+                                if (zoomChange != 1f || panChange != Offset.Zero) {
                                     treeZoom = (treeZoom * zoomChange).coerceIn(0.35f, 2.2f)
+                                    treePanX += panChange.x
+                                    treePanY += panChange.y
                                     event.changes.forEach { it.consume() }
+                                }
+                            } else if (pressedCount == 1) {
+                                val panChange = event.calculatePan()
+                                if (panChange != Offset.Zero) {
+                                    treePanX += panChange.x
+                                    treePanY += panChange.y
                                 }
                             }
                         } while (event.changes.any { it.pressed })
                     }
                 }
-                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 8.dp, vertical = 12.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
+                modifier = Modifier.graphicsLayer(
+                    translationX = treePanX,
+                    translationY = treePanY
+                ),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -2879,7 +3225,7 @@ fun FamilyTreeScreen(
                                 val coupled = arePartnersOrCoParents(member.id, nextMember.id)
                                 if (coupled) {
                                     Text(
-                                        text = "──",
+                                        text = "─❤️─",
                                         color = PartnerRose,
                                         fontSize = connFontSize,
                                         fontWeight = FontWeight.Bold
@@ -3162,6 +3508,7 @@ fun WichtelScreen(
     var secretPeekPair by remember { mutableStateOf<Triple<WichtelGroup, WichtelParticipant, WichtelParticipant>?>(null) }
     var anonQuestionTarget by remember { mutableStateOf<Pair<WichtelGroup, WichtelParticipant>?>(null) }
     var showImportHistoryDialog by remember { mutableStateOf(false) }
+    var showDecodeSecretDialog by remember { mutableStateOf(false) }
 
     val activeGroup = groups.find { it.id == selectedGroupId } ?: groups.firstOrNull()
 
@@ -3349,50 +3696,58 @@ fun WichtelScreen(
         return partner?.id == idB
     }
 
+    fun solveMatchingBacktrack(
+        parts: List<WichtelParticipant>,
+        excludeCouples: Boolean,
+        excludeHistory: Boolean
+    ): Map<Long, Long>? {
+        val n = parts.size
+        if (n < 2) return null
+        val givers = parts.shuffled()
+        val usedReceivers = BooleanArray(n)
+        val assignment = mutableMapOf<Long, Long>()
+
+        fun isAllowed(giver: WichtelParticipant, receiver: WichtelParticipant): Boolean {
+            if (giver.id == receiver.id) return false
+            if (excludeCouples && n > 2 && areCouplesInTree(giver.personId, receiver.personId)) return false
+            if (excludeHistory && n > 2) {
+                val sameAsLast = giver.lastYearTargetId != null && giver.lastYearTargetId == receiver.id
+                val sameInHistory = hasDrawnTargetInHistory(giver, receiver)
+                if (sameAsLast || sameInHistory) return false
+            }
+            return true
+        }
+
+        fun backtrack(idx: Int): Boolean {
+            if (idx == n) return true
+            val giver = givers[idx]
+            val candidateIndices = (0 until n).shuffled()
+            for (rIdx in candidateIndices) {
+                if (usedReceivers[rIdx]) continue
+                val receiver = parts[rIdx]
+                if (!isAllowed(giver, receiver)) continue
+                usedReceivers[rIdx] = true
+                assignment[giver.id] = receiver.id
+                if (backtrack(idx + 1)) return true
+                usedReceivers[rIdx] = false
+                assignment.remove(giver.id)
+            }
+            return false
+        }
+
+        return if (backtrack(0)) assignment else null
+    }
+
     fun rollGroup(g: WichtelGroup) {
         val parts = g.participants.map { p ->
             if (p.drawnTargetId != null) p.copy(lastYearTargetId = p.drawnTargetId) else p
         }
         if (parts.size < 2) return
-        var chosenMap: Map<Long, Long>? = null
-        for (attempt in 0 until 260) {
-            val shuffled = parts.shuffled()
-            var valid = true
-            val map = mutableMapOf<Long, Long>()
-            for (i in shuffled.indices) {
-                val giver = shuffled[i]
-                val receiver = shuffled[(i + 1) % shuffled.size]
-                if (giver.id == receiver.id) {
-                    valid = false
-                    break
-                }
-                if (g.excludeCouples && parts.size > 2 && areCouplesInTree(giver.personId, receiver.personId)) {
-                    valid = false
-                    break
-                }
-                if (g.excludeLastYear && parts.size > 2 && attempt < 200) {
-                    val sameAsLast = giver.lastYearTargetId != null && giver.lastYearTargetId == receiver.id
-                    val sameInHistory = hasDrawnTargetInHistory(giver, receiver)
-                    if (sameAsLast || sameInHistory) {
-                        valid = false
-                        break
-                    }
-                }
-                map[giver.id] = receiver.id
-            }
-            if (valid) {
-                chosenMap = map
-                break
-            }
-        }
-        if (chosenMap == null) {
-            val shuffled = parts.shuffled()
-            val fallback = mutableMapOf<Long, Long>()
-            for (i in shuffled.indices) {
-                fallback[shuffled[i].id] = shuffled[(i + 1) % shuffled.size].id
-            }
-            chosenMap = fallback
-        }
+        // Deterministischer Backtracking-Solver (Stufe 1: Paar-Sperre + Historie -> Stufe 2: Paar-Sperre -> Stufe 3: Derangement)
+        val chosenMap = solveMatchingBacktrack(parts, g.excludeCouples, g.excludeLastYear)
+            ?: solveMatchingBacktrack(parts, g.excludeCouples, false)
+            ?: solveMatchingBacktrack(parts, false, false)
+            ?: return
         val updatedGroup = g.copy(
             isDrawn = true,
             forceRevealed = false,
@@ -3401,6 +3756,43 @@ fun WichtelScreen(
             }
         )
         onSaveGroups(groups.map { if (it.id == g.id) updatedGroup else it })
+    }
+
+    fun encodeBlindCode(g: WichtelGroup, giver: WichtelParticipant, target: WichtelParticipant): String {
+        val allUrls = (listOf(target.wishlistUrl) + target.extraWishUrls).filter { it.isNotBlank() }
+        val payload = JSONObject().apply {
+            put("g", g.groupName)
+            put("a", g.adminName)
+            put("m", g.motto)
+            put("b", g.budget)
+            put("r", formatIsoToDdMmYyyy(g.revealDateIso).ifBlank { "24.12." })
+            put("f", giver.name)
+            put("t", target.name)
+            put("w", target.wishText)
+            put("n", target.noGos)
+            put("d", target.address)
+            val uArr = JSONArray()
+            allUrls.forEach { uArr.put(it) }
+            put("u", uArr)
+        }
+        val b64 = android.util.Base64.encodeToString(
+            payload.toString().toByteArray(Charsets.UTF_8),
+            android.util.Base64.NO_WRAP
+        )
+        return "WICHTEL_SECRET:$b64"
+    }
+
+    fun buildBlindWhatsAppMessage(g: WichtelGroup, giver: WichtelParticipant, target: WichtelParticipant): String {
+        val code = encodeBlindCode(g, giver, target)
+        val revealStr = formatIsoToDdMmYyyy(g.revealDateIso).ifBlank { "Weihnachten" }
+        return buildString {
+            append("🎄🔐 Hallo ${giver.name.substringBefore(" ")}!\n")
+            append("Hier ist dein *verschlüsselter Wichtel-Los-Code* für „${g.groupName}“ (${g.motto}, Budget: ${g.budget}):\n\n")
+            append("$code\n\n")
+            append("🔓 *So öffnest du dein Los geheim in Remember Me (selbst der Admin sieht den Namen hier im Chat nicht!):*\n")
+            append("Kopiere diese Nachricht und tippe in der App unter „🎄 Wichteln“ oben auf *„🔐 Los-Code“*!\n")
+            append("🤫 Geheimhaltung bis $revealStr.")
+        }
     }
 
     fun buildSecretMessage(g: WichtelGroup, giver: WichtelParticipant, target: WichtelParticipant): String {
@@ -3441,6 +3833,10 @@ fun WichtelScreen(
                 }
             }
             Spacer(modifier = Modifier.width(6.dp))
+            CompactButton("🔐 Los-Code") {
+                showDecodeSecretDialog = true
+            }
+            Spacer(modifier = Modifier.width(4.dp))
             CompactButton("+ Neue Runde") {
                 isCreatingGroup = true
                 isReusingHistory = false
@@ -3682,6 +4078,8 @@ fun WichtelScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Top
                         ) {
+                            PersonAvatar(name = part.name, sizeDp = 34)
+                            Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -3793,8 +4191,29 @@ fun WichtelScreen(
                         }
 
                         if (activeGroup.isDrawn && target != null) {
-                            Divider(color = BorderSlate, modifier = Modifier.padding(vertical = 4.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            HorizontalDivider(color = BorderSlate, modifier = Modifier.padding(vertical = 4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                CompactButton("🔐 Blind-Code") {
+                                    val msg = buildBlindWhatsAppMessage(activeGroup, part, target)
+                                    val updatedGroup = activeGroup.copy(
+                                        participants = activeGroup.participants.map {
+                                            if (it.id == part.id) it.copy(notifiedVia = "WhatsApp (Blind-Code)") else it
+                                        }
+                                    )
+                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) updatedGroup else it })
+                                    runCatching {
+                                        val cleanPhone = part.phone.replace(Regex("[^0-9]"), "")
+                                        val url = if (cleanPhone.isNotBlank()) {
+                                            "https://wa.me/$cleanPhone?text=${android.net.Uri.encode(msg)}"
+                                        } else {
+                                            "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+                                        }
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                    }
+                                }
                                 CompactButton("📲 Los per WhatsApp") {
                                     val msg = buildSecretMessage(activeGroup, part, target)
                                     val updatedGroup = activeGroup.copy(
@@ -4260,7 +4679,7 @@ fun WichtelScreen(
                     }
                 }
 
-                Divider(color = BorderSlate)
+                HorizontalDivider(color = BorderSlate)
                 Text("Oder weitere Person frei hinzufügen (optional):", color = TextSecondary, fontSize = 11.5.sp)
                 OutlinedTextField(value = customName, onValueChange = { customName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = customPhone, onValueChange = { customPhone = it }, label = { Text("Telefon (WhatsApp)") }, modifier = Modifier.fillMaxWidth())
@@ -4556,6 +4975,136 @@ fun WichtelScreen(
                     fontSize = 11.sp
                 )
                 CompactButton("Verstanden & schließen") { secretPeekPair = null }
+            }
+        }
+    }
+
+    // Dialog: Verschlüsselten Wichtel-Los-Code (WICHTEL_SECRET:...) entschlüsseln
+    if (showDecodeSecretDialog) {
+        var rawCodeInput by remember { mutableStateOf("") }
+        var decodedObj by remember { mutableStateOf<JSONObject?>(null) }
+        var decodeError by remember { mutableStateOf(false) }
+
+        Dialog(onDismissRequest = { showDecodeSecretDialog = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, AccentSteel, RoundedCornerShape(10.dp))
+                    .padding(14.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "🔐 Geheimen Wichtel-Los-Code entschlüsseln",
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Füge hier die WhatsApp-Nachricht oder den Code (WICHTEL_SECRET:...) ein, den dir der Gruppenadmin geschickt hat. So erfährst nur du allein, wen du beschenkst!",
+                    color = TextSecondary,
+                    fontSize = 11.5.sp
+                )
+                OutlinedTextField(
+                    value = rawCodeInput,
+                    onValueChange = {
+                        rawCodeInput = it
+                        decodeError = false
+                    },
+                    label = { Text("Nachricht mit WICHTEL_SECRET:... einfügen") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (decodeError) {
+                    Text(
+                        "⚠️ Kein gültiger WICHTEL_SECRET-Code gefunden.",
+                        color = WarnAmber,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                decodedObj?.let { d ->
+                    val targetName = d.optString("t", "?")
+                    val giverName = d.optString("f", "")
+                    val groupName = d.optString("g", "Wichtelrunde")
+                    val motto = d.optString("m", "")
+                    val budget = d.optString("b", "")
+                    val revealDate = d.optString("r", "24.12.")
+                    val wish = d.optString("w", "")
+                    val noGos = d.optString("n", "")
+                    val addr = d.optString("d", "")
+                    val urlsArr = d.optJSONArray("u") ?: JSONArray()
+                    val urls = (0 until urlsArr.length()).mapNotNull { idx ->
+                        urlsArr.optString(idx).takeIf { it.isNotBlank() }
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BgSlate, RoundedCornerShape(8.dp))
+                            .border(1.5.dp, TreeGreen, RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "🎄 $groupName ($motto)" + if (budget.isNotBlank()) " • Budget: $budget" else "",
+                            color = TextSecondary,
+                            fontSize = 11.5.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "Hallo $giverName, du beschenkst:",
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                        Text(
+                            "🎁 $targetName",
+                            color = TreeGreen,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (wish.isNotBlank()) {
+                            Text("📝 Wunschzettel: $wish", color = TextPrimary, fontSize = 12.sp, textAlign = TextAlign.Center)
+                        }
+                        if (noGos.isNotBlank()) {
+                            Text("🚫 Bitte NICHT: $noGos", color = WarnAmber, fontSize = 11.5.sp, textAlign = TextAlign.Center)
+                        }
+                        if (addr.isNotBlank()) {
+                            Text("📦 Adresse: $addr", color = TextSecondary, fontSize = 11.sp, textAlign = TextAlign.Center)
+                        }
+                        urls.forEachIndexed { idx, u ->
+                            CompactButton("🛒 ${if (idx == 0) "Amazon-Wunschliste öffnen ↗" else "Wunsch-Link ${idx + 1} öffnen ↗"}") {
+                                runCatching {
+                                    val url = if (u.startsWith("http")) u else "https://$u"
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                }
+                            }
+                        }
+                        Text("🔒 Geheimhaltung bis $revealDate!", color = WarnAmber, fontSize = 11.sp)
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    CompactButton("Schließen") { showDecodeSecretDialog = false }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    CompactButton("🔓 Los entschlüsseln") {
+                        val match = Regex("WICHTEL_SECRET:([A-Za-z0-9+/=_\\-]+)").find(rawCodeInput.trim())
+                        val b64Part = match?.groupValues?.getOrNull(1) ?: rawCodeInput.trim()
+                        val parsed = runCatching {
+                            val jsonStr = String(android.util.Base64.decode(b64Part, android.util.Base64.DEFAULT), Charsets.UTF_8)
+                            JSONObject(jsonStr)
+                        }.getOrNull()
+                        if (parsed != null && parsed.optString("t").isNotBlank()) {
+                            decodedObj = parsed
+                            decodeError = false
+                        } else {
+                            decodedObj = null
+                            decodeError = true
+                        }
+                    }
+                }
             }
         }
     }

@@ -3,14 +3,96 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.14 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.15 – Interaktiver Testserver</title>
   <style>
-    :root {
+    /* Standard-Theme: ☀️ Warm & Persönlich ("Family & Cozy") */
+    :root,
+    body[data-theme="warm"],
+    body[data-theme="light"] {
+      background-color: #E8DFD3;
+      --bg-slate: #FAF5EE;
+      --card-slate: #FFFFFF;
+      --border-slate: #E5D7C4;
+      --btn-bg: #F2E8DA;
+      --btn-hover: #E5D5BF;
+      --primary-bg: #C85A32;
+      --primary-hover: #B04B25;
+      --root-node-bg: #FDEBD0;
+      --text-primary: #2C201B;
+      --text-secondary: #5E4A40;
+      --text-muted: #8E786B;
+      --accent-steel: #C85A32;
+      --warn-amber: #D97706;
+      --warn-bg: #FEF3C7;
+      --warn-text: #92400E;
+      --danger: #C9352B;
+      --success: #2E7D5B;
+      --partner-rose: #D6336C;
+      --tree-green: #2E7D5B;
+      --card-shadow: 0 3px 10px rgba(74, 48, 32, 0.06);
+    }
+
+    /* 🌙 Cozy Dark */
+    body[data-theme="cozy-dark"],
+    body[data-theme="dark"] {
+      background-color: #110E0C;
+      --bg-slate: #1C1715;
+      --card-slate: #28211E;
+      --border-slate: #423630;
+      --btn-bg: #362C27;
+      --btn-hover: #483B35;
+      --primary-bg: #D96B43;
+      --primary-hover: #C25933;
+      --root-node-bg: #3D281E;
+      --text-primary: #FAF3EC;
+      --text-secondary: #D8C6B8;
+      --text-muted: #9E8A7C;
+      --accent-steel: #F08C63;
+      --warn-amber: #F59E0B;
+      --warn-bg: #3B2F1E;
+      --warn-text: #FDE68A;
+      --danger: #EF4444;
+      --success: #34D399;
+      --partner-rose: #FB7185;
+      --tree-green: #34D399;
+      --card-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
+    }
+
+    /* 🎄 Weihnachts-Modus */
+    body[data-theme="xmas"] {
+      background-color: #162B20;
+      --bg-slate: #F7F3E8;
+      --card-slate: #FFFDF8;
+      --border-slate: #D8C7A8;
+      --btn-bg: #ECE3CE;
+      --btn-hover: #DFD2B5;
+      --primary-bg: #1E5A3A;
+      --primary-hover: #16462C;
+      --root-node-bg: #FCE8E6;
+      --text-primary: #1B3124;
+      --text-secondary: #3B5545;
+      --text-muted: #6C8273;
+      --accent-steel: #B4232A;
+      --warn-amber: #C28512;
+      --warn-bg: #FEF5D8;
+      --warn-text: #855808;
+      --danger: #B4232A;
+      --success: #1E5A3A;
+      --partner-rose: #C81E45;
+      --tree-green: #1E5A3A;
+      --card-shadow: 0 4px 12px rgba(24, 52, 36, 0.08);
+    }
+
+    /* 💎 Klassisch (Slate/Blau) */
+    body[data-theme="classic"] {
+      background-color: #070B14;
       --bg-slate: #0F172A;
       --card-slate: #1E293B;
       --border-slate: #334155;
       --btn-bg: #334155;
       --btn-hover: #475569;
+      --primary-bg: #0284C7;
+      --primary-hover: #0369A1;
       --root-node-bg: #1E3A5F;
       --text-primary: #F8FAFC;
       --text-secondary: #CBD5E1;
@@ -23,27 +105,7 @@
       --success: #22C55E;
       --partner-rose: #F43F5E;
       --tree-green: #10B981;
-    }
-
-    body[data-theme="light"] {
-      background-color: #CBD5E1;
-      --bg-slate: #F1F5F9;
-      --card-slate: #FFFFFF;
-      --border-slate: #CBD5E1;
-      --btn-bg: #E2E8F0;
-      --btn-hover: #CBD5E1;
-      --root-node-bg: #E0F2FE;
-      --text-primary: #0F172A;
-      --text-secondary: #334155;
-      --text-muted: #64748B;
-      --accent-steel: #0284C7;
-      --warn-amber: #D97706;
-      --warn-bg: #FEF3C7;
-      --warn-text: #92400E;
-      --danger: #DC2626;
-      --success: #16A34A;
-      --partner-rose: #E11D48;
-      --tree-green: #059669;
+      --card-shadow: none;
     }
 
     * {
@@ -54,13 +116,13 @@
     }
 
     body {
-      background-color: #070B14;
       color: var(--text-primary);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       padding: 20px 16px;
+      transition: background-color 0.2s ease, color 0.2s ease;
     }
 
     .testbench-header {
@@ -75,7 +137,8 @@
       padding: 12px 16px;
       background: var(--card-slate);
       border: 1px solid var(--border-slate);
-      border-radius: 10px;
+      border-radius: 14px;
+      box-shadow: var(--card-shadow);
     }
 
     .testbench-title {
@@ -116,12 +179,12 @@
     .phone-frame {
       background: var(--bg-slate);
       border: 2px solid var(--border-slate);
-      border-radius: 18px;
+      border-radius: 22px;
       padding: 14px;
       min-height: 700px;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55);
+      box-shadow: 0 20px 45px rgba(44, 32, 27, 0.25);
       position: relative;
     }
 
@@ -136,9 +199,10 @@
 
     .app-title {
       font-size: 16px;
-      font-weight: 700;
+      font-weight: 800;
       color: var(--text-primary);
       white-space: nowrap;
+      letter-spacing: -0.2px;
     }
 
     .app-subtitle {
@@ -158,12 +222,12 @@
       background: var(--btn-bg);
       color: var(--text-primary);
       border: 1px solid var(--border-slate);
-      border-radius: 6px;
+      border-radius: 9px;
       padding: 6px 10px;
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
+      transition: all 0.15s ease;
       user-select: none;
     }
 
@@ -173,62 +237,138 @@
     }
 
     .compact-btn.primary {
-      background: #0284C7;
+      background: var(--primary-bg);
       color: #FFFFFF;
-      border-color: var(--accent-steel);
+      border-color: var(--primary-bg);
+    }
+
+    .compact-btn.primary:hover {
+      background: var(--primary-hover);
     }
 
     .compact-btn.danger {
-      background: #7F1D1D;
+      background: var(--danger);
       color: #FFFFFF;
       border-color: var(--danger);
     }
 
+    /* Kompakte Icon-Navigation */
     .nav-tabs {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 5px;
       margin-bottom: 12px;
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 14px;
+      padding: 5px;
+      box-shadow: var(--card-shadow);
+    }
+
+    @media (max-width: 480px) {
+      .nav-tabs {
+        grid-template-columns: repeat(3, 1fr);
+      }
     }
 
     .nav-tab {
-      background: var(--card-slate);
-      border: 1px solid var(--border-slate);
-      border-radius: 6px;
-      padding: 8px 4px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 6px 3px;
       text-align: center;
-      font-size: 11px;
-      font-weight: 500;
+      font-size: 10.5px;
+      font-weight: 600;
       color: var(--text-muted);
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+    }
+
+    .nav-tab .nav-icon {
+      font-size: 16px;
+      line-height: 1.1;
+    }
+
+    .nav-tab:hover {
+      background: var(--btn-bg);
+      color: var(--text-primary);
     }
 
     .nav-tab.active {
-      background: var(--btn-bg);
-      color: var(--text-primary);
-      border-color: var(--accent-steel);
+      background: var(--primary-bg);
+      color: #FFFFFF;
+      border-color: var(--primary-bg);
+      box-shadow: 0 2px 8px rgba(200, 90, 50, 0.25);
     }
 
     .card-list {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 9px;
       flex: 1;
     }
 
     .card {
       background: var(--card-slate);
       border: 1px solid var(--border-slate);
-      border-radius: 8px;
+      border-radius: 14px;
       padding: 12px;
+      box-shadow: var(--card-shadow);
+    }
+
+    /* Runde Kontakt-Avatare & Countdown-Badges */
+    .person-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 800;
+      color: #FFFFFF;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+      letter-spacing: 0.5px;
+      position: relative;
+    }
+
+    .countdown-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--btn-bg);
+      color: var(--accent-steel);
+      border: 1px solid var(--border-slate);
+      white-space: nowrap;
+    }
+
+    .countdown-pill.today {
+      background: var(--primary-bg);
+      color: #FFFFFF;
+      border-color: var(--primary-bg);
+    }
+
+    .countdown-pill.soon {
+      background: var(--warn-bg);
+      color: var(--warn-text);
+      border-color: var(--warn-amber);
     }
 
     .person-header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      gap: 8px;
+      align-items: center;
+      gap: 10px;
     }
 
     .person-title-row {
@@ -240,29 +380,32 @@
 
     .person-name-link {
       font-size: 15px;
-      font-weight: 600;
-      color: var(--accent-steel);
+      font-weight: 700;
+      color: var(--text-primary);
       cursor: pointer;
     }
 
     .person-name-link:hover {
+      color: var(--accent-steel);
       text-decoration: underline;
     }
 
     .badge-app {
-      font-size: 11px;
+      font-size: 10.5px;
+      font-weight: 600;
       color: var(--accent-steel);
-      background: rgba(56, 189, 248, 0.12);
-      padding: 1px 6px;
-      border-radius: 4px;
+      background: var(--btn-bg);
+      padding: 2px 7px;
+      border-radius: 999px;
     }
 
     .badge-nophone {
-      font-size: 11px;
+      font-size: 10.5px;
+      font-weight: 600;
       color: var(--warn-amber);
-      background: rgba(245, 158, 11, 0.12);
-      padding: 1px 6px;
-      border-radius: 4px;
+      background: var(--warn-bg);
+      padding: 2px 7px;
+      border-radius: 999px;
     }
 
     .person-sub {
@@ -1157,15 +1300,121 @@
 
     function runDailyReminderWorker() {
       const today = todayIso();
+      let rolledCount = 0;
+
+      // 1. Automatisch überfällige REPEAT:-Erinnerungen weiterrollen & heute fällige melden
+      for (const ev of state.specialEvents) {
+        if (isRepeatDateSpec(ev.dateIso)) {
+          const parts = ev.dateIso.split(":");
+          const count = Math.max(1, parseInt(parts[1], 10) || 1);
+          const unit = (parts[2] || "DAYS").toUpperCase();
+          const storedDate = parts[3] || today;
+          if (storedDate < today) {
+            const rep = parseRepeatDateSpec(ev.dateIso, today);
+            ev.dateIso = `REPEAT:${rep.count}:${rep.unit}:${rep.nextIso}`;
+            rolledCount++;
+          }
+        }
+        const diff = daysUntilEventSpec(ev.dateIso, today);
+        if (diff === 0 || diff === (ev.leadDays || 1)) {
+          const p = state.persons.find(x => x.id === ev.personId && !x.isHidden);
+          if (p) {
+            openPopupForPerson(p.id, `🔔 Erinnerung (${diff === 0 ? 'Heute' : `in ${diff}T`}): ${ev.title}`);
+            addLog(`DailyReminderWorker -> Erinnerung "${ev.title}" für ${p.name} ausgelöst.`);
+            if (rolledCount > 0) saveState();
+            return;
+          }
+        }
+      }
+
+      // 2. Geburtstage heute/morgen & Melde-Timer prüfen (nur sichtbare Kontakte)
       for (const p of state.persons.filter(x => !x.isHidden)) {
+        const bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
+        if (bdayDays !== null && (bdayDays === 0 || bdayDays === 1)) {
+          openPopupForPerson(p.id, `🎂 ${bdayDays === 0 ? 'Heute Geburtstag!' : 'Morgen Geburtstag'} (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`);
+          addLog(`DailyReminderWorker -> Geburtstags-Erinnerung für ${p.name}`);
+          return;
+        }
         const nextTimer = ContactResolver.nextTimerDate(p, today);
         if (nextTimer && nextTimer <= today) {
-          openPopupForPerson(p.id, `Erinnerung: Melde-Timer (${p.timerInterval} ${p.timerUnit})`);
-          addLog(`DailyReminderWorker -> Nachricht-Dialog für ${p.name}`);
+          openPopupForPerson(p.id, `⏳ Melde-Timer fällig (${p.timerInterval} ${formatTimerUnitDe(p.timerUnit)})`);
+          addLog(`DailyReminderWorker -> Melde-Timer-Dialog für ${p.name}`);
           return;
         }
       }
-      addLog("DailyReminderWorker: Keine sofort fälligen Erinnerungen.");
+      if (rolledCount > 0) saveState();
+      addLog(`DailyReminderWorker: Prüfung abgeschlossen (${rolledCount} wiederkehrende Termine weitergerollt).`);
+    }
+
+    const AVATAR_GRADIENTS = [
+      "linear-gradient(135deg, #D96B43, #B84A24)",
+      "linear-gradient(135deg, #2E7D5B, #1E5A3E)",
+      "linear-gradient(135deg, #C86D51, #9E472D)",
+      "linear-gradient(135deg, #D6336C, #A61E4D)",
+      "linear-gradient(135deg, #D97706, #B45309)",
+      "linear-gradient(135deg, #4C6EF5, #364FC7)",
+      "linear-gradient(135deg, #0CA678, #087F5B)",
+      "linear-gradient(135deg, #AE3EC9, #862E9C)"
+    ];
+
+    function getInitials(fullName) {
+      const clean = stripNameRoleSuffix(fullName || "");
+      const parts = clean.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return "?";
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function getAvatarGradient(name) {
+      const s = String(name || "");
+      let hash = 0;
+      for (let i = 0; i < s.length; i++) {
+        hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+      }
+      return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length];
+    }
+
+    function renderPersonAvatarHtml(name) {
+      const initials = escapeHtml(getInitials(name));
+      const bg = getAvatarGradient(name);
+      return `<div class="person-avatar" style="background:${bg};">${initials}</div>`;
+    }
+
+    function renderBirthdayCountdownPill(birthdayIso, isPastMode = false) {
+      if (!birthdayIso || !birthdayIso.trim()) return "";
+      if (isPastMode) {
+        const neg = ContactResolver.negativeDaysSinceLastBirthday(birthdayIso);
+        if (neg === null) return "";
+        const label = neg === 0 ? "🎂 Heute!" : (neg === -1 ? "🎂 vor 1 Tag" : `🎂 vor ${Math.abs(neg)}T`);
+        return `<span class="countdown-pill ${neg === 0 ? 'today' : ''}">${label}</span>`;
+      }
+      const days = ContactResolver.daysUntilNextBirthday(birthdayIso);
+      if (days === null) return "";
+      if (days === 0) return `<span class="countdown-pill today">🎂 Heute!</span>`;
+      if (days <= 7) return `<span class="countdown-pill soon">🎂 in ${days} ${days === 1 ? 'Tag' : 'Tagen'}</span>`;
+      return `<span class="countdown-pill">🎂 in ${days}T</span>`;
+    }
+
+    function cycleThemeModeQuick() {
+      const order = ["warm", "cozy-dark", "xmas", "classic"];
+      const current = state.themeMode || "warm";
+      const idx = order.indexOf(current);
+      state.themeMode = order[(idx + 1) % order.length];
+      const names = {
+        "warm": "☀️ Warm & Persönlich",
+        "cozy-dark": "🌙 Cozy Dark",
+        "xmas": "🎄 Weihnachts-Modus",
+        "classic": "💎 Klassisch"
+      };
+      addLog(`Design-Theme gewechselt auf: ${names[state.themeMode]}`);
+      saveState();
+    }
+
+    function getThemeIcon(mode) {
+      if (mode === "cozy-dark" || mode === "dark") return "🌙";
+      if (mode === "xmas") return "🎄";
+      if (mode === "classic") return "💎";
+      return "☀️";
     }
 
     function resetDatabase() {
@@ -1269,8 +1518,12 @@
     }
 
     function renderAll() {
-      const theme = state.themeMode || "dark";
-      document.body.setAttribute("data-theme", theme);
+      if (!state.themeMode || state.themeMode === "light") {
+        state.themeMode = "warm";
+      } else if (state.themeMode === "dark") {
+        state.themeMode = "cozy-dark";
+      }
+      document.body.setAttribute("data-theme", state.themeMode);
       renderPhoneApp();
       renderWidget();
       renderModals();
@@ -1287,10 +1540,17 @@
       if (!wichtelActive && activeTab === "🎄 Wichteln") {
         activeTab = "Übersicht";
       }
-      const tabs = ["Übersicht", "Alle Kontakte"];
-      if (treeActive) tabs.push("Stammbaum");
-      tabs.push("Timer", "Erinnerung");
-      if (wichtelActive) tabs.push("🎄 Wichteln");
+      const tabDefs = [
+        { id: "Übersicht", icon: "🎂", label: "Übersicht" },
+        { id: "Alle Kontakte", icon: "👥", label: "Kontakte" }
+      ];
+      if (treeActive) tabDefs.push({ id: "Stammbaum", icon: "🌳", label: "Stammbaum" });
+      tabDefs.push(
+        { id: "Timer", icon: "⏳", label: "Timer" },
+        { id: "Erinnerung", icon: "🔔", label: "Erinnerung" }
+      );
+      if (wichtelActive) tabDefs.push({ id: "🎄 Wichteln", icon: "🎄", label: "Wichteln" });
+
       let contentHtml = "";
 
       if (state.persons.length === 0 && activeTab !== "🎄 Wichteln") {
@@ -1319,19 +1579,28 @@
         contentHtml += renderPersonsList();
       }
 
+      const themeEmoji = getThemeIcon(state.themeMode);
+
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.14</div>
+          <div>
+            <div class="app-title">Remember Me v1.0.15</div>
+            <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
+          </div>
           <div class="btn-row">
+            <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Design-Theme umschalten (Warm / Cozy Dark / Weihnachten / Klassisch)">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
-            <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
-            <button class="compact-btn" title="Optionen" onclick="openOptionsModal()">⚙</button>
+            <button class="compact-btn primary" onclick="openCreateModal()">+ Neu</button>
+            <button class="compact-btn" title="Optionen & Backup" onclick="openOptionsModal()">⚙</button>
           </div>
         </div>
 
-        <div class="nav-tabs">
-          ${tabs.map(t => `
-            <div class="nav-tab ${activeTab === t ? 'active' : ''}" onclick="setTab('${t}')">${t}</div>
+        <div class="nav-tabs" style="grid-template-columns: repeat(${tabDefs.length}, 1fr);">
+          ${tabDefs.map(t => `
+            <div class="nav-tab ${activeTab === t.id ? 'active' : ''}" onclick="setTab('${t.id}')">
+              <span class="nav-icon">${t.icon}</span>
+              <span>${t.label}</span>
+            </div>
           `).join("")}
         </div>
 
@@ -1596,12 +1865,17 @@
       const listHtml = sorted.map(person => {
         const bdayLine = formatCompactBirthdayLine(person.birthdayIso);
         const subText = bdayLine || (person.phone ? `Ohne Datum • ${person.phone}` : "Ohne Datumsangabe");
+        const pillHtml = renderBirthdayCountdownPill(person.birthdayIso, false);
         return `
-          <div class="card" style="padding: 9px 12px; opacity:${person.isHidden ? '0.72' : '1'};">
+          <div class="card" style="padding: 10px 12px; opacity:${person.isHidden ? '0.68' : '1'};">
             <div class="person-header" style="align-items: center;">
-              <div style="flex:1; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
+              <div style="cursor:pointer;" onclick="openDetailModal(${person.id})">
+                ${renderPersonAvatarHtml(person.name)}
+              </div>
+              <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                  <span style="font-size:15px; font-weight:600; color:var(--text-primary);">${escapeHtml(person.name)}</span>
+                  <span style="font-size:15px; font-weight:700; color:var(--text-primary);">${escapeHtml(person.name)}</span>
+                  ${pillHtml}
                   ${person.isHidden ? `<span class="badge-nophone">Ausgeblendet</span>` : ""}
                   ${!person.birthdayIso ? `<span class="badge-app">Ohne Datum</span>` : ""}
                 </div>
@@ -1642,27 +1916,34 @@
           ? formatPassedBirthdayLine(person.birthdayIso)
           : formatCompactBirthdayLine(person.birthdayIso);
         const fallbackLine = !bdayLine ? "Ohne Datumsangabe" : "";
+        const pillHtml = renderBirthdayCountdownPill(person.birthdayIso, showPastDates);
 
         return `
-          <div class="card" style="padding: 9px 12px;">
+          <div class="card" style="padding: 10px 12px;">
             <div class="person-header" style="align-items: center;">
-              <div style="flex:1; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
-                <div style="font-size:15px; font-weight:600; color:var(--text-primary);">${escapeHtml(person.name)}</div>
+              <div style="cursor:pointer;" onclick="openDetailModal(${person.id})">
+                ${renderPersonAvatarHtml(person.name)}
+              </div>
+              <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span style="font-size:15px; font-weight:700; color:var(--text-primary);">${escapeHtml(person.name)}</span>
+                  ${pillHtml}
+                </div>
                 ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : `<div class="person-sub" style="margin-top:2px; color:var(--text-muted);">${escapeHtml(fallbackLine)}</div>`}
                 ${personEvents.length > 0 ? `
-                  <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                  <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:5px;">
                     ${personEvents.map(e => {
                       const isDueToday = daysUntilEventSpec(e.dateIso, today) === 0;
                       const isWeekly = isWeeklyDateSpec(e.dateIso) || isRepeatDateSpec(e.dateIso);
-                      const badgeBg = isDueToday ? "rgba(245, 158, 11, 0.18)" : (isWeekly ? "rgba(16, 185, 129, 0.14)" : "rgba(56, 189, 248, 0.12)");
+                      const badgeBg = isDueToday ? "var(--warn-bg)" : (isWeekly ? "rgba(46, 125, 91, 0.14)" : "var(--btn-bg)");
                       const badgeColor = isDueToday ? "var(--warn-amber)" : (isWeekly ? "var(--tree-green)" : "var(--accent-steel)");
-                      return `<span style="font-size:11px; font-weight:600; padding:2px 6px; border-radius:4px; background:${badgeBg}; color:${badgeColor};">${escapeHtml(formatEventBadgeText(e, today))}</span>`;
+                      return `<span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; background:${badgeBg}; color:${badgeColor};">${escapeHtml(formatEventBadgeText(e, today))}</span>`;
                     }).join("")}
                   </div>
                 ` : ""}
               </div>
               <div class="btn-row">
-                <button class="compact-btn" onclick="openPopupForPerson(${person.id}, '${showPastDates ? 'Nachträglich zum Geburtstag' : 'Erinnerung'}')">Nachricht</button>
+                <button class="compact-btn primary" onclick="openPopupForPerson(${person.id}, '${showPastDates ? 'Nachträglich zum Geburtstag' : 'Erinnerung'}')">💬 Gruß</button>
               </div>
             </div>
           </div>
@@ -1673,6 +1954,11 @@
     }
 
     let treeZoom = 1.0;
+    let treePanX = 0;
+    let treePanY = 0;
+    let isTreeDragging = false;
+    let treeDragStartX = 0;
+    let treeDragStartY = 0;
     let lastTreePinchDist = null;
 
     function setTreeZoom(val) {
@@ -1685,14 +1971,40 @@
     }
 
     function resetTreeZoom() {
-      setTreeZoom(1.0);
+      treeZoom = 1.0;
+      treePanX = 0;
+      treePanY = 0;
+      renderPhoneApp();
     }
 
     function fitTreeZoom(maxRowCount, levelCount) {
       const widthScale = maxRowCount > 2 ? (2.9 / maxRowCount) : 1.0;
       const heightScale = levelCount > 4 ? (4.0 / levelCount) : 1.0;
       const fit = Math.min(1.0, widthScale, heightScale);
+      treePanX = 0;
+      treePanY = 0;
       setTreeZoom(Math.max(0.4, fit));
+    }
+
+    function handleTreeMouseDown(e) {
+      if (e.target.closest(".tree-node")) return;
+      isTreeDragging = true;
+      treeDragStartX = e.clientX - treePanX;
+      treeDragStartY = e.clientY - treePanY;
+    }
+
+    function handleTreeMouseMove(e) {
+      if (!isTreeDragging) return;
+      treePanX = e.clientX - treeDragStartX;
+      treePanY = e.clientY - treeDragStartY;
+      const inner = document.getElementById("tree-pan-inner");
+      if (inner) {
+        inner.style.transform = `translate(${treePanX}px, ${treePanY}px)`;
+      }
+    }
+
+    function handleTreeMouseUp() {
+      isTreeDragging = false;
     }
 
     function handleTreeWheel(e) {
@@ -1706,6 +2018,10 @@
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         lastTreePinchDist = Math.hypot(dx, dy);
+      } else if (e.touches && e.touches.length === 1 && !e.target.closest(".tree-node")) {
+        isTreeDragging = true;
+        treeDragStartX = e.touches[0].clientX - treePanX;
+        treeDragStartY = e.touches[0].clientY - treePanY;
       }
     }
 
@@ -1722,11 +2038,19 @@
             setTreeZoom(treeZoom * ratio);
           }
         }
+      } else if (e.touches && e.touches.length === 1 && isTreeDragging) {
+        treePanX = e.touches[0].clientX - treeDragStartX;
+        treePanY = e.touches[0].clientY - treeDragStartY;
+        const inner = document.getElementById("tree-pan-inner");
+        if (inner) {
+          inner.style.transform = `translate(${treePanX}px, ${treePanY}px)`;
+        }
       }
     }
 
     function handleTreeTouchEnd() {
       lastTreePinchDist = null;
+      isTreeDragging = false;
     }
 
     function renderFamilyTreeTab() {
@@ -1787,7 +2111,6 @@
         if (genLevel <= -2) return "Oma/Opa";
         if (genLevel >= 2) return "Enkelkind";
         if (genLevel === -1) {
-          // Check if partner of a parent -> Eltern, or sibling of a parent -> Onkel/Tante
           const relToParent = state.relations.find(r =>
             r.fromPersonId === p.id && genMap.get(r.toPersonId) === -1 &&
             state.relations.some(pr =>
@@ -1800,12 +2123,6 @@
           return "Eltern";
         }
         if (genLevel === 1) {
-          const isChildOfPartner = state.relations.some(r =>
-            r.fromPersonId === p.id && isPartnerRelation(
-              (state.relations.find(pr => pr.fromPersonId === r.toPersonId && pr.toPersonId === rootPerson.id) || {}).relationLabel || ""
-            ) && relationGenerationStep(r.relationLabel) === -1
-          );
-          if (isChildOfPartner) return "Kind";
           return "Kind";
         }
         const anyRel = state.relations.find(r => r.fromPersonId === p.id);
@@ -1819,7 +2136,6 @@
           (r.fromPersonId === idB && r.toPersonId === idA)
         );
         if (directRel && isPartnerRelation(directRel.relationLabel)) return true;
-        // Check if they share a common child
         const childrenOfA = state.relations
           .filter(r => r.toPersonId === idA && relationGenerationStep(r.relationLabel) === -1)
           .map(r => r.fromPersonId);
@@ -1828,9 +2144,6 @@
         );
       }
 
-      // Order members in a generation:
-      // - For genLevel === 0: place rootPerson centered (siblings on left, partner on right)
-      // - For other levels: place parents / partners directly side-by-side (nebeneinander)
       function orderRowMembers(members, genLevel) {
         if (genLevel === 0 && members.some(m => m.id === rootPerson.id)) {
           const others = members.filter(m => m.id !== rootPerson.id);
@@ -1889,10 +2202,10 @@
       `).join("");
 
       const z = treeZoom;
-      const nodeMinW = Math.round(72 * z);
-      const nodeMaxW = Math.round(118 * z);
-      const nodePadV = Math.max(2, Math.round(5 * z));
-      const nodePadH = Math.max(3, Math.round(8 * z));
+      const nodeMinW = Math.round(74 * z);
+      const nodeMaxW = Math.round(122 * z);
+      const nodePadV = Math.max(2, Math.round(6 * z));
+      const nodePadH = Math.max(3, Math.round(9 * z));
       const nameFont = Math.max(6.5, +(11.5 * z).toFixed(1));
       const roleFont = Math.max(5.5, +(10 * z).toFixed(1));
       const connFont = Math.max(6, +(12 * z).toFixed(1));
@@ -1911,15 +2224,15 @@
             const nextM = members[mIdx + 1];
             const coupled = arePartnersOrCoParents(m.id, nextM.id);
             connector = coupled
-              ? `<span style="color:var(--partner-rose); font-size:${connFont}px; font-weight:700; padding:0 1px;">──</span>`
+              ? `<span style="color:var(--partner-rose); font-size:${connFont}px; font-weight:700; padding:0 2px;">❤️</span>`
               : `<span style="width:${Math.max(2, Math.round(4 * z))}px; display:inline-block;"></span>`;
           }
           return `
             <div class="tree-node ${isRoot ? 'root' : ''} ${isPartner ? 'partner' : ''}"
-                 style="min-width:${nodeMinW}px; max-width:${nodeMaxW}px; padding:${nodePadV}px ${nodePadH}px;"
+                 style="min-width:${nodeMinW}px; max-width:${nodeMaxW}px; padding:${nodePadV}px ${nodePadH}px; border-radius:10px;"
                  onclick="openDetailModal(${m.id})">
               <div style="font-size:${nameFont}px; font-weight:700; color:var(--text-primary); line-height:1.2;">${escapeHtml(m.name)}</div>
-              <div style="font-size:${roleFont}px; color:${isRoot ? 'var(--accent-steel)' : (isPartner ? 'var(--partner-rose)' : 'var(--tree-green)')}; margin-top:2px; line-height:1.1;">
+              <div style="font-size:${roleFont}px; color:${isRoot ? 'var(--accent-steel)' : (isPartner ? 'var(--partner-rose)' : 'var(--tree-green)')}; margin-top:2px; line-height:1.1; font-weight:600;">
                 ${escapeHtml(role)}
               </div>
             </div>
@@ -1944,28 +2257,32 @@
       return `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:7px;">
           <div style="display:flex; align-items:center; gap:8px;">
-            <label class="field-label" style="white-space:nowrap; font-size:12px; font-weight:600; color:var(--text-secondary);">Kontakt:</label>
+            <label class="field-label" style="white-space:nowrap; font-size:12px; font-weight:600; color:var(--text-secondary);">🌳 Fokus:</label>
             <select class="field-select" style="flex:1;" onchange="selectedTreeRootId=parseInt(this.value, 10); renderPhoneApp();">
               ${dropdownOptions}
             </select>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
-            <span style="font-size:11px; color:var(--text-muted);">🔍 Zoom (Mausrad / Pinch / Buttons):</span>
+            <span style="font-size:11px; color:var(--text-muted);">✋ Ziehen & 🔍 Zoomen:</span>
             <div class="btn-row" style="gap:4px;">
               <button class="compact-btn" style="padding:3px 8px; font-weight:700;" onclick="zoomTreeBy(-0.15)" title="Rauszoomen">➖</button>
-              <button class="compact-btn ${zoomPct === 100 ? 'primary' : ''}" style="padding:3px 8px; font-size:11px;" onclick="resetTreeZoom()" title="Auf 100% zurücksetzen">${zoomPct}%</button>
+              <button class="compact-btn ${zoomPct === 100 && treePanX === 0 && treePanY === 0 ? 'primary' : ''}" style="padding:3px 8px; font-size:11px;" onclick="resetTreeZoom()" title="Auf 100% & Mitte zurücksetzen">${zoomPct}%</button>
               <button class="compact-btn" style="padding:3px 8px; font-weight:700;" onclick="zoomTreeBy(0.15)" title="Reinzoomen">➕</button>
               <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="fitTreeZoom(${maxRowCount}, ${sortedLevels.length})" title="Großen Stammbaum komplett einpassen">⛶ Passend</button>
             </div>
           </div>
         </div>
         <div class="tree-container"
-             style="min-height:170px; overflow:auto; align-items: stretch;"
+             style="min-height:210px; overflow:hidden; align-items: stretch; cursor:grab; user-select:none;"
+             onmousedown="handleTreeMouseDown(event)"
+             onmousemove="handleTreeMouseMove(event)"
+             onmouseup="handleTreeMouseUp()"
+             onmouseleave="handleTreeMouseUp()"
              onwheel="handleTreeWheel(event)"
              ontouchstart="handleTreeTouchStart(event)"
              ontouchmove="handleTreeTouchMove(event)"
              ontouchend="handleTreeTouchEnd()">
-          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:max-content; margin:0 auto; padding:4px;">
+          <div id="tree-pan-inner" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:max-content; margin:0 auto; padding:8px; transform:translate(${treePanX}px, ${treePanY}px);">
             ${levelsHtml}
           </div>
         </div>
@@ -2006,13 +2323,20 @@
       return timerPersons.map(p => {
         const nextDate = ContactResolver.nextTimerDate(p, today);
         const diff = daysBetween(today, nextDate);
+        const pillText = diff <= 0 ? "⏳ Fällig!" : `⏳ in ${diff}T`;
         return `
-          <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
             <div style="cursor:pointer;" onclick="openDetailModal(${p.id})">
-              <div class="person-name-link">${escapeHtml(p.name)}</div>
+              ${renderPersonAvatarHtml(p.name)}
+            </div>
+            <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${p.id})">
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span class="person-name-link">${escapeHtml(p.name)}</span>
+                <span class="countdown-pill ${diff <= 0 ? 'today' : (diff <= 3 ? 'soon' : '')}">${pillText}</span>
+              </div>
               <div class="person-sub">Alle ${p.timerInterval} ${formatTimerUnitDe(p.timerUnit)} • Nächste: ${formatIsoToDdMmYyyy(nextDate)}</div>
             </div>
-            <button class="compact-btn" onclick="openPopupForPerson(${p.id}, 'Melde-Timer')">Nachricht</button>
+            <button class="compact-btn primary" onclick="openPopupForPerson(${p.id}, 'Melde-Timer')">💬 Gruß</button>
           </div>
         `;
       }).join("");
@@ -2029,9 +2353,10 @@
         rows.push({
           days,
           personId: ev.personId,
-          title: `${isWeekly ? "🔁 " : "Erinnerung: "}${ev.title} (${person.name})`,
-          sub: `${formatIsoToDdMmYyyy(ev.dateIso)} ${days === 0 ? "• Heute fällig!" : `• in ${days}T`}`,
-          badge: days === 0 ? "Heute" : `in ${days}T`
+          personName: person.name,
+          title: `${isWeekly ? "🔁 " : "🔔 "}${ev.title} (${person.name})`,
+          sub: `${formatIsoToDdMmYyyy(ev.dateIso)}`,
+          badge: days === 0 ? "Heute!" : `in ${days}T`
         });
       });
       state.persons.filter(p => !p.isHidden).forEach(p => {
@@ -2040,20 +2365,27 @@
           rows.push({
             days: days ?? 999,
             personId: p.id,
-            title: `Geburtstag: ${p.name}`,
+            personName: p.name,
+            title: `🎂 Geburtstag: ${p.name}`,
             sub: `${formatIsoToDdMmYyyy(p.birthdayIso)} (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`,
-            badge: days === 0 ? "Heute" : `in ${days}T`
+            badge: days === 0 ? "Heute!" : `in ${days}T`
           });
         }
       });
       rows.sort((a, b) => a.days - b.days);
       return rows.map(r => `
-        <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
           <div style="cursor:pointer;" onclick="openDetailModal(${r.personId})">
-            <div class="person-name-link" style="font-size:14px;">${escapeHtml(r.title)}</div>
+            ${renderPersonAvatarHtml(r.personName)}
+          </div>
+          <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${r.personId})">
+            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+              <span class="person-name-link" style="font-size:14px;">${escapeHtml(r.title)}</span>
+              <span class="countdown-pill ${r.days === 0 ? 'today' : (r.days <= 7 ? 'soon' : '')}">${escapeHtml(r.badge)}</span>
+            </div>
             <div class="person-sub">${escapeHtml(r.sub)}</div>
           </div>
-          <button class="compact-btn" onclick="openPopupForPerson(${r.personId}, '${escapeHtml(r.title)}')">Nachricht</button>
+          <button class="compact-btn primary" onclick="openPopupForPerson(${r.personId}, '${escapeHtml(r.title)}')">💬 Gruß</button>
         </div>
       `).join("");
     }
@@ -2232,7 +2564,10 @@
               </button>
             `).join("")}
           </div>
-          <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">+ Neue Runde</button>
+          <div style="display:flex; gap:5px;">
+            <button class="compact-btn" onclick="openWichtelSecretCodeModal()" title="Empfangenen geheimen Wichtel-Los-Code entschlüsseln">🔐 Los-Code</button>
+            <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">+ Neue Runde</button>
+          </div>
         </div>
       `;
 
@@ -2353,7 +2688,8 @@
 
         return `
           <div class="card" style="padding:10px 12px; ${partnerInGroup && group.excludeCouples ? 'border-left: 3px solid var(--partner-rose);' : ''}">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+              ${renderPersonAvatarHtml(part.name)}
               <div style="flex:1; min-width:0;">
                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                   <span style="font-size:14px; font-weight:600; color:var(--text-primary);">${escapeHtml(part.name)}</span>
@@ -2396,11 +2732,14 @@
 
             ${group.isDrawn && target ? `
               <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-slate);">
-                <button class="compact-btn primary" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'WhatsApp')">
-                  📲 Los per WhatsApp
+                <button class="compact-btn primary" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'BlindWhatsApp')" title="Sendet einen verschlüsselten Los-Code per WhatsApp, sodass selbst der Gruppenadmin beim Absenden den Namen nicht im Klartext sieht!">
+                  🔐 Blind-Code (WhatsApp)
+                </button>
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'WhatsApp')">
+                  📲 Klartext (WhatsApp)
                 </button>
                 <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'In-App')">
-                  💬 In-App senden
+                  💬 In-App
                 </button>
                 <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="openWichtelSecretPeek(${group.id}, ${part.id})" title="Nur für ${escapeHtml(part.name)} kurz aufdecken">
                   👁️ Geheimes Los
@@ -2526,15 +2865,17 @@
       }
 
       if (showOptionsDialog) {
-        const isLight = (state.themeMode || "dark") === "light";
+        let currentTheme = state.themeMode || "warm";
+        if (currentTheme === "light") currentTheme = "warm";
+        if (currentTheme === "dark") currentTheme = "cozy-dark";
         const wichtelActive = state.wichtelEnabled !== false;
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
-            <div class="modal" style="max-width:340px;" onclick="event.stopPropagation()">
-              <div class="modal-title">Optionen</div>
+            <div class="modal" style="max-width:355px;" onclick="event.stopPropagation()">
+              <div class="modal-title">⚙️ Optionen & Design</div>
 
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
-                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Stammbaum</span>
+                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">🌳 Stammbaum</span>
                 <div class="btn-row">
                   <button class="compact-btn ${treeActive ? 'primary' : ''}" onclick="setTreeEnabled(true)">Aktiviert</button>
                   <button class="compact-btn ${!treeActive ? 'primary' : ''}" onclick="setTreeEnabled(false)">Deaktiviert</button>
@@ -2549,19 +2890,23 @@
                 </div>
               </div>
 
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
-                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Darstellung</span>
-                <div class="btn-row">
-                  <button class="compact-btn ${!isLight ? 'primary' : ''}" onclick="setThemeMode('dark')">🌙 Dunkel</button>
-                  <button class="compact-btn ${isLight ? 'primary' : ''}" onclick="setThemeMode('light')">☀️ Hell</button>
+              <div style="display:flex; flex-direction:column; gap:6px; padding:8px 0; border-bottom:1px solid var(--border-slate);">
+                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">🎨 Design-Theme (Warm / Cozy / Festlich)</span>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                  <button class="compact-btn ${currentTheme === 'warm' ? 'primary' : ''}" onclick="setThemeMode('warm')">☀️ Warm & Persönlich</button>
+                  <button class="compact-btn ${currentTheme === 'cozy-dark' ? 'primary' : ''}" onclick="setThemeMode('cozy-dark')">🌙 Cozy-Dark</button>
+                  <button class="compact-btn ${currentTheme === 'xmas' ? 'primary' : ''}" onclick="setThemeMode('xmas')">🎄 Weihnachts-Modus</button>
+                  <button class="compact-btn ${currentTheme === 'classic' ? 'primary' : ''}" onclick="setThemeMode('classic')">💎 Klassisch-Dunkel</button>
                 </div>
               </div>
 
               <div style="display:flex; flex-direction:column; gap:6px; padding:6px 0;">
-                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">Sicherung</span>
+                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">💾 Vollständiges Backup & Restore (.json)</span>
+                <div style="font-size:11px; color:var(--text-secondary);">Sichert Kontakte, Stammbaum, Erinnerungen, Wichtelrunden & Wichtel-Historie.</div>
                 <input id="opt-backup-email" class="field-input" placeholder="Empfänger-Mail (optional)" value="${escapeHtml(state.backupEmail || '')}" oninput="state.backupEmail=this.value" />
                 <div class="btn-row">
-                  <button class="compact-btn primary" style="flex:1; text-align:center;" onclick="sendBackupViaEmail()">📧 Sicherung per Mail</button>
+                  <button class="compact-btn primary" style="flex:1; text-align:center;" onclick="sendBackupViaEmail()">📧 Backup (.json)</button>
+                  <button class="compact-btn" onclick="copyBackupJsonToClipboard()">📋 Kopieren</button>
                   <button class="compact-btn" onclick="document.getElementById('backup-file-input').click()">📂 Laden</button>
                 </div>
               </div>
@@ -3203,6 +3548,38 @@
         return;
       }
 
+      if (wichtelSecretCodeModalState !== null) {
+        const dec = wichtelSecretCodeModalState.decoded;
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" style="max-width:350px;" onclick="event.stopPropagation()">
+              <div class="modal-title">🔐 Geheimen Wichtel-Los-Code öffnen</div>
+              <div style="font-size:12px; color:var(--text-secondary); line-height:1.4;">
+                Füge hier die per WhatsApp empfangene Nachricht oder den <code>WICHTEL_SECRET:...</code>-Code ein, um dein persönliches Los aufzudecken (selbst der Gruppenadmin konnte den gezogenen Namen beim Versenden nicht lesen!):
+              </div>
+              <textarea id="wsc-input" class="field-input" rows="4" placeholder="Hier WICHTEL_SECRET:... oder komplette WhatsApp-Nachricht einfügen..." oninput="wichtelSecretCodeModalState.raw=this.value">${escapeHtml(wichtelSecretCodeModalState.raw || '')}</textarea>
+              ${dec ? `
+                <div style="background:var(--bg-slate); border:1.5px solid var(--tree-green); border-radius:10px; padding:12px; text-align:center;">
+                  <div style="font-size:11px; color:var(--text-muted);">Runde: <b>${escapeHtml(dec.groupName || 'Wichteln')}</b> (${escapeHtml(dec.motto || '🎁 Klassisch')})</div>
+                  <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">Hallo <b>${escapeHtml(dec.giverName || '')}</b>, du beschenkst:</div>
+                  <div style="font-size:18px; font-weight:800; color:var(--tree-green); margin-top:4px;">🎁 ${escapeHtml(dec.targetName || '?')}</div>
+                  ${dec.budget ? `<div style="font-size:11.5px; color:var(--text-primary); margin-top:4px;">💶 Budget: <b>${escapeHtml(dec.budget)}</b></div>` : ""}
+                  ${dec.wishText ? `<div style="font-size:11.5px; color:var(--text-primary); margin-top:4px;">📝 Wunsch: ${escapeHtml(dec.wishText)}</div>` : ""}
+                  ${dec.noGos ? `<div style="font-size:11px; color:var(--warn-amber); margin-top:4px;">🚫 Bitte NICHT: ${escapeHtml(dec.noGos)}</div>` : ""}
+                  ${dec.address ? `<div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">📦 Adresse: ${escapeHtml(dec.address)}</div>` : ""}
+                  ${dec.wishlistUrl ? `<div style="margin-top:6px;"><a href="${escapeHtml(dec.wishlistUrl)}" target="_blank" rel="noopener" class="compact-btn primary" style="text-decoration:none; display:inline-block;">🛒 Wunschliste öffnen ↗</a></div>` : ""}
+                </div>
+              ` : ""}
+              <div class="modal-footer">
+                <button class="compact-btn" onclick="wichtelSecretCodeModalState=null; renderModals();">Schließen</button>
+                <button class="compact-btn primary" onclick="decodeWichtelSecretCodeFromModal()">🔓 Code entschlüsseln</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       modalRoot.innerHTML = "";
     }
 
@@ -3561,6 +3938,34 @@
       return !!(partnerA && partnerA.id === personIdB);
     }
 
+    let wichtelSecretCodeModalState = null;
+
+    function solveWichtelMatchingBacktrack(parts, isAllowedEdge) {
+      const n = parts.length;
+      const givers = [...parts].sort(() => Math.random() - 0.5);
+      const usedReceiverIds = new Set();
+      const assignment = new Map();
+
+      function backtrack(idx) {
+        if (idx === n) return true;
+        const giver = givers[idx];
+        const candidates = [...parts].sort(() => Math.random() - 0.5);
+        for (const receiver of candidates) {
+          if (giver.id === receiver.id) continue;
+          if (usedReceiverIds.has(receiver.id)) continue;
+          if (!isAllowedEdge(giver, receiver)) continue;
+          usedReceiverIds.add(receiver.id);
+          assignment.set(giver.id, receiver.id);
+          if (backtrack(idx + 1)) return true;
+          usedReceiverIds.delete(receiver.id);
+          assignment.delete(giver.id);
+        }
+        return false;
+      }
+
+      return backtrack(0) ? assignment : null;
+    }
+
     function rollWichtelGroup(groupId) {
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
       if (!g) return;
@@ -3577,58 +3982,80 @@
         }
       });
 
-      // Zufällige Derangement-Auslosung (niemand zieht sich selbst; optional Paar-Sperre & Vorjahres-Sperre)
-      let bestAssignment = null;
-      for (let attempt = 0; attempt < 200; attempt++) {
-        const shuffled = [...parts].sort(() => Math.random() - 0.5);
-        let valid = true;
-        const candidateMap = new Map();
-        for (let i = 0; i < shuffled.length; i++) {
-          const giver = shuffled[i];
-          const receiver = shuffled[(i + 1) % shuffled.length];
-          if (giver.id === receiver.id) {
-            valid = false;
-            break;
-          }
-          if (g.excludeCouples && parts.length > 2 && arePersonsCoupleInTree(giver.personId, receiver.personId)) {
-            valid = false;
-            break;
-          }
-          if (g.excludeLastYear !== false && parts.length > 2 && attempt < 170) {
-            if (giver.lastYearTargetId && giver.lastYearTargetId === receiver.id) {
-              valid = false;
-              break;
-            }
-            if (hasDrawnTargetInHistory(giver, receiver)) {
-              valid = false;
-              break;
-            }
-          }
-          candidateMap.set(giver.id, receiver.id);
+      // Mathematisch garantierter Backtracking-Solver (Stufe 1: Paar-Sperre + komplette Historie, Stufe 2: Paar-Sperre, Stufe 3: Reines Derangement)
+      let bestAssignment = solveWichtelMatchingBacktrack(parts, (giver, receiver) => {
+        if (g.excludeCouples && parts.length > 2 && arePersonsCoupleInTree(giver.personId, receiver.personId)) return false;
+        if (g.excludeLastYear !== false && parts.length > 2) {
+          if (giver.lastYearTargetId && giver.lastYearTargetId === receiver.id) return false;
+          if (hasDrawnTargetInHistory(giver, receiver)) return false;
         }
-        if (valid) {
-          bestAssignment = candidateMap;
-          break;
-        }
+        return true;
+      });
+
+      if (!bestAssignment && g.excludeCouples && parts.length > 2) {
+        bestAssignment = solveWichtelMatchingBacktrack(parts, (giver, receiver) => {
+          return !arePersonsCoupleInTree(giver.personId, receiver.personId);
+        });
       }
 
       if (!bestAssignment) {
-        const shuffled = [...parts].sort(() => Math.random() - 0.5);
-        bestAssignment = new Map();
-        for (let i = 0; i < shuffled.length; i++) {
-          bestAssignment.set(shuffled[i].id, shuffled[(i + 1) % shuffled.length].id);
-        }
+        bestAssignment = solveWichtelMatchingBacktrack(parts, () => true);
       }
 
       parts.forEach(p => {
-        p.drawnTargetId = bestAssignment.get(p.id) || null;
+        p.drawnTargetId = bestAssignment ? (bestAssignment.get(p.id) || null) : null;
         p.notifiedVia = "";
       });
       g.isDrawn = true;
       g.forceRevealed = false;
       g.drawnAt = new Date().toLocaleTimeString("de-DE");
-      addLog(`🎲 Wichtelrunde "${g.groupName}" (${g.motto || 'Klassisch'}) geheim ausgelost! Paare & Vorjahr berücksichtigt.`);
+      addLog(`🎲 Wichtelrunde "${g.groupName}" (${g.motto || 'Klassisch'}) per Backtracking-Solver geheim ausgelost! Paare & Historie garantiert berücksichtigt.`);
       saveState();
+    }
+
+    function encodeWichtelBlindCode(group, giver, target) {
+      const payload = {
+        groupName: group.groupName,
+        motto: group.motto || "🎁 Klassisches Wichteln",
+        budget: group.budget || "",
+        revealDate: formatIsoToDdMmYyyy(group.revealDateIso) || "24.12.",
+        giverName: giver.name,
+        targetName: target.name,
+        wishText: target.wishText || "",
+        noGos: target.noGos || "",
+        address: target.address || "",
+        wishlistUrl: target.wishlistUrl || ""
+      };
+      const json = JSON.stringify(payload);
+      const b64 = btoa(unescape(encodeURIComponent(json)));
+      return `WICHTEL_SECRET:${b64}`;
+    }
+
+    function decodeWichtelBlindCode(rawText) {
+      const str = String(rawText || "").trim();
+      const idx = str.indexOf("WICHTEL_SECRET:");
+      const b64Part = (idx >= 0 ? str.slice(idx + "WICHTEL_SECRET:".length) : str).trim().split(/\s+/)[0];
+      const json = decodeURIComponent(escape(atob(b64Part)));
+      return JSON.parse(json);
+    }
+
+    function openWichtelSecretCodeModal() {
+      wichtelSecretCodeModalState = { raw: "", decoded: null };
+      renderModals();
+    }
+
+    function decodeWichtelSecretCodeFromModal() {
+      if (!wichtelSecretCodeModalState) return;
+      const el = document.getElementById("wsc-input");
+      const raw = el ? el.value : (wichtelSecretCodeModalState.raw || "");
+      wichtelSecretCodeModalState.raw = raw;
+      try {
+        wichtelSecretCodeModalState.decoded = decodeWichtelBlindCode(raw);
+        addLog(`🔓 Geheimer Wichtel-Los-Code für "${wichtelSecretCodeModalState.decoded.giverName}" entschlüsselt.`);
+      } catch (e) {
+        addLog("⚠️ Ungültiger WICHTEL_SECRET-Code. Bitte den vollständigen Code einfügen.");
+      }
+      renderModals();
     }
 
     function buildWichtelSecretMessage(group, giver, target) {
@@ -3654,6 +4081,25 @@
       const giver = g.participants.find(x => x.id === participantId);
       const target = giver ? g.participants.find(x => x.id === giver.drawnTargetId) : null;
       if (!giver || !target) return;
+
+      if (channel === "BlindWhatsApp") {
+        const secretCode = encodeWichtelBlindCode(g, giver, target);
+        const revealStr = formatIsoToDdMmYyyy(g.revealDateIso) || "Weihnachten";
+        const blindMsg =
+          `🎄🔐 *Geheimer Wichtel-Los-Code* für ${giver.name.split(" ")[0]} (Runde: „${g.groupName}“)\n\n` +
+          `Damit selbst Gruppenadmin ${g.adminName} beim Versenden dein Los nicht im Klartext sieht, ist dein gezogener Wichtelpartner hier verschlüsselt:\n\n` +
+          `${secretCode}\n\n` +
+          `👉 Öffne in *Remember Me* den Tab *🎄 Wichteln* ➔ *🔐 Los-Code* und füge diese Nachricht ein, um dein Los & den Wunschzettel geheim aufzudecken! (Auflösung für alle erst ab ${revealStr})`;
+        giver.notifiedVia = "🔐 Blind-Code";
+        const cleanPhone = (giver.phone || "").replace(/[^0-9]/g, "");
+        addLog(`🔐 Verschlüsselter Blind-Code per WhatsApp an ${giver.name} vorbereitet (Admin sieht gezogenen Namen beim Senden nicht!).`);
+        const url = cleanPhone
+          ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(blindMsg)}`
+          : `https://wa.me/?text=${encodeURIComponent(blindMsg)}`;
+        window.open(url, "_blank");
+        saveState();
+        return;
+      }
 
       const msg = buildWichtelSecretMessage(g, giver, target);
       giver.notifiedVia = channel;
@@ -3934,7 +4380,10 @@
     }
 
     function setThemeMode(mode) {
-      state.themeMode = mode === "light" ? "light" : "dark";
+      if (mode === "light") mode = "warm";
+      if (mode === "dark") mode = "cozy-dark";
+      const valid = ["warm", "cozy-dark", "xmas", "classic"];
+      state.themeMode = valid.includes(mode) ? mode : "warm";
       saveState();
     }
 
@@ -4062,6 +4511,7 @@
         wichtelParticipantModalState = null;
         wichtelSecretPeekState = null;
         wichtelAnonQuestionState = null;
+        wichtelSecretCodeModalState = null;
         renderModals();
       }
     }
@@ -4334,12 +4784,29 @@
       `;
     }
 
+    async function copyBackupJsonToClipboard() {
+      const dateStr = formatIsoToDdMmYyyy(todayIso());
+      const backupPayload = {
+        app: "Remember Me",
+        version: "1.0.15",
+        createdAt: dateStr,
+        state
+      };
+      const jsonStr = JSON.stringify(backupPayload, null, 2);
+      try {
+        await navigator.clipboard.writeText(jsonStr);
+        addLog(`📋 Vollständiges JSON-Backup (${state.persons.length} Kontakte, ${(state.wichtelGroups || []).length} Wichtelrunden, ${(state.wichtelHistory || []).length} Historie) in Zwischenablage kopiert.`);
+      } catch (e) {
+        addLog("⚠️ Zwischenablage nicht verfügbar – nutze den .json Download.");
+      }
+    }
+
     async function sendBackupViaEmail() {
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.10",
+        version: "1.0.15",
         createdAt: dateStr,
         state
       };
@@ -4415,7 +4882,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.10 gestartet.");
+      addLog("Remember Me v1.0.15 gestartet.");
       renderAll();
     }
   </script>

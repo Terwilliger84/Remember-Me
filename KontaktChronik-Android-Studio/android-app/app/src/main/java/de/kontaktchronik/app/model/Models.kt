@@ -31,7 +31,8 @@ data class PersonEntity(
     val timerInterval: Int = 14,
     val timerUnit: String = TimerUnit.DAYS.name,
     val lastContactedIso: String? = null, // YYYY-MM-DD
-    val importedFromDeviceContactId: String? = null
+    val importedFromDeviceContactId: String? = null,
+    val isHidden: Boolean = false
 )
 
 @Entity(tableName = "relations")

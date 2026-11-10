@@ -15,6 +15,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import de.kontaktchronik.app.data.AppDatabase
 import de.kontaktchronik.app.model.ContactResolver
+import de.kontaktchronik.app.model.TimerUnit
 import de.kontaktchronik.app.ui.MainActivity
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -134,6 +135,7 @@ class DailyReminderWorker(
         val today = LocalDate.now()
 
         for (person in persons) {
+            if (person.isHidden) continue
             // 1. Geburtstag prüfen
             val bdayDays = ContactResolver.daysUntilNextBirthday(person.birthdayIso, today)
             if (bdayDays != null && (bdayDays == 0L || bdayDays == 1L)) {
@@ -144,16 +146,53 @@ class DailyReminderWorker(
             // 2. Melde-Timer prüfen
             val nextTimer = ContactResolver.nextTimerDate(person, today)
             if (nextTimer != null && !nextTimer.isAfter(today)) {
-                showPopupNotification(person.id, person.name, "Melde-Timer fällig (${person.timerInterval} ${person.timerUnit})")
+                val unitDe = runCatching { TimerUnit.valueOf(person.timerUnit).label }.getOrDefault("Tage")
+                showPopupNotification(person.id, person.name, "Melde-Timer fällig (${person.timerInterval} $unitDe)")
             }
         }
 
-        // 3. Erinnerungen prüfen (Umzug, Operation, Besuch etc.)
+        // 3. Erinnerungen prüfen (Einmalig, Wöchentlich & frei wählbarer Rhythmus REPEAT:<count>:<unit>:<date>)
         for (ev in events) {
-            val evDate = runCatching { LocalDate.parse(ev.dateIso) }.getOrNull() ?: continue
+            val person = persons.find { it.id == ev.personId && !it.isHidden } ?: continue
+            val rawSpec = ev.dateIso.trim()
+            val evDate: LocalDate? = when {
+                rawSpec.startsWith("REPEAT:") -> {
+                    val parts = rawSpec.split(":")
+                    if (parts.size >= 4) {
+                        val count = parts[1].toLongOrNull()?.coerceAtLeast(1L) ?: 1L
+                        val unit = parts[2]
+                        var nextD = runCatching { LocalDate.parse(parts[3]) }.getOrNull() ?: today
+                        var advanced = false
+                        var guard = 0
+                        while (nextD.isBefore(today) && guard < 500) {
+                            nextD = when (unit) {
+                                "WEEKS" -> nextD.plusWeeks(count)
+                                "MONTHS" -> nextD.plusMonths(count)
+                                "YEARS" -> nextD.plusYears(count)
+                                else -> nextD.plusDays(count)
+                            }
+                            advanced = true
+                            guard++
+                        }
+                        if (advanced) {
+                            db.insertSpecialEvent(ev.copy(dateIso = "REPEAT:$count:$unit:$nextD"))
+                        }
+                        nextD
+                    } else null
+                }
+                rawSpec.startsWith("WEEKLY:") -> {
+                    val targetDow = rawSpec.removePrefix("WEEKLY:").toIntOrNull()
+                    if (targetDow != null) {
+                        val currentDow = today.dayOfWeek.value % 7 // 0=So..6=Sa
+                        val delta = ((targetDow - currentDow) + 7) % 7
+                        today.plusDays(delta.toLong())
+                    } else null
+                }
+                else -> runCatching { LocalDate.parse(rawSpec) }.getOrNull()
+            } ?: continue
+
             val diff = ChronoUnit.DAYS.between(today, evDate)
             if (diff == 0L || diff == ev.leadDays.toLong()) {
-                val person = persons.find { it.id == ev.personId } ?: continue
                 val whenLabel = if (diff == 0L) "Heute" else "In $diff Tagen"
                 showPopupNotification(person.id, person.name, "Erinnerung ($whenLabel): ${ev.title}")
             }
