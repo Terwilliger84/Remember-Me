@@ -130,14 +130,15 @@
       justify-content: space-between;
       align-items: center;
       gap: 8px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       margin-bottom: 12px;
     }
 
     .app-title {
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 700;
       color: var(--text-primary);
+      white-space: nowrap;
     }
 
     .app-subtitle {
@@ -148,7 +149,8 @@
 
     .btn-row {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      align-items: center;
       gap: 6px;
     }
 
@@ -940,14 +942,24 @@
       addBidirectionalRelation(leoId, annaId, "Kind von");
       addBidirectionalRelation(leoId, thomasId, "Kind von");
 
-      state.specialEvents.push({
-        id: state.nextId++,
-        personId: annaId,
-        title: "Kommt zu Besuch",
-        dateIso: addDaysIso(today, 7),
-        leadDays: 2,
-        note: "Mit Baby Leo übers Wochenende"
-      });
+      state.specialEvents.push(
+        {
+          id: state.nextId++,
+          personId: annaId,
+          title: "Kommt zu Besuch",
+          dateIso: addDaysIso(today, 7),
+          leadDays: 2,
+          note: "Mit Baby Leo übers Wochenende"
+        },
+        {
+          id: state.nextId++,
+          personId: omaId,
+          title: "Anrufen",
+          dateIso: "WEEKLY:3",
+          leadDays: 0,
+          note: "Wöchentlicher Mittwochs-Anruf"
+        }
+      );
 
       selectedTreeRootId = annaId;
       addLog("Beispieldaten mit 3-Generationen-Stammbaum (Oma Helga -> Anna, Ehe-Partner Thomas & Bruder Markus -> Baby Leo) angelegt.");
@@ -1177,10 +1189,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div>
-            <div class="app-title">Remember Me v1.0.5</div>
-            <div class="app-subtitle">Geburtstage, Stammbaum & Erinnerungen</div>
-          </div>
+          <div class="app-title">Remember Me v1.0.6</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">Neu</button>
@@ -1200,9 +1209,60 @@
       `;
     }
 
+    const WEEKDAY_NAMES_DE = {
+      1: "Montag",
+      2: "Dienstag",
+      3: "Mittwoch",
+      4: "Donnerstag",
+      5: "Freitag",
+      6: "Samstag",
+      7: "Sonntag"
+    };
+
+    function isWeeklyDateSpec(dateIso) {
+      return typeof dateIso === "string" && dateIso.startsWith("WEEKLY:");
+    }
+
+    function getWeeklyDayNumber(dateIso) {
+      if (!isWeeklyDateSpec(dateIso)) return null;
+      const num = parseInt(dateIso.split(":")[1], 10);
+      return (num >= 1 && num <= 7) ? num : null;
+    }
+
+    function daysUntilWeeklyDay(weekday1To7, today = todayIso()) {
+      const d = new Date(today + "T00:00:00");
+      const jsDay = d.getDay(); // 0=Sun..6=Sat
+      const isoDay = jsDay === 0 ? 7 : jsDay; // 1=Mon..7=Sun
+      return (weekday1To7 - isoDay + 7) % 7;
+    }
+
+    function daysUntilEventSpec(dateIso, today = todayIso()) {
+      if (isWeeklyDateSpec(dateIso)) {
+        const wd = getWeeklyDayNumber(dateIso);
+        return wd ? daysUntilWeeklyDay(wd, today) : 999;
+      }
+      return daysBetween(today, dateIso);
+    }
+
+    function formatEventBadgeText(ev, today = todayIso()) {
+      if (isWeeklyDateSpec(ev.dateIso)) {
+        const wd = getWeeklyDayNumber(ev.dateIso);
+        const dayName = WEEKDAY_NAMES_DE[wd] || "Wöchentlich";
+        const diff = daysUntilWeeklyDay(wd, today);
+        if (diff === 0) return `🔔 Heute (${dayName}): ${ev.title}`;
+        if (diff === 1) return `🔁 Jeden ${dayName}: ${ev.title} (morgen)`;
+        return `🔁 Jeden ${dayName}: ${ev.title} (in ${diff}T)`;
+      }
+      return `${ev.title} (${formatIsoToDdMmYyyy(ev.dateIso)})`;
+    }
+
     function formatIsoToDdMmYyyy(iso) {
       if (!iso || !iso.trim()) return "";
       const clean = iso.trim();
+      if (isWeeklyDateSpec(clean)) {
+        const wd = getWeeklyDayNumber(clean);
+        return `🔁 Jeden ${WEEKDAY_NAMES_DE[wd] || "Wochentag"}`;
+      }
       if (/^\d{2}\.\d{2}\.\d{4}$/.test(clean)) return clean;
       if (clean.startsWith("--")) {
         const parts = clean.slice(2).split("-");
@@ -1215,6 +1275,7 @@
     function normalizeDateInputToIso(input) {
       const clean = (input || "").trim();
       if (!clean) return "";
+      if (isWeeklyDateSpec(clean)) return clean;
       const dotParts = clean.split(".");
       if (dotParts.length === 3 && dotParts[2].length === 4) {
         return `${dotParts[2]}-${dotParts[1].padStart(2, "0")}-${dotParts[0].padStart(2, "0")}`;
@@ -1239,6 +1300,36 @@
     }
 
     let showPastDates = false;
+    let contactSortMode = "birthday"; // "birthday" | "firstname" | "lastname"
+
+    function stripNameRoleSuffix(fullName) {
+      return (fullName || "").replace(/\s*\([^)]*\)\s*/g, " ").trim();
+    }
+
+    function extractFirstName(fullName) {
+      const clean = stripNameRoleSuffix(fullName);
+      const parts = clean.split(/\s+/).filter(Boolean);
+      return parts[0] || clean;
+    }
+
+    function extractLastName(fullName) {
+      const clean = stripNameRoleSuffix(fullName);
+      const parts = clean.split(/\s+/).filter(Boolean);
+      return parts.length > 1 ? parts[parts.length - 1] : (parts[0] || clean);
+    }
+
+    function cycleContactSortMode() {
+      if (contactSortMode === "birthday") contactSortMode = "firstname";
+      else if (contactSortMode === "firstname") contactSortMode = "lastname";
+      else contactSortMode = "birthday";
+      renderPhoneApp();
+    }
+
+    function getSortModeButtonLabel() {
+      if (contactSortMode === "firstname") return "⇅ Vorname";
+      if (contactSortMode === "lastname") return "⇅ Name";
+      return "⇅ Geburtstag";
+    }
 
     function formatPassedBirthdayLine(birthdayIso) {
       if (!birthdayIso || !birthdayIso.trim()) return "";
@@ -1252,28 +1343,37 @@
 
     function renderPersonsList() {
       const sorted = [...state.persons].sort((a, b) => {
+        if (contactSortMode === "firstname") {
+          const cmp = extractFirstName(a.name).localeCompare(extractFirstName(b.name), "de");
+          return cmp !== 0 ? cmp : extractLastName(a.name).localeCompare(extractLastName(b.name), "de");
+        }
+        if (contactSortMode === "lastname") {
+          const cmp = extractLastName(a.name).localeCompare(extractLastName(b.name), "de");
+          return cmp !== 0 ? cmp : extractFirstName(a.name).localeCompare(extractFirstName(b.name), "de");
+        }
         if (!showPastDates) {
           const da = ContactResolver.daysUntilNextBirthday(a.birthdayIso) ?? 999999;
           const db = ContactResolver.daysUntilNextBirthday(b.birthdayIso) ?? 999999;
-          return da !== db ? da - db : a.name.localeCompare(b.name);
+          return da !== db ? da - db : a.name.localeCompare(b.name, "de");
         } else {
           const na = ContactResolver.negativeDaysSinceLastBirthday(a.birthdayIso) ?? -999999;
           const nb = ContactResolver.negativeDaysSinceLastBirthday(b.birthdayIso) ?? -999999;
-          return na !== nb ? nb - na : a.name.localeCompare(b.name);
+          return na !== nb ? nb - na : a.name.localeCompare(b.name, "de");
         }
       });
 
       const headerBar = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-          <span style="font-size:11px; color:var(--text-muted); font-weight:500;">
-            ${showPastDates ? "Vergangene Geburtstage & Termine" : "Nächste Geburtstage zuerst"}
-          </span>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px;">
+          <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Geburtstag / Vorname / Name)">
+            ${getSortModeButtonLabel()}
+          </button>
           <button class="compact-btn ${showPastDates ? 'primary' : ''}" onclick="showPastDates=!showPastDates; renderPhoneApp();">
             ${showPastDates ? "Anstehende zeigen" : "Vergangene Termine"}
           </button>
         </div>
       `;
 
+      const today = todayIso();
       const listHtml = sorted.map(person => {
         const personEvents = state.specialEvents.filter(e => e.personId === person.id);
         const bdayLine = showPastDates
@@ -1287,8 +1387,14 @@
                 <div style="font-size:15px; font-weight:600; color:var(--text-primary);">${escapeHtml(person.name)}</div>
                 ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : ""}
                 ${personEvents.length > 0 ? `
-                  <div class="person-meta meta-accent" style="margin-top:2px;">
-                    ${personEvents.map(e => `${escapeHtml(e.title)} (${escapeHtml(formatIsoToDdMmYyyy(e.dateIso))})`).join(" • ")}
+                  <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                    ${personEvents.map(e => {
+                      const isDueToday = daysUntilEventSpec(e.dateIso, today) === 0;
+                      const isWeekly = isWeeklyDateSpec(e.dateIso);
+                      const badgeBg = isDueToday ? "rgba(245, 158, 11, 0.18)" : (isWeekly ? "rgba(16, 185, 129, 0.14)" : "rgba(56, 189, 248, 0.12)");
+                      const badgeColor = isDueToday ? "var(--warn-amber)" : (isWeekly ? "var(--tree-green)" : "var(--accent-steel)");
+                      return `<span style="font-size:11px; font-weight:600; padding:2px 6px; border-radius:4px; background:${badgeBg}; color:${badgeColor};">${escapeHtml(formatEventBadgeText(e, today))}</span>`;
+                    }).join("")}
                   </div>
                 ` : ""}
               </div>
@@ -1547,12 +1653,13 @@
       const rows = [];
       state.specialEvents.forEach(ev => {
         const person = state.persons.find(p => p.id === ev.personId);
-        const days = daysBetween(today, ev.dateIso);
+        const days = daysUntilEventSpec(ev.dateIso, today);
+        const isWeekly = isWeeklyDateSpec(ev.dateIso);
         rows.push({
           days,
           personId: ev.personId,
-          title: `Erinnerung: ${ev.title} (${person ? person.name : ""})`,
-          sub: `${formatIsoToDdMmYyyy(ev.dateIso)} ${ev.note ? "• " + ev.note : ""}`,
+          title: `${isWeekly ? "🔁 " : "Erinnerung: "}${ev.title} (${person ? person.name : ""})`,
+          sub: `${formatIsoToDdMmYyyy(ev.dateIso)} ${days === 0 ? "• Heute fällig!" : `• in ${days}T`}`,
           badge: days === 0 ? "Heute" : `in ${days}T`
         });
       });
@@ -1591,10 +1698,11 @@
         }
       }
       for (const ev of state.specialEvents) {
-        const diff = daysBetween(today, ev.dateIso);
+        const diff = daysUntilEventSpec(ev.dateIso, today);
         if (diff >= 0 && diff <= 45) {
           const person = state.persons.find(p => p.id === ev.personId);
-          if (person) items.push({ sortKey: diff, personId: person.id, name: person.name, subtitle: `Erinnerung: ${ev.title}`, badge: diff === 0 ? "Heute" : `in ${diff}T` });
+          const isWeekly = isWeeklyDateSpec(ev.dateIso);
+          if (person) items.push({ sortKey: diff, personId: person.id, name: person.name, subtitle: isWeekly ? `${formatIsoToDdMmYyyy(ev.dateIso)}: ${ev.title}` : `Erinnerung: ${ev.title}`, badge: diff === 0 ? "Heute" : `in ${diff}T` });
         }
       }
       items.sort((a, b) => a.sortKey - b.sortKey);
@@ -1854,15 +1962,28 @@
                     </div>
                   `).join("")}
                 </div>
-                <div style="display:flex; gap:6px;">
-                  <div class="field-group" style="flex:1.2;">
+                <div style="display:flex; gap:6px; margin-bottom:4px;">
+                  <div class="field-group" style="flex:1.1;">
                     <label class="field-label">Neue Erinnerung</label>
-                    <input id="d-evtitle" class="field-input" placeholder="z. B. Besuch" />
+                    <input id="d-evtitle" class="field-input" placeholder="z. B. Anrufen" />
                   </div>
                   <div class="field-group" style="flex:1;">
-                    <label class="field-label">Datum (TT.MM.JJJJ)</label>
-                    <input id="d-evdate" class="field-input" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${formatIsoToDdMmYyyy(addDaysIso(todayIso(), 3))}" onclick="openCalendarPicker('d-evdate')" onfocus="openCalendarPicker('d-evdate')" />
+                    <label class="field-label">Rhythmus</label>
+                    <select id="d-evrepeat" class="field-select" onchange="document.getElementById('d-evdate-group').style.display = this.value === 'ONCE' ? 'flex' : 'none';">
+                      <option value="ONCE">Einmalig (Datum)</option>
+                      <option value="WEEKLY:1">🔁 Jeden Montag</option>
+                      <option value="WEEKLY:2">🔁 Jeden Dienstag</option>
+                      <option value="WEEKLY:3">🔁 Jeden Mittwoch</option>
+                      <option value="WEEKLY:4">🔁 Jeden Donnerstag</option>
+                      <option value="WEEKLY:5">🔁 Jeden Freitag</option>
+                      <option value="WEEKLY:6">🔁 Jeden Samstag</option>
+                      <option value="WEEKLY:7">🔁 Jeden Sonntag</option>
+                    </select>
                   </div>
+                </div>
+                <div id="d-evdate-group" class="field-group">
+                  <label class="field-label">Datum (TT.MM.JJJJ)</label>
+                  <input id="d-evdate" class="field-input" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${formatIsoToDdMmYyyy(addDaysIso(todayIso(), 3))}" onclick="openCalendarPicker('d-evdate')" onfocus="openCalendarPicker('d-evdate')" />
                 </div>
               </div>
 
@@ -2210,7 +2331,11 @@
       dp.extraInfos = detailExtraInfos.filter(x => (x.label && x.label.trim()) || (x.value && x.value.trim()));
 
       const evTitle = document.getElementById("d-evtitle").value.trim();
-      const evDate = normalizeDateInputToIso(document.getElementById("d-evdate").value.trim());
+      const evRepeatEl = document.getElementById("d-evrepeat");
+      const evRepeat = evRepeatEl ? evRepeatEl.value : "ONCE";
+      const evDate = evRepeat === "ONCE"
+        ? normalizeDateInputToIso(document.getElementById("d-evdate").value.trim())
+        : evRepeat;
       if (evTitle) {
         state.specialEvents.push({
           id: state.nextId++,
@@ -2220,7 +2345,7 @@
           leadDays: 1,
           note: ""
         });
-        addLog(`Erinnerung "${evTitle}" am ${formatIsoToDdMmYyyy(evDate)} für ${dp.name} eingetragen.`);
+        addLog(`Erinnerung "${evTitle}" (${formatIsoToDdMmYyyy(evDate)}) für ${dp.name} eingetragen.`);
       } else {
         addLog(dp.savedInDeviceContacts ? `Kontakt "${dp.name}" in App & Handykontakten aktualisiert.` : `Details von ${dp.name} aktualisiert.`);
       }
@@ -2374,7 +2499,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.4",
+        version: "1.0.6",
         createdAt: dateStr,
         state
       };
@@ -2450,7 +2575,7 @@
       seedSampleData();
     } else {
       selectedTreeRootId = state.persons[0].id;
-      addLog("Remember Me v1.0.5 gestartet.");
+      addLog("Remember Me v1.0.6 gestartet.");
       renderAll();
     }
   </script>

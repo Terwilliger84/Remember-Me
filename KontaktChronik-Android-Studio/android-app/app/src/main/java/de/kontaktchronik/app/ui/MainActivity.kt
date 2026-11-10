@@ -132,9 +132,75 @@ fun isSiblingRelation(label: String): Boolean {
     return l.contains("bruder") || l.contains("schwester") || l.contains("geschwister")
 }
 
+val WEEKDAY_NAMES_DE = mapOf(
+    1 to "Montag",
+    2 to "Dienstag",
+    3 to "Mittwoch",
+    4 to "Donnerstag",
+    5 to "Freitag",
+    6 to "Samstag",
+    7 to "Sonntag"
+)
+
+fun isWeeklyDateSpec(dateIso: String?): Boolean =
+    dateIso?.trim()?.startsWith("WEEKLY:") == true
+
+fun getWeeklyDayNumber(dateIso: String?): Int? {
+    if (!isWeeklyDateSpec(dateIso)) return null
+    val num = dateIso!!.trim().substringAfter("WEEKLY:").toIntOrNull()
+    return if (num != null && num in 1..7) num else null
+}
+
+fun daysUntilWeeklyDay(weekday1To7: Int, today: LocalDate = LocalDate.now()): Long {
+    val isoToday = today.dayOfWeek.value // 1=Mon..7=Sun
+    return ((weekday1To7 - isoToday + 7) % 7).toLong()
+}
+
+fun daysUntilEventSpec(dateIso: String?, today: LocalDate = LocalDate.now()): Long? {
+    if (dateIso.isNullOrBlank()) return null
+    if (isWeeklyDateSpec(dateIso)) {
+        val wd = getWeeklyDayNumber(dateIso) ?: return null
+        return daysUntilWeeklyDay(wd, today)
+    }
+    val parsed = runCatching { LocalDate.parse(dateIso.trim()) }.getOrNull() ?: return null
+    return ChronoUnit.DAYS.between(today, parsed)
+}
+
+fun formatEventBadgeText(ev: SpecialEventEntity, today: LocalDate = LocalDate.now()): String {
+    if (isWeeklyDateSpec(ev.dateIso)) {
+        val wd = getWeeklyDayNumber(ev.dateIso) ?: 1
+        val dayName = WEEKDAY_NAMES_DE[wd] ?: "Wochentag"
+        val diff = daysUntilWeeklyDay(wd, today)
+        return when (diff) {
+            0L -> "🔔 Heute ($dayName): ${ev.title}"
+            1L -> "🔁 Jeden $dayName: ${ev.title} (morgen)"
+            else -> "🔁 Jeden $dayName: ${ev.title} (in ${diff}T)"
+        }
+    }
+    return "${ev.title} (${formatIsoToDdMmYyyy(ev.dateIso)})"
+}
+
+fun stripNameRoleSuffix(fullName: String): String =
+    fullName.replace(Regex("\\s*\\([^)]*\\)\\s*"), " ").trim()
+
+fun extractFirstName(fullName: String): String {
+    val clean = stripNameRoleSuffix(fullName)
+    return clean.split(Regex("\\s+")).firstOrNull()?.ifBlank { clean } ?: clean
+}
+
+fun extractLastName(fullName: String): String {
+    val clean = stripNameRoleSuffix(fullName)
+    val parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
+    return if (parts.size > 1) parts.last() else (parts.firstOrNull() ?: clean)
+}
+
 fun formatIsoToDdMmYyyy(iso: String?): String {
     if (iso.isNullOrBlank()) return ""
     val clean = iso.trim()
+    if (isWeeklyDateSpec(clean)) {
+        val wd = getWeeklyDayNumber(clean) ?: 1
+        return "🔁 Jeden ${WEEKDAY_NAMES_DE[wd] ?: "Wochentag"}"
+    }
     if (clean.startsWith("--")) {
         val parts = clean.removePrefix("--").split("-")
         if (parts.size == 2) return "${parts[1].padStart(2, '0')}.${parts[0].padStart(2, '0')}."
@@ -147,6 +213,7 @@ fun formatIsoToDdMmYyyy(iso: String?): String {
 
 fun normalizeDateInputToIso(input: String): String {
     val clean = input.trim()
+    if (isWeeklyDateSpec(clean)) return clean
     if (clean.contains(".")) {
         val parts = clean.trimEnd('.').split(".")
         if (parts.size == 3) {
@@ -241,13 +308,14 @@ fun KontaktChronikApp(
     var treeEnabled by remember { mutableStateOf(appPrefs.getBoolean("tree_enabled", true)) }
     var showOptionsDialog by remember { mutableStateOf(false) }
     var showPastDates by remember { mutableStateOf(false) }
+    var contactSortMode by remember { mutableStateOf("birthday") } // "birthday" | "firstname" | "lastname"
     var selectedTreeRootId by remember { mutableStateOf<Long?>(null) }
     var popupPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var popupReason by remember { mutableStateOf(initialPopupReason) }
     var quickMessageText by remember { mutableStateOf("") }
     var showCreateDialog by remember { mutableStateOf(false) }
     var detailPerson by remember { mutableStateOf<PersonEntity?>(null) }
-    var syncStatus by remember { mutableStateOf("Geburtstage, Stammbaum & Erinnerungen") }
+    var syncStatus by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         isLightMode = appPrefs.getBoolean("light_mode", false)
@@ -316,17 +384,14 @@ fun KontaktChronikApp(
             .background(BgSlate)
             .padding(12.dp)
     ) {
-        // Kompakte Kopfzeile
+        // Kompakte Kopfzeile mit Optionen oben rechts
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text("Remember Me v1.0.5", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                Text(syncStatus, color = TextMuted, fontSize = 11.sp)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Remember Me v1.0.6", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton("Sync") {
                     val hasRead = ContextCompat.checkSelfPermission(
                         context,
@@ -488,6 +553,15 @@ fun KontaktChronikApp(
                                     dateIso = LocalDate.now().plusDays(7).toString(),
                                     leadDays = 2,
                                     note = "Mit Baby Leo übers Wochenende"
+                                )
+                            )
+                            db.insertSpecialEvent(
+                                SpecialEventEntity(
+                                    personId = omaId,
+                                    title = "Anrufen",
+                                    dateIso = "WEEKLY:3",
+                                    leadDays = 0,
+                                    note = "Wöchentlicher Mittwochs-Anruf"
                                 )
                             )
                             selectedTreeRootId = annaId
@@ -675,22 +749,36 @@ fun KontaktChronikApp(
             }
 
             else -> {
-                // Sortierung: Standardmäßig nach nächstem Geburtstag aufsteigend;
-                // bei aktivem Button "Vergangene Termine" nach zuletzt vergangenem Geburtstag (-1T, -5T, -12T ...)
-                val sortedPersons = remember(persons, showPastDates) {
-                    if (!showPastDates) {
-                        persons.sortedWith(
-                            compareBy<PersonEntity> {
-                                ContactResolver.daysUntilNextBirthday(it.birthdayIso) ?: Long.MAX_VALUE
-                            }.thenBy { it.name }
+                val sortedPersons = remember(persons, showPastDates, contactSortMode) {
+                    when (contactSortMode) {
+                        "firstname" -> persons.sortedWith(
+                            compareBy<PersonEntity> { extractFirstName(it.name).lowercase() }
+                                .thenBy { extractLastName(it.name).lowercase() }
                         )
-                    } else {
-                        persons.sortedWith(
-                            compareByDescending<PersonEntity> {
-                                ContactResolver.negativeDaysSinceLastBirthday(it.birthdayIso) ?: Long.MIN_VALUE
-                            }.thenBy { it.name }
+                        "lastname" -> persons.sortedWith(
+                            compareBy<PersonEntity> { extractLastName(it.name).lowercase() }
+                                .thenBy { extractFirstName(it.name).lowercase() }
                         )
+                        else -> if (!showPastDates) {
+                            persons.sortedWith(
+                                compareBy<PersonEntity> {
+                                    ContactResolver.daysUntilNextBirthday(it.birthdayIso) ?: Long.MAX_VALUE
+                                }.thenBy { it.name.lowercase() }
+                            )
+                        } else {
+                            persons.sortedWith(
+                                compareByDescending<PersonEntity> {
+                                    ContactResolver.negativeDaysSinceLastBirthday(it.birthdayIso) ?: Long.MIN_VALUE
+                                }.thenBy { it.name.lowercase() }
+                            )
+                        }
                     }
+                }
+
+                val sortBtnLabel = when (contactSortMode) {
+                    "firstname" -> "⇅ Vorname"
+                    "lastname" -> "⇅ Name"
+                    else -> "⇅ Geburtstag"
                 }
 
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -701,16 +789,17 @@ fun KontaktChronikApp(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = if (showPastDates) "Vergangene Geburtstage & Termine" else "Nächste Geburtstage zuerst",
-                            color = TextMuted,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        CompactButton(sortBtnLabel) {
+                            contactSortMode = when (contactSortMode) {
+                                "birthday" -> "firstname"
+                                "firstname" -> "lastname"
+                                else -> "birthday"
+                            }
+                        }
                         Box(
                             modifier = Modifier
                                 .background(
-                                    if (showPastDates) AccentSteel else Color(0xFF334155),
+                                    if (showPastDates) AccentSteel else BtnBg,
                                     RoundedCornerShape(6.dp)
                                 )
                                 .border(1.dp, if (showPastDates) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
@@ -772,16 +861,22 @@ fun KontaktChronikApp(
                                         )
                                     }
                                     if (personEvents.isNotEmpty()) {
-                                        Text(
-                                            text = personEvents.joinToString(" • ") { ev ->
-                                                val evDate = runCatching { LocalDate.parse(ev.dateIso) }.getOrNull()
-                                                val diff = evDate?.let { ChronoUnit.DAYS.between(LocalDate.now(), it) }
-                                                val diffSuffix = if (showPastDates && diff != null && diff < 0) " (${diff} Tage)" else ""
-                                                "${ev.title} (${formatIsoToDdMmYyyy(ev.dateIso)})$diffSuffix"
-                                            },
-                                            color = AccentSteel,
-                                            fontSize = 11.sp
-                                        )
+                                        personEvents.forEach { ev ->
+                                            val diff = daysUntilEventSpec(ev.dateIso)
+                                            val isDueToday = diff == 0L
+                                            val isWeekly = isWeeklyDateSpec(ev.dateIso)
+                                            val badgeColor = when {
+                                                isDueToday -> WarnAmber
+                                                isWeekly -> TreeGreen
+                                                else -> AccentSteel
+                                            }
+                                            Text(
+                                                text = formatEventBadgeText(ev),
+                                                color = badgeColor,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
                                 CompactButton("Nachricht") {
@@ -904,7 +999,7 @@ fun KontaktChronikApp(
                         val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
                         val rootJson = JSONObject().apply {
                             put("app", "Remember Me")
-                            put("version", "1.0.4")
+                            put("version", "1.0.6")
                             put("createdAt", dateStr)
                             val personsArr = JSONArray()
                             persons.forEach { p ->
@@ -1251,6 +1346,7 @@ fun KontaktChronikApp(
             mutableStateOf(parsed)
         }
         var newEvTitle by remember { mutableStateOf("") }
+        var newEvRepeat by remember { mutableStateOf("ONCE") }
         var newEvDate by remember { mutableStateOf(formatIsoToDdMmYyyy(LocalDate.now().plusDays(3).toString())) }
 
         // Neue Beziehung hinzufügen
@@ -1518,8 +1614,39 @@ fun KontaktChronikApp(
                     }
 
                     Text("Neue Erinnerung eintragen:", color = TextSecondary, fontSize = 12.sp)
-                    OutlinedTextField(value = newEvTitle, onValueChange = { newEvTitle = it }, label = { Text("Neue Erinnerung") }, modifier = Modifier.fillMaxWidth())
-                    DateInputWithCalendar(value = newEvDate, onValueChange = { newEvDate = it }, label = "Datum (TT.MM.JJJJ)")
+                    OutlinedTextField(value = newEvTitle, onValueChange = { newEvTitle = it }, label = { Text("Neue Erinnerung (z. B. Anrufen)") }, modifier = Modifier.fillMaxWidth())
+                    val repeatOptions = listOf(
+                        "ONCE" to "Einmalig (Datum)",
+                        "WEEKLY:1" to "🔁 Jeden Montag",
+                        "WEEKLY:2" to "🔁 Jeden Dienstag",
+                        "WEEKLY:3" to "🔁 Jeden Mittwoch",
+                        "WEEKLY:4" to "🔁 Jeden Donnerstag",
+                        "WEEKLY:5" to "🔁 Jeden Freitag",
+                        "WEEKLY:6" to "🔁 Jeden Samstag",
+                        "WEEKLY:7" to "🔁 Jeden Sonntag"
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(repeatOptions) { (code, labelText) ->
+                            val isSel = newEvRepeat == code
+                            Box(
+                                modifier = Modifier
+                                    .background(if (isSel) AccentSteel else BgSlate, RoundedCornerShape(6.dp))
+                                    .border(1.dp, if (isSel) AccentSteel else BorderSlate, RoundedCornerShape(6.dp))
+                                    .clickable { newEvRepeat = code }
+                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                            ) {
+                                Text(
+                                    labelText,
+                                    color = if (isSel) BgSlate else TextSecondary,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                    if (newEvRepeat == "ONCE") {
+                        DateInputWithCalendar(value = newEvDate, onValueChange = { newEvDate = it }, label = "Datum (TT.MM.JJJJ)")
+                    }
                 }
 
                 Divider(color = BorderSlate)
@@ -1575,11 +1702,16 @@ fun KontaktChronikApp(
                                     .joinToString("\n") { "${it.first.replace("\t", " ")}\t${it.second.replace("\t", " ")}" }
                                 prefs.edit().putString("extra_infos_${dp.id}", serializedExtras).apply()
                                 if (newEvTitle.isNotBlank()) {
+                                    val targetDateSpec = if (newEvRepeat == "ONCE") {
+                                        normalizeDateInputToIso(newEvDate)
+                                    } else {
+                                        newEvRepeat
+                                    }
                                     db.insertSpecialEvent(
                                         SpecialEventEntity(
                                             personId = dp.id,
                                             title = newEvTitle.trim(),
-                                            dateIso = normalizeDateInputToIso(newEvDate),
+                                            dateIso = targetDateSpec,
                                             leadDays = 1
                                         )
                                     )
