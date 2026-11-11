@@ -2,11 +2,14 @@ package de.kontaktchronik.app.ui
 
 import android.Manifest
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -69,6 +72,7 @@ import de.kontaktchronik.app.data.ContactsSyncRepository
 import de.kontaktchronik.app.data.DeviceContactFullDetails
 import de.kontaktchronik.app.messaging.DirectMessagingService
 import de.kontaktchronik.app.model.*
+import de.kontaktchronik.app.reminders.BirthdayNotificationHelper
 import de.kontaktchronik.app.reminders.DailyReminderWorker
 import de.kontaktchronik.app.reminders.QuickActionDispatcher
 import kotlinx.coroutines.launch
@@ -1881,14 +1885,26 @@ fun buildMergedContactPreview(
 }
 
 class MainActivity : ComponentActivity() {
+    private val pendingPopupRequest = mutableStateOf<Triple<Long, String, Long>?>(null)
+
+    private fun consumePopupIntent(incoming: Intent?) {
+        val pid = incoming?.getLongExtra("POPUP_PERSON_ID", -1L) ?: -1L
+        if (pid > 0L) {
+            val reason = incoming?.getStringExtra("POPUP_REASON") ?: "Erinnerung"
+            incoming?.removeExtra("POPUP_PERSON_ID")
+            incoming?.removeExtra("POPUP_REASON")
+            pendingPopupRequest.value = Triple(pid, reason, System.currentTimeMillis())
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         DailyReminderWorker.schedule(this)
-
-        val initialPopupPersonId = intent?.getLongExtra("POPUP_PERSON_ID", -1L) ?: -1L
-        val initialPopupReason = intent?.getStringExtra("POPUP_REASON") ?: "Erinnerung"
-        intent?.removeExtra("POPUP_PERSON_ID")
-        intent?.removeExtra("POPUP_REASON")
+        if (BirthdayNotificationHelper.isBirthdayPopupEnabled(this)) {
+            BirthdayNotificationHelper.ensureNotificationChannel(this)
+            BirthdayNotificationHelper.scheduleDailyBirthdayAlarm(this)
+        }
+        consumePopupIntent(intent)
 
         setContent {
             val scheme = if (isLightMode) {
@@ -1910,18 +1926,24 @@ class MainActivity : ComponentActivity() {
             }
             MaterialTheme(colorScheme = scheme) {
                 KontaktChronikApp(
-                    initialPopupPersonId = initialPopupPersonId,
-                    initialPopupReason = initialPopupReason
+                    popupRequest = pendingPopupRequest.value,
+                    onConsumePopupRequest = { pendingPopupRequest.value = null }
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        consumePopupIntent(intent)
     }
 }
 
 @Composable
 fun KontaktChronikApp(
-    initialPopupPersonId: Long,
-    initialPopupReason: String
+    popupRequest: Triple<Long, String, Long>?,
+    onConsumePopupRequest: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1936,6 +1958,10 @@ fun KontaktChronikApp(
     var activeTab by remember { mutableStateOf("Übersicht") }
     var treeEnabled by remember { mutableStateOf(appPrefs.getBoolean("tree_enabled", true)) }
     var wichtelEnabled by remember { mutableStateOf(appPrefs.getBoolean("wichtel_enabled", true)) }
+    var birthdayPopupEnabled by remember { mutableStateOf(BirthdayNotificationHelper.isBirthdayPopupEnabled(context)) }
+    var birthdayPopupHour by remember { mutableStateOf(BirthdayNotificationHelper.getNotificationTime(context).first) }
+    var birthdayPopupMinute by remember { mutableStateOf(BirthdayNotificationHelper.getNotificationTime(context).second) }
+    var hasNotificationPerm by remember { mutableStateOf(BirthdayNotificationHelper.hasNotificationPermission(context)) }
     var wichtelGroups by remember { mutableStateOf(parseWichtelGroupsJson(appPrefs.getString("wichtel_groups_json", null))) }
     var wichtelHistory by remember { mutableStateOf(parseWichtelHistoryJson(appPrefs.getString("wichtel_history_json", null))) }
     var birthdayGreetings by remember { mutableStateOf(parseBirthdayGreetingsJson(appPrefs.getString("birthday_greetings_json", null))) }
@@ -1981,9 +2007,8 @@ fun KontaktChronikApp(
     }
     var selectedTreeRootId by remember { mutableStateOf<Long?>(null) }
     var popupPerson by remember { mutableStateOf<PersonEntity?>(null) }
-    var initialPopupHandled by remember { mutableStateOf(false) }
     var initialPhotoSyncDone by remember { mutableStateOf(false) }
-    var popupReason by remember { mutableStateOf(initialPopupReason) }
+    var popupReason by remember { mutableStateOf("Erinnerung") }
     var quickMessageText by remember { mutableStateOf("") }
     var showCreateDialog by remember { mutableStateOf(false) }
     var showTimerEntryDialog by remember { mutableStateOf(false) }
@@ -2002,15 +2027,49 @@ fun KontaktChronikApp(
     var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val clipboardManager = LocalClipboardManager.current
 
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasNotificationPerm = granted || BirthdayNotificationHelper.hasNotificationPermission(context)
+        if (hasNotificationPerm && birthdayPopupEnabled) {
+            BirthdayNotificationHelper.ensureNotificationChannel(context)
+            BirthdayNotificationHelper.scheduleDailyBirthdayAlarm(context)
+            BirthdayNotificationHelper.checkAndNotifyTodaysBirthdaysAsync(context)
+            syncStatus = "Geburtstags-Popups aktiviert"
+        } else if (!hasNotificationPerm) {
+            syncStatus = "Benachrichtigungs-Berechtigung noch nicht erteilt"
+        }
+    }
+
+    fun openAppNotificationSettings() {
+        val settingsIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { context.startActivity(settingsIntent) }.onFailure {
+            val fallback = Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", context.packageName, null)
+            ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            runCatching { context.startActivity(fallback) }
+        }
+    }
+
     suspend fun syncContactsRespectingMerged(forcePhotoRefresh: Boolean = false): Int {
         val currentIgnored = appPrefs.getStringSet("merged_away_device_cids", emptySet()).orEmpty()
-        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val count = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             syncRepo.syncDeviceContactsWithBirthdays(
                 contentResolver = context.contentResolver,
                 forcePhotoRefresh = forcePhotoRefresh,
                 ignoredDeviceContactIds = currentIgnored
             )
         }
+        if (birthdayPopupEnabled && BirthdayNotificationHelper.hasNotificationPermission(context)) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                BirthdayNotificationHelper.checkAndNotifyTodaysBirthdays(context)
+            }
+        }
+        return count
     }
 
     fun setPersonHidden(personId: Long, hidden: Boolean) {
@@ -2038,6 +2097,17 @@ fun KontaktChronikApp(
         } else {
             "warm"
         }
+        hasNotificationPerm = BirthdayNotificationHelper.hasNotificationPermission(context)
+        if (birthdayPopupEnabled) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPerm) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                BirthdayNotificationHelper.scheduleDailyBirthdayAlarm(context)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    BirthdayNotificationHelper.checkAndNotifyTodaysBirthdays(context)
+                }
+            }
+        }
         val hasRead = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.READ_CONTACTS
@@ -2048,7 +2118,7 @@ fun KontaktChronikApp(
         }
     }
 
-    LaunchedEffect(persons, initialPopupPersonId) {
+    LaunchedEffect(persons, popupRequest) {
         // Entferne automatisch evtl. vorhandene Dummy-/Beispieldaten aus früheren Versionen
         val dummyNames = setOf(
             "helga weber (oma)",
@@ -2088,12 +2158,14 @@ fun KontaktChronikApp(
             saveWichtelHistory(wichtelHistory.filterNot { it.id == 3001L })
         }
 
-        if (!initialPopupHandled && initialPopupPersonId > 0 && persons.isNotEmpty()) {
-            initialPopupHandled = true
-            val found = persons.find { it.id == initialPopupPersonId }
+        if (popupRequest != null && persons.isNotEmpty()) {
+            val (targetId, reqReason, _) = popupRequest
+            onConsumePopupRequest()
+            val found = persons.find { it.id == targetId }
             if (found != null && !found.isHidden && !hiddenPersonIds.contains(found.id)) {
+                popupReason = reqReason
                 val firstName = stripNameRoleSuffix(found.name).substringBefore(" ")
-                if (quickMessageText.isBlank()) {
+                if (reqReason.contains("Geburtstag", ignoreCase = true) || quickMessageText.isBlank()) {
                     quickMessageText = pickRandomBirthdayGreeting(firstName, false)
                 }
                 popupPerson = found
@@ -2177,7 +2249,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.33", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.34", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -3122,8 +3194,11 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.33")
+                put("version", "1.0.34")
                 put("createdAt", dateStr)
+                put("birthdayPopupEnabled", birthdayPopupEnabled)
+                put("birthdayPopupHour", birthdayPopupHour)
+                put("birthdayPopupMinute", birthdayPopupMinute)
                 put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
                 put("wichtelHistory", JSONArray(serializeWichtelHistoryJson(wichtelHistory)))
@@ -3236,6 +3311,96 @@ fun KontaktChronikApp(
                             wichtelEnabled = false
                             if (activeTab == "🎄 Wichteln") activeTab = "Übersicht"
                             appPrefs.edit().putBoolean("wichtel_enabled", false).apply()
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = BorderSlate)
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "🔔 Geburtstags-Popup",
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                if (birthdayPopupEnabled) {
+                                    "Handy-Meldung am Geburtstag (%02d:%02d Uhr)".format(birthdayPopupHour, birthdayPopupMinute)
+                                } else {
+                                    "Keine Handy-Popup-Benachrichtigung"
+                                },
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            CompactButton(if (birthdayPopupEnabled) "✓ Aktiviert" else "Aktiviert") {
+                                birthdayPopupEnabled = true
+                                BirthdayNotificationHelper.setBirthdayPopupEnabled(context, true)
+                                hasNotificationPerm = BirthdayNotificationHelper.hasNotificationPermission(context)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPerm) {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                            }
+                            CompactButton(if (!birthdayPopupEnabled) "✓ Deaktiviert" else "Deaktiviert") {
+                                birthdayPopupEnabled = false
+                                BirthdayNotificationHelper.setBirthdayPopupEnabled(context, false)
+                            }
+                        }
+                    }
+
+                    if (birthdayPopupEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CompactButton(
+                                label = "⏰ Uhrzeit: %02d:%02d".format(birthdayPopupHour, birthdayPopupMinute)
+                            ) {
+                                TimePickerDialog(
+                                    context,
+                                    { _, selectedHour, selectedMinute ->
+                                        birthdayPopupHour = selectedHour
+                                        birthdayPopupMinute = selectedMinute
+                                        BirthdayNotificationHelper.setNotificationTime(context, selectedHour, selectedMinute)
+                                        syncStatus = "Geburtstags-Popup täglich um %02d:%02d Uhr".format(selectedHour, selectedMinute)
+                                    },
+                                    birthdayPopupHour,
+                                    birthdayPopupMinute,
+                                    true
+                                ).show()
+                            }
+                            CompactButton("🔔 Test-Popup") {
+                                val permOk = BirthdayNotificationHelper.hasNotificationPermission(context)
+                                hasNotificationPerm = permOk
+                                if (!permOk && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    val today = LocalDate.now()
+                                    val sample = visiblePersons.firstOrNull {
+                                        ContactResolver.daysUntilNextBirthday(it.birthdayIso, today) == 0L
+                                    } ?: visiblePersons.firstOrNull { !it.birthdayIso.isNullOrBlank() }
+                                        ?: visiblePersons.firstOrNull()
+                                    BirthdayNotificationHelper.sendTestBirthdayPopup(context, sample)
+                                    syncStatus = "Test-Geburtstags-Popup gesendet"
+                                }
+                            }
+                            if (!hasNotificationPerm && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                CompactButton("🔓 Freigeben") {
+                                    openAppNotificationSettings()
+                                }
+                            }
                         }
                     }
                 }
@@ -3398,6 +3563,18 @@ fun KontaktChronikApp(
                             runCatching {
                                 val parsed = JSONObject(restoreJsonText.trim())
                                 val stateObj = parsed.optJSONObject("state") ?: parsed
+                                if (stateObj.has("birthdayPopupEnabled")) {
+                                    val restoredPopup = stateObj.optBoolean("birthdayPopupEnabled", true)
+                                    birthdayPopupEnabled = restoredPopup
+                                    BirthdayNotificationHelper.setBirthdayPopupEnabled(context, restoredPopup)
+                                }
+                                if (stateObj.has("birthdayPopupHour") || stateObj.has("birthdayPopupMinute")) {
+                                    val rH = stateObj.optInt("birthdayPopupHour", birthdayPopupHour).coerceIn(0, 23)
+                                    val rM = stateObj.optInt("birthdayPopupMinute", birthdayPopupMinute).coerceIn(0, 59)
+                                    birthdayPopupHour = rH
+                                    birthdayPopupMinute = rM
+                                    BirthdayNotificationHelper.setNotificationTime(context, rH, rM)
+                                }
                                 val bgArr = stateObj.optJSONArray("birthdayGreetings")
                                 if (bgArr != null) {
                                     saveBirthdayGreetings(parseBirthdayGreetingsJson(bgArr.toString()))

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.33 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.34 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1613,9 +1613,10 @@
       // 2. Geburtstage heute/morgen & Melde-Timer prüfen (nur sichtbare Kontakte)
       for (const p of state.persons.filter(x => !x.isHidden)) {
         const bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
-        if (bdayDays !== null && (bdayDays === 0 || bdayDays === 1)) {
-          openPopupForPerson(p.id, `🎂 ${bdayDays === 0 ? 'Heute Geburtstag!' : 'Morgen Geburtstag'} (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`);
-          addLog(`DailyReminderWorker -> Geburtstags-Erinnerung für ${p.name}`);
+        if (state.birthdayPopupEnabled !== false && bdayDays !== null && bdayDays === 0) {
+          showBirthdayHeadsUpToast(p, false);
+          openPopupForPerson(p.id, `🎂 Heute Geburtstag! (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`);
+          addLog(`DailyReminderWorker -> Geburtstags-Popup für ${p.name}`);
           return;
         }
         const nextTimer = ContactResolver.nextTimerDate(p, today);
@@ -1891,7 +1892,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.33</div>
+            <div class="app-title">Remember Me v1.0.34</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -4402,6 +4403,8 @@
         if (currentTheme === "light") currentTheme = "warm";
         if (currentTheme === "dark") currentTheme = "cozy-dark";
         const wichtelActive = state.wichtelEnabled !== false;
+        const bdayPopupActive = state.birthdayPopupEnabled !== false;
+        const bdayPopupTime = state.birthdayPopupTime || "08:30";
         const greetingsCount = getBirthdayGreetingsList().length;
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
@@ -4425,6 +4428,26 @@
                   <button class="compact-btn ${wichtelActive ? 'primary' : ''}" onclick="setWichtelEnabled(true)">Aktiviert</button>
                   <button class="compact-btn ${!wichtelActive ? 'primary' : ''}" onclick="setWichtelEnabled(false)">Deaktiviert</button>
                 </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:6px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                  <div>
+                    <div style="font-size:13px; font-weight:600; color:var(--text-primary);">🔔 Geburtstags-Popup</div>
+                    <div style="font-size:10.5px; color:var(--text-secondary);">${bdayPopupActive ? `Handy-Meldung am Geburtstag (${escapeHtml(bdayPopupTime)} Uhr)` : 'Keine Handy-Popup-Benachrichtigung'}</div>
+                  </div>
+                  <div class="btn-row">
+                    <button class="compact-btn ${bdayPopupActive ? 'primary' : ''}" onclick="setBirthdayPopupEnabled(true)">Aktiviert</button>
+                    <button class="compact-btn ${!bdayPopupActive ? 'primary' : ''}" onclick="setBirthdayPopupEnabled(false)">Deaktiviert</button>
+                  </div>
+                </div>
+                ${bdayPopupActive ? `
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:11px; color:var(--text-secondary);">⏰ Uhrzeit:</span>
+                    <input type="time" class="field-input" style="width:92px; padding:4px 6px;" value="${escapeHtml(bdayPopupTime)}" onchange="setBirthdayPopupTime(this.value)" />
+                    <button class="compact-btn" onclick="triggerTestBirthdayPopup()">🔔 Test-Popup</button>
+                  </div>
+                ` : ''}
               </div>
 
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
@@ -5464,6 +5487,112 @@
         activeTab = "Übersicht";
       }
       saveState();
+    }
+
+    function setBirthdayPopupEnabled(enabled) {
+      state.birthdayPopupEnabled = !!enabled;
+      if (state.birthdayPopupEnabled) {
+        if ("Notification" in window && Notification.permission === "default") {
+          Notification.requestPermission().catch(() => {});
+        }
+        saveState();
+        checkTodaysBirthdaysPopup();
+      } else {
+        const existingBanner = document.getElementById("phone-bday-popup-banner");
+        if (existingBanner) existingBanner.remove();
+        saveState();
+      }
+    }
+
+    function setBirthdayPopupTime(timeVal) {
+      if (!timeVal) return;
+      state.birthdayPopupTime = timeVal;
+      saveState();
+    }
+
+    function showBirthdayHeadsUpToast(person, isTest = false) {
+      const existing = document.getElementById("phone-bday-popup-banner");
+      if (existing) existing.remove();
+      const today = todayIso();
+      const ageInfo = person && person.birthdayIso ? ContactResolver.formatUpcomingAge(person.birthdayIso, today) : "";
+      const hasAge = ageInfo && ageInfo.toLowerCase() !== "alter unbekannt";
+      const personName = person ? person.name : "Max Mustermann";
+      const titleText = isTest ? `🎂 Geburtstags-Popup (Test): ${personName}` : `🎂 Heute Geburtstag: ${personName}`;
+      const bodyText = `${personName} hat heute Geburtstag${hasAge ? ` (${ageInfo})` : ""}! 🎉 Tippe zum Gratulieren.`;
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          const n = new Notification(titleText, { body: bodyText });
+          n.onclick = () => {
+            window.focus();
+            if (person && person.id) {
+              openPopupForPerson(person.id, `🎂 Heute Geburtstag${hasAge ? ` (${ageInfo})` : ""}`);
+            }
+          };
+        } catch (e) {}
+      }
+
+      const banner = document.createElement("div");
+      banner.id = "phone-bday-popup-banner";
+      banner.style.cssText = "position:fixed; top:14px; left:50%; transform:translateX(-50%); width:min(390px, calc(100vw - 24px)); background:var(--card-slate); color:var(--text-primary); border:2px solid var(--accent-steel); border-radius:14px; box-shadow:0 12px 30px rgba(0,0,0,0.32); padding:12px 14px; z-index:9999; cursor:pointer; display:flex; flex-direction:column; gap:6px;";
+      banner.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <div style="font-size:13.5px; font-weight:700; color:var(--text-primary);">${escapeHtml(titleText)}</div>
+          <button class="compact-btn" onclick="event.stopPropagation(); this.closest('#phone-bday-popup-banner').remove();">✕</button>
+        </div>
+        <div style="font-size:12px; color:var(--text-secondary);">${escapeHtml(bodyText)}</div>
+        <div style="display:flex; justify-content:flex-end;">
+          <span style="font-size:11.5px; font-weight:700; color:var(--accent-steel);">🎉 Jetzt gratulieren →</span>
+        </div>
+      `;
+      banner.onclick = () => {
+        banner.remove();
+        if (person && person.id) {
+          showOptionsDialog = false;
+          openPopupForPerson(person.id, `🎂 Heute Geburtstag${hasAge ? ` (${ageInfo})` : ""}`);
+        }
+      };
+      document.body.appendChild(banner);
+      setTimeout(() => {
+        if (banner.parentNode) banner.remove();
+      }, 9000);
+    }
+
+    function triggerTestBirthdayPopup() {
+      const today = todayIso();
+      const visible = state.persons.filter(p => !p.isHidden);
+      const sample = visible.find(p => ContactResolver.daysUntilNextBirthday(p.birthdayIso, today) === 0)
+        || visible.find(p => !!p.birthdayIso)
+        || visible[0]
+        || { id: 0, name: "Max Mustermann", birthdayIso: "1994-05-12" };
+      showBirthdayHeadsUpToast(sample, true);
+      addLog(`🔔 Test-Geburtstags-Popup für "${sample.name}" angezeigt.`);
+    }
+
+    function checkTodaysBirthdaysPopup() {
+      if (state.birthdayPopupEnabled === false) return;
+      const today = todayIso();
+      const storageKey = `remember_me_notified_bday_${today}`;
+      let notified = [];
+      try {
+        notified = JSON.parse(localStorage.getItem(storageKey) || "[]");
+      } catch (e) {}
+      const notifiedSet = new Set(notified);
+      let changed = false;
+      for (const p of state.persons.filter(x => !x.isHidden)) {
+        if (ContactResolver.daysUntilNextBirthday(p.birthdayIso, today) === 0) {
+          if (!notifiedSet.has(p.id)) {
+            notifiedSet.add(p.id);
+            changed = true;
+            showBirthdayHeadsUpToast(p, false);
+          }
+        }
+      }
+      if (changed) {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify([...notifiedSet]));
+        } catch (e) {}
+      }
     }
 
     function openWichtelGroupModal(mode, groupId = null) {
@@ -6679,7 +6808,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.33",
+        version: "1.0.34",
         createdAt: dateStr,
         state
       };
@@ -6697,7 +6826,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.33",
+        version: "1.0.34",
         createdAt: dateStr,
         state
       };
@@ -6772,8 +6901,9 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.33 gestartet.");
+    addLog("Remember Me v1.0.34 gestartet.");
     renderAll();
+    checkTodaysBirthdaysPopup();
   </script>
 </body>
 </html>
