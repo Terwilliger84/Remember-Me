@@ -73,6 +73,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.text.Normalizer
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
@@ -586,13 +587,32 @@ fun extractFirstName(fullName: String): String {
     return clean.split(Regex("\\s+")).firstOrNull()?.ifBlank { clean } ?: clean
 }
 
+private val COMPANY_NAME_REGEX = Regex(
+    "\\b(gmbh|mbh|kg|ohg|gbr|ag|ug|e\\.?v\\.?|co\\.|praxis|kanzlei|apotheke|autohaus|bäckerei|baeckerei|metzgerei|baugeschäft|baugeschaeft|hotel|restaurant|gasthof|schule|gemeinde|stadt|sparkasse|bank|versicherung|klinik|zentrum|verein)\\b",
+    RegexOption.IGNORE_CASE
+)
+
+private val TRAILING_CONTACT_TAGS = setOf(
+    "mobil", "handy", "privat", "arbeit", "büro", "buero", "festnetz", "tel", "tel.", "telefon", "zentrale", "home", "work"
+)
+
+fun isLikelyOrganizationName(cleanName: String): Boolean =
+    COMPANY_NAME_REGEX.containsMatchIn(cleanName)
+
 fun extractLastName(fullName: String): String {
     val clean = stripNameRoleSuffix(fullName)
+    if (clean.isBlank()) return fullName.trim()
     if (clean.contains(",")) {
         val before = clean.substringBefore(",").trim()
         if (before.isNotBlank()) return before
     }
-    val parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (isLikelyOrganizationName(clean)) {
+        return clean
+    }
+    var parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
+    while (parts.size > 2 && TRAILING_CONTACT_TAGS.contains(parts.last().lowercase())) {
+        parts = parts.dropLast(1)
+    }
     return if (parts.size > 1) parts.last() else (parts.firstOrNull() ?: clean)
 }
 
@@ -602,19 +622,49 @@ fun formatLastNameFirst(fullName: String): String {
     val roleMatch = Regex("(\\s*\\([^)]*\\))$").find(trimmed)
     val roleSuffix = roleMatch?.value.orEmpty()
     val clean = stripNameRoleSuffix(trimmed)
-    val parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
-    if (parts.size <= 1) return trimmed
-    val last = parts.last()
-    val first = parts.dropLast(1).joinToString(" ")
-    return "$last, $first$roleSuffix"
+    if (isLikelyOrganizationName(clean)) return trimmed
+    val rawParts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (rawParts.size <= 1) return trimmed
+    val trailingTags = mutableListOf<String>()
+    var coreParts = rawParts
+    while (coreParts.size > 2 && TRAILING_CONTACT_TAGS.contains(coreParts.last().lowercase())) {
+        trailingTags.add(0, coreParts.last())
+        coreParts = coreParts.dropLast(1)
+    }
+    val last = coreParts.last()
+    val first = coreParts.dropLast(1).joinToString(" ")
+    val extraTagSuffix = if (trailingTags.isNotEmpty()) " (${trailingTags.joinToString(" ")})" else ""
+    return "$last, $first$extraTagSuffix$roleSuffix"
 }
 
-fun normalizeGermanSortKey(raw: String): String =
-    raw.trim().lowercase()
+fun normalizeLatinLetter(ch: Char): String {
+    val upper = ch.uppercaseChar()
+    when (upper) {
+        'Ä' -> return "A"
+        'Ö', 'Ø' -> return "O"
+        'Ü' -> return "U"
+        'ß' -> return "S"
+        'Ł' -> return "L"
+        'Đ' -> return "D"
+    }
+    if (upper in 'A'..'Z') return upper.toString()
+    val decomposed = Normalizer.normalize(upper.toString(), Normalizer.Form.NFD)
+    val baseChar = decomposed.firstOrNull { it in 'A'..'Z' }
+    return baseChar?.toString() ?: "#"
+}
+
+fun normalizeGermanSortKey(raw: String): String {
+    val pre = raw.trim().lowercase()
         .replace("ä", "ae")
         .replace("ö", "oe")
         .replace("ü", "ue")
         .replace("ß", "ss")
+        .replace("ł", "l")
+        .replace("đ", "d")
+        .replace("ø", "o")
+    return Normalizer.normalize(pre, Normalizer.Form.NFD)
+        .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+}
 
 val LastNamePersonComparator: Comparator<PersonEntity> =
     compareBy<PersonEntity> { normalizeGermanSortKey(extractLastName(it.name)) }
@@ -625,42 +675,41 @@ fun List<PersonEntity>.sortedByLastName(): List<PersonEntity> =
     this.sortedWith(LastNamePersonComparator)
 
 fun extractLastNameInitial(fullName: String): String {
-    val last = extractLastName(fullName).trim()
-    val ch = last.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: return "#"
-    return when (ch) {
-        'Ä' -> "A"
-        'Ö' -> "O"
-        'Ü' -> "U"
-        in 'A'..'Z' -> ch.toString()
-        else -> "#"
-    }
+    val last = extractLastName(fullName).trim().ifBlank { fullName.trim() }
+    val ch = last.firstOrNull { it.isLetterOrDigit() } ?: return "#"
+    return if (ch.isLetter()) normalizeLatinLetter(ch) else "#"
 }
 
 fun extractTextInitial(text: String): String {
-    val ch = text.trim().firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: return "#"
-    return when (ch) {
-        'Ä' -> "A"
-        'Ö' -> "O"
-        'Ü' -> "U"
-        in 'A'..'Z' -> ch.toString()
-        else -> "#"
-    }
+    val ch = text.trim().firstOrNull { it.isLetterOrDigit() } ?: return "#"
+    return if (ch.isLetter()) normalizeLatinLetter(ch) else "#"
 }
 
 fun matchesPersonSearchAndLetter(person: PersonEntity, query: String, letter: String): Boolean {
     if (letter.isNotBlank() && letter != "Alle") {
         if (extractLastNameInitial(person.name) != letter) return false
     }
-    val q = query.trim().lowercase()
-    if (q.isBlank()) return true
+    val qRaw = query.trim().lowercase()
+    if (qRaw.isBlank()) return true
     val fullLower = person.name.lowercase()
     val lastFirstLower = formatLastNameFirst(person.name).lowercase()
     val phoneLower = person.phone.lowercase()
-    return fullLower.contains(q) || lastFirstLower.contains(q) || phoneLower.contains(q)
+    if (fullLower.contains(qRaw) || lastFirstLower.contains(qRaw) || phoneLower.contains(qRaw)) return true
+
+    val haystackNorm = normalizeGermanSortKey("${person.name} ${formatLastNameFirst(person.name)} ${person.phone}")
+    val tokens = qRaw.split(Regex("[\\s,]+")).filter { it.isNotBlank() }
+    if (tokens.isEmpty()) return true
+    return tokens.all { token ->
+        val tokenNorm = normalizeGermanSortKey(token)
+        fullLower.contains(token) ||
+            lastFirstLower.contains(token) ||
+            phoneLower.contains(token) ||
+            (tokenNorm.isNotBlank() && haystackNorm.contains(tokenNorm))
+    }
 }
 
 val ALPHABET_ROW_1 = listOf("Alle", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M")
-val ALPHABET_ROW_2 = listOf("N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z")
+val ALPHABET_ROW_2 = listOf("N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "#")
 
 @Composable
 fun AlphabetQuickBar(
@@ -747,7 +796,9 @@ fun ContactSearchDropdown(
     onExternalSelectedLetterChange: ((String) -> Unit)? = null,
     showInlineAlphabet: Boolean = false,
     checkedPersonIds: Set<Long>? = null,
-    onToggleCheckedPerson: ((PersonEntity) -> Unit)? = null
+    onToggleCheckedPerson: ((PersonEntity) -> Unit)? = null,
+    hiddenPersons: List<PersonEntity> = emptyList(),
+    onShowHidden: (() -> Unit)? = null
 ) {
     var internalExpanded by remember { mutableStateOf(false) }
     var internalQuery by remember { mutableStateOf("") }
@@ -765,6 +816,10 @@ fun ContactSearchDropdown(
         persons
             .filter { matchesPersonSearchAndLetter(it, query, letter) }
             .sortedWith(LastNamePersonComparator)
+    }
+    val matchingHiddenCount = remember(hiddenPersons, query, letter) {
+        if (hiddenPersons.isEmpty() || (query.isBlank() && (letter.isBlank() || letter == "Alle"))) 0
+        else hiddenPersons.count { matchesPersonSearchAndLetter(it, query, letter) }
     }
     val selectedPerson = remember(persons, selectedPersonId) {
         persons.find { it.id == selectedPersonId }
@@ -955,6 +1010,37 @@ fun ContactSearchDropdown(
                                             )
                                         }
                                         HorizontalDivider(color = BorderSlate.copy(alpha = 0.5f))
+                                    }
+                                }
+                                if (matchingHiddenCount > 0 && onShowHidden != null) {
+                                    item(key = "hidden_hint_option") {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(BgSlate)
+                                                .clickable {
+                                                    internalExpanded = false
+                                                    onShowHidden()
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "👁 $matchingHiddenCount ausgeblendet für diesen Filter",
+                                                color = WarnAmber,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                "Ausgeblendete zeigen →",
+                                                color = AccentSteel,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        HorizontalDivider(color = WarnAmber.copy(alpha = 0.5f))
                                     }
                                 }
                                 if (sortedFiltered.isEmpty()) {
@@ -1570,6 +1656,14 @@ fun KontaktChronikApp(
         } else {
             "warm"
         }
+        val hasRead = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_CONTACTS
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasRead) {
+            initialPhotoSyncDone = true
+            syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver, forcePhotoRefresh = false)
+        }
     }
 
     LaunchedEffect(persons, initialPopupPersonId) {
@@ -1701,7 +1795,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.29", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.30", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1717,8 +1811,11 @@ fun KontaktChronikApp(
                     ) == PackageManager.PERMISSION_GRANTED
                     if (hasRead && hasWrite) {
                         scope.launch {
-                            val count = syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver)
-                            syncStatus = "$count Kontakte synchronisiert"
+                            val count = syncRepo.syncDeviceContactsWithBirthdays(
+                                context.contentResolver,
+                                forcePhotoRefresh = true
+                            )
+                            syncStatus = "$count neue Kontakte synchronisiert"
                         }
                     } else {
                         contactPermissionLauncher.launch(
@@ -1833,18 +1930,20 @@ fun KontaktChronikApp(
 
         when (activeTab) {
             "Alle Kontakte" -> {
-                val hiddenCount = remember(persons, hiddenPersonIds) {
-                    persons.count { it.isHidden || hiddenPersonIds.contains(it.id) }
+                val hiddenList = remember(persons, hiddenPersonIds) {
+                    persons.filter { it.isHidden || hiddenPersonIds.contains(it.id) }
                 }
-                val baseList = remember(persons, visiblePersons, hiddenPersonIds, allContactsFilter) {
-                    if (allContactsFilter == "hidden") {
-                        persons.filter { it.isHidden || hiddenPersonIds.contains(it.id) }
-                    } else {
-                        visiblePersons
-                    }
+                val hiddenCount = hiddenList.size
+                val baseList = remember(hiddenList, visiblePersons, allContactsFilter) {
+                    if (allContactsFilter == "hidden") hiddenList else visiblePersons
                 }
                 val filteredBase = remember(baseList, tabSearchQuery, tabSelectedLetter) {
                     baseList.filter { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
+                }
+                val isFilteringAllContacts = tabSearchQuery.isNotBlank() || (tabSelectedLetter.isNotBlank() && tabSelectedLetter != "Alle")
+                val matchingHiddenInContactsCount = remember(hiddenList, allContactsFilter, tabSearchQuery, tabSelectedLetter, isFilteringAllContacts) {
+                    if (allContactsFilter == "hidden" || !isFilteringAllContacts) 0
+                    else hiddenList.count { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
                 }
                 val sortedAll = remember(filteredBase, contactSortMode) {
                     when (contactSortMode) {
@@ -1868,7 +1967,9 @@ fun KontaktChronikApp(
                         onExternalSearchQueryChange = { tabSearchQuery = it },
                         externalSelectedLetter = tabSelectedLetter,
                         onExternalSelectedLetterChange = { tabSelectedLetter = it },
-                        showInlineAlphabet = true
+                        showInlineAlphabet = true,
+                        hiddenPersons = if (allContactsFilter == "all") hiddenList else emptyList(),
+                        onShowHidden = if (allContactsFilter == "all") ({ allContactsFilter = "hidden" }) else null
                     )
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -1890,6 +1991,32 @@ fun KontaktChronikApp(
                                 if (allContactsFilter == "hidden") "✓ Ausgeblendet ($hiddenCount)"
                                 else "Ausgeblendet ($hiddenCount)"
                             ) {
+                                allContactsFilter = "hidden"
+                            }
+                        }
+                    }
+
+                    if (matchingHiddenInContactsCount > 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .background(CardSlate, RoundedCornerShape(8.dp))
+                                .border(1.dp, WarnAmber, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "👁 $matchingHiddenInContactsCount ausgeblendet für diesen Filter",
+                                color = WarnAmber,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CompactButton("Ausgeblendete zeigen") {
                                 allContactsFilter = "hidden"
                             }
                         }
@@ -2304,10 +2431,17 @@ fun KontaktChronikApp(
             }
 
             else -> {
+                val hiddenOverviewList = remember(persons, hiddenPersonIds) {
+                    persons.filter { it.isHidden || hiddenPersonIds.contains(it.id) }
+                }
                 val filteredOverview = remember(visiblePersons, tabSearchQuery, tabSelectedLetter) {
                     visiblePersons.filter { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
                 }
                 val isFilteringByLetterOrQuery = tabSearchQuery.isNotBlank() || (tabSelectedLetter.isNotBlank() && tabSelectedLetter != "Alle")
+                val matchingHiddenOverviewCount = remember(hiddenOverviewList, tabSearchQuery, tabSelectedLetter, isFilteringByLetterOrQuery) {
+                    if (!isFilteringByLetterOrQuery) 0
+                    else hiddenOverviewList.count { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
+                }
                 val sortedPersons = remember(filteredOverview, showPastDates, contactSortMode, isFilteringByLetterOrQuery) {
                     when {
                         isFilteringByLetterOrQuery || contactSortMode == "lastname" -> {
@@ -2342,7 +2476,12 @@ fun KontaktChronikApp(
                         onExternalSearchQueryChange = { tabSearchQuery = it },
                         externalSelectedLetter = tabSelectedLetter,
                         onExternalSelectedLetterChange = { tabSelectedLetter = it },
-                        showInlineAlphabet = true
+                        showInlineAlphabet = true,
+                        hiddenPersons = hiddenOverviewList,
+                        onShowHidden = {
+                            allContactsFilter = "hidden"
+                            activeTab = "Alle Kontakte"
+                        }
                     )
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -2377,6 +2516,33 @@ fun KontaktChronikApp(
                                 maxLines = 1,
                                 softWrap = false
                             )
+                        }
+                    }
+
+                    if (matchingHiddenOverviewCount > 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .background(CardSlate, RoundedCornerShape(8.dp))
+                                .border(1.dp, WarnAmber, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "👁 $matchingHiddenOverviewCount ausgeblendet für diesen Filter",
+                                color = WarnAmber,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CompactButton("Ausgeblendete zeigen") {
+                                allContactsFilter = "hidden"
+                                activeTab = "Alle Kontakte"
+                            }
                         }
                     }
 
@@ -2524,7 +2690,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.29")
+                put("version", "1.0.30")
                 put("createdAt", dateStr)
                 put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))

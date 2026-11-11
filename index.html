@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.29 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.30 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1891,7 +1891,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.29</div>
+            <div class="app-title">Remember Me v1.0.30</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2092,6 +2092,15 @@
       return parts.length > 1 ? parts.slice(0, -1).join(" ") : (parts[0] || clean);
     }
 
+    const COMPANY_NAME_REGEX = /\b(gmbh|mbh|kg|ohg|gbr|ag|ug|e\.?v\.?|co\.|praxis|kanzlei|apotheke|autohaus|bäckerei|baeckerei|metzgerei|baugeschäft|baugeschaeft|hotel|restaurant|gasthof|schule|gemeinde|stadt|sparkasse|bank|versicherung|klinik|zentrum|verein)\b/i;
+    const TRAILING_CONTACT_TAGS = new Set([
+      "mobil", "handy", "privat", "arbeit", "büro", "buero", "festnetz", "tel", "tel.", "telefon", "zentrale", "home", "work"
+    ]);
+
+    function isLikelyOrganizationName(cleanName) {
+      return COMPANY_NAME_REGEX.test(cleanName || "");
+    }
+
     function extractLastName(fullName) {
       const clean = stripNameRoleSuffix(fullName);
       if (!clean) return "";
@@ -2099,47 +2108,79 @@
         const beforeComma = clean.split(",")[0].trim();
         if (beforeComma) return beforeComma;
       }
+      if (isLikelyOrganizationName(clean)) return clean;
       const parts = clean.split(/\s+/).filter(Boolean);
+      while (parts.length > 2 && TRAILING_CONTACT_TAGS.has(parts[parts.length - 1].toLowerCase())) {
+        parts.pop();
+      }
       return parts.length > 1 ? parts[parts.length - 1] : (parts[0] || clean);
     }
 
     function formatLastNameFirst(fullName) {
       const raw = (fullName || "").trim();
-      if (!raw) return "";
-      const roleMatch = raw.match(/\([^)]*\)/);
+      if (!raw || raw.includes(",")) return raw;
+      const roleMatch = raw.match(/\([^)]*\)$/);
       const roleSuffix = roleMatch ? ` ${roleMatch[0]}` : "";
       const clean = stripNameRoleSuffix(raw);
-      if (clean.includes(",")) return `${clean}${roleSuffix}`;
+      if (isLikelyOrganizationName(clean)) return raw;
       const parts = clean.split(/\s+/).filter(Boolean);
       if (parts.length <= 1) return raw;
+      const trailingTags = [];
+      while (parts.length > 2 && TRAILING_CONTACT_TAGS.has(parts[parts.length - 1].toLowerCase())) {
+        trailingTags.unshift(parts.pop());
+      }
       const last = parts[parts.length - 1];
       const first = parts.slice(0, -1).join(" ");
-      return `${last}, ${first}${roleSuffix}`;
+      const extraTagSuffix = trailingTags.length > 0 ? ` (${trailingTags.join(" ")})` : "";
+      return `${last}, ${first}${extraTagSuffix}${roleSuffix}`;
     }
 
     function normalizeLetterInitial(ch) {
       const u = String(ch || "").toUpperCase();
       if (u === "Ä") return "A";
-      if (u === "Ö") return "O";
+      if (u === "Ö" || u === "Ø") return "O";
       if (u === "Ü") return "U";
-      return /^[A-Z]$/.test(u) ? u : "#";
+      if (u === "ß") return "S";
+      if (u === "Ł") return "L";
+      if (u === "Đ") return "D";
+      if (/^[A-Z]$/.test(u)) return u;
+      const decomp = u.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const m = decomp.match(/[A-Z]/);
+      return m ? m[0] : "#";
+    }
+
+    function normalizeSearchKey(str) {
+      return String(str || "")
+        .trim()
+        .toLowerCase()
+        .replace(/ä/g, "ae")
+        .replace(/ö/g, "oe")
+        .replace(/ü/g, "ue")
+        .replace(/ß/g, "ss")
+        .replace(/ł/g, "l")
+        .replace(/đ/g, "d")
+        .replace(/ø/g, "o")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
     }
 
     function extractLastNameInitial(fullName) {
-      const last = extractLastName(fullName).trim();
-      const m = last.match(/[A-Za-zÄÖÜäöü]/);
-      return m ? normalizeLetterInitial(m[0]) : "#";
+      const last = extractLastName(fullName).trim() || String(fullName || "").trim();
+      const m = last.match(/[\p{L}\p{N}]/u);
+      if (!m) return "#";
+      return /\p{L}/u.test(m[0]) ? normalizeLetterInitial(m[0]) : "#";
     }
 
     function extractTextInitial(text) {
-      const m = String(text || "").trim().match(/[A-Za-zÄÖÜäöü]/);
-      return m ? normalizeLetterInitial(m[0]) : "#";
+      const m = String(text || "").trim().match(/[\p{L}\p{N}]/u);
+      if (!m) return "#";
+      return /\p{L}/u.test(m[0]) ? normalizeLetterInitial(m[0]) : "#";
     }
 
     function comparePersonsByLastName(a, b) {
-      const cmp = extractLastName(a.name).localeCompare(extractLastName(b.name), "de", { sensitivity: "base" });
+      const cmp = normalizeSearchKey(extractLastName(a.name)).localeCompare(normalizeSearchKey(extractLastName(b.name)), "de", { sensitivity: "base" });
       if (cmp !== 0) return cmp;
-      return extractFirstName(a.name).localeCompare(extractFirstName(b.name), "de", { sensitivity: "base" });
+      return normalizeSearchKey(extractFirstName(a.name)).localeCompare(normalizeSearchKey(extractFirstName(b.name)), "de", { sensitivity: "base" });
     }
 
     function sortPersonsByLastName(arr) {
@@ -2147,19 +2188,25 @@
     }
 
     function matchesPersonSearchAndLetter(person, query, letter) {
-      const q = String(query || "").trim().toLowerCase();
       const l = String(letter || "").trim().toUpperCase();
+      if (l && extractLastNameInitial(person.name) !== l) return false;
+      const q = String(query || "").trim().toLowerCase();
+      if (!q) return true;
+      const fullLower = (person.name || "").toLowerCase();
       const formatted = formatLastNameFirst(person.name).toLowerCase();
-      const matchesQ = !q ||
-        (person.name || "").toLowerCase().includes(q) ||
-        formatted.includes(q) ||
-        (person.phone || "").toLowerCase().includes(q);
-      const matchesL = !l || extractLastNameInitial(person.name) === l;
-      return matchesQ && matchesL;
+      const phoneLower = (person.phone || "").toLowerCase();
+      if (fullLower.includes(q) || formatted.includes(q) || phoneLower.includes(q)) return true;
+
+      const haystackNorm = normalizeSearchKey(`${person.name || ""} ${formatLastNameFirst(person.name)} ${person.phone || ""}`);
+      const tokens = q.split(/[\s,]+/).filter(Boolean);
+      return tokens.every(tok => {
+        const tokNorm = normalizeSearchKey(tok);
+        return fullLower.includes(tok) || formatted.includes(tok) || phoneLower.includes(tok) || (tokNorm && haystackNorm.includes(tokNorm));
+      });
     }
 
     const ALPHABET_ROW_1 = ["A","B","C","D","E","F","G","H","I","J","K","L","M"];
-    const ALPHABET_ROW_2 = ["N","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
+    const ALPHABET_ROW_2 = ["N","O","P","Q","R","S","T","U","V","W","X","Y","Z","#"];
 
     function renderAlphabetQuickBarHtml(selectedLetter, onSelectJsExprFn) {
       const sel = String(selectedLetter || "").toUpperCase();
@@ -2219,7 +2266,9 @@
         showInlineAlphabet = false,
         inModal = false,
         syncWithTab = false,
-        checkedIds = null // Set or Array for multi-select
+        checkedIds = null, // Set or Array for multi-select
+        hiddenPersons = null,
+        onShowHiddenJs = null
       } = opts;
 
       const st = getDropdownState(key);
@@ -2227,6 +2276,9 @@
       const letter = syncWithTab ? tabSelectedLetter : st.letter;
       const sorted = sortPersonsByLastName(persons || []);
       const filtered = sorted.filter(p => matchesPersonSearchAndLetter(p, q, letter));
+      const matchingHiddenCount = (hiddenPersons && (q || letter))
+        ? hiddenPersons.filter(p => matchesPersonSearchAndLetter(p, q, letter)).length
+        : 0;
       const selectedPerson = sorted.find(p => p.id === selectedPersonId) || null;
       const checkedSet = checkedIds ? new Set(checkedIds) : null;
 
@@ -2269,6 +2321,13 @@
               <div style="padding:7px 10px; font-size:12px; cursor:pointer; border-bottom:1px solid var(--border-slate); color:${selectedPersonId === -1 ? 'var(--accent-steel)' : 'var(--text-secondary)'}; font-weight:${selectedPersonId === -1 ? '700' : '400'};"
                    onclick="${onSelectNoneJs || ''}; getDropdownState('${key}').open=false; ${inModal ? 'renderModals()' : 'renderPhoneApp()'}">
                 🚫 ${escapeHtml(noneLabel)}
+              </div>
+            ` : ""}
+            ${(matchingHiddenCount > 0 && onShowHiddenJs) ? `
+              <div style="padding:7px 10px; font-size:11.5px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:6px; background:var(--warn-bg); color:var(--warn-amber); font-weight:700; border-bottom:1px solid var(--warn-amber);"
+                   onclick="getDropdownState('${key}').open=false; ${onShowHiddenJs}">
+                <span>👁 ${matchingHiddenCount} ausgeblendet für diesen Filter</span>
+                <span style="color:var(--accent-steel);">Ausgeblendete zeigen →</span>
               </div>
             ` : ""}
             ${filtered.length === 0 ? `<div style="padding:10px; font-size:11.5px; color:var(--text-muted);">Kein Kontakt für diesen Filter gefunden.</div>` : ""}
@@ -2363,13 +2422,16 @@
     }
 
     function renderAllContactsTab() {
-      const hiddenCount = state.persons.filter(p => p.isHidden).length;
-      const visibleCount = state.persons.filter(p => !p.isHidden).length;
-      const baseList = allContactsFilter === "hidden"
-        ? state.persons.filter(p => p.isHidden)
-        : state.persons.filter(p => !p.isHidden);
+      const hiddenList = state.persons.filter(p => p.isHidden);
+      const visibleList = state.persons.filter(p => !p.isHidden);
+      const hiddenCount = hiddenList.length;
+      const visibleCount = visibleList.length;
+      const baseList = allContactsFilter === "hidden" ? hiddenList : visibleList;
       const filteredBase = baseList.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
       const sorted = sortPersonsArray(filteredBase);
+      const matchingHiddenInContacts = (allContactsFilter === "all" && (tabSearchQuery || tabSelectedLetter))
+        ? hiddenList.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter)).length
+        : 0;
 
       const searchDropdownHtml = renderContactSearchDropdownHtml({
         key: "tab_all_contacts",
@@ -2379,8 +2441,17 @@
         onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
         showInlineAlphabet: true,
         inModal: false,
-        syncWithTab: true
+        syncWithTab: true,
+        hiddenPersons: allContactsFilter === "all" ? hiddenList : null,
+        onShowHiddenJs: allContactsFilter === "all" ? "allContactsFilter='hidden'; renderPhoneApp();" : null
       });
+
+      const hiddenBannerHtml = matchingHiddenInContacts > 0 ? `
+        <div class="card" style="padding:7px 10px; border-color:var(--warn-amber); background:var(--warn-bg); display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <span style="font-size:11.5px; font-weight:700; color:var(--warn-amber);">👁 ${matchingHiddenInContacts} ausgeblendet für diesen Filter</span>
+          <button class="compact-btn" onclick="allContactsFilter='hidden'; renderPhoneApp();">Ausgeblendete zeigen</button>
+        </div>
+      ` : "";
 
       const headerBar = `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
@@ -2399,6 +2470,7 @@
           </div>
           ${searchDropdownHtml}
         </div>
+        ${hiddenBannerHtml}
       `;
 
       if (sorted.length === 0) {
@@ -2442,9 +2514,13 @@
     }
 
     function renderPersonsList() {
+      const hiddenPersons = state.persons.filter(p => p.isHidden);
       const visiblePersons = state.persons.filter(p => !p.isHidden);
       const filteredVisible = visiblePersons.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
       const sorted = sortPersonsArray(filteredVisible);
+      const matchingHiddenInOverview = (tabSearchQuery || tabSelectedLetter)
+        ? hiddenPersons.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter)).length
+        : 0;
 
       const searchDropdownHtml = renderContactSearchDropdownHtml({
         key: "tab_overview",
@@ -2454,8 +2530,17 @@
         onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
         showInlineAlphabet: true,
         inModal: false,
-        syncWithTab: true
+        syncWithTab: true,
+        hiddenPersons,
+        onShowHiddenJs: "allContactsFilter='hidden'; activeTab='Alle Kontakte'; renderPhoneApp();"
       });
+
+      const hiddenBannerHtml = matchingHiddenInOverview > 0 ? `
+        <div class="card" style="padding:7px 10px; border-color:var(--warn-amber); background:var(--warn-bg); display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <span style="font-size:11.5px; font-weight:700; color:var(--warn-amber);">👁 ${matchingHiddenInOverview} ausgeblendet für diesen Filter</span>
+          <button class="compact-btn" onclick="allContactsFilter='hidden'; activeTab='Alle Kontakte'; renderPhoneApp();">Ausgeblendete zeigen</button>
+        </div>
+      ` : "";
 
       const headerBar = `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
@@ -2469,6 +2554,7 @@
           </div>
           ${searchDropdownHtml}
         </div>
+        ${hiddenBannerHtml}
       `;
 
       const today = todayIso();
@@ -5939,7 +6025,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.29",
+        version: "1.0.30",
         createdAt: dateStr,
         state
       };
@@ -5957,7 +6043,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.29",
+        version: "1.0.30",
         createdAt: dateStr,
         state
       };
@@ -6032,7 +6118,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.29 gestartet.");
+    addLog("Remember Me v1.0.30 gestartet.");
     renderAll();
   </script>
 </body>
