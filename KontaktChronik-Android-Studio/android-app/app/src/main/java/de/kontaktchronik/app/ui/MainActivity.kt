@@ -1789,7 +1789,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.31", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.32", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -2413,11 +2413,34 @@ fun KontaktChronikApp(
             }
 
             else -> {
-                val hiddenOverviewList = remember(persons, hiddenPersonIds) {
-                    persons.filter { it.isHidden || hiddenPersonIds.contains(it.id) }
+                val linkedPersonIds = remember(relations) {
+                    buildSet {
+                        relations.forEach { rel ->
+                            add(rel.fromPersonId)
+                            add(rel.toPersonId)
+                        }
+                    }
                 }
-                val filteredOverview = remember(visiblePersons, tabSearchQuery, tabSelectedLetter) {
-                    visiblePersons.filter { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
+                val eventPersonIds = remember(specialEvents) {
+                    specialEvents.map { it.personId }.toSet()
+                }
+                val overviewVisiblePersons = remember(visiblePersons, linkedPersonIds, eventPersonIds) {
+                    visiblePersons.filter { p ->
+                        !p.birthdayIso.isNullOrBlank() ||
+                            eventPersonIds.contains(p.id) ||
+                            linkedPersonIds.contains(p.id)
+                    }
+                }
+                val hiddenOverviewList = remember(persons, hiddenPersonIds, linkedPersonIds, eventPersonIds) {
+                    persons.filter { p ->
+                        (p.isHidden || hiddenPersonIds.contains(p.id)) &&
+                            (!p.birthdayIso.isNullOrBlank() ||
+                                eventPersonIds.contains(p.id) ||
+                                linkedPersonIds.contains(p.id))
+                    }
+                }
+                val filteredOverview = remember(overviewVisiblePersons, tabSearchQuery, tabSelectedLetter) {
+                    overviewVisiblePersons.filter { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
                 }
                 val isFilteringByLetterOrQuery = tabSearchQuery.isNotBlank() || (tabSelectedLetter.isNotBlank() && tabSelectedLetter != "Alle")
                 val matchingHiddenOverviewCount = remember(hiddenOverviewList, tabSearchQuery, tabSelectedLetter, isFilteringByLetterOrQuery) {
@@ -2450,7 +2473,7 @@ fun KontaktChronikApp(
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     ContactSearchDropdown(
-                        persons = visiblePersons,
+                        persons = overviewVisiblePersons,
                         onSelectPerson = { detailPerson = it },
                         placeholderText = "🔎 Kontakt suchen / Dropdown-Liste",
                         confirmButtonLabel = "✓ Bestätigen",
@@ -2517,8 +2540,6 @@ fun KontaktChronikApp(
                                 color = WarnAmber,
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
                             CompactButton("Ausgeblendete zeigen") {
@@ -2532,10 +2553,52 @@ fun KontaktChronikApp(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        if (sortedPersons.isEmpty()) {
+                            item(key = "overview_empty") {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(CardSlate, RoundedCornerShape(10.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = if (overviewVisiblePersons.isEmpty()) {
+                                            "Noch keine Kontakte mit Datum oder Verknüpfung vorhanden."
+                                        } else {
+                                            "Keine Kontakte mit Datum oder Verknüpfung für diesen Filter gefunden."
+                                        },
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                    CompactButton("👥 Alle Kontakte öffnen") {
+                                        allContactsFilter = "all"
+                                        activeTab = "Alle Kontakte"
+                                    }
+                                }
+                            }
+                        }
                         items(sortedPersons, key = { it.id }) { person ->
                             val personRelations = relations
                                 .filter { it.fromPersonId == person.id }
-                                .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                                .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                            val incomingOnlyRelations = relations
+                                .filter { inc ->
+                                    inc.toPersonId == person.id &&
+                                        personRelations.none { it.second.id == inc.fromPersonId }
+                                }
+                                .mapNotNull { inc ->
+                                    persons.find { it.id == inc.fromPersonId }?.let { inverseRelationLabel(inc.relationLabel) to it }
+                                }
+                            val relationDescriptions = buildList {
+                                personRelations.forEach { (rel, target) ->
+                                    add("${rel.relationLabel} ${formatLastNameFirst(target.name)}")
+                                }
+                                incomingOnlyRelations.forEach { (invLabel, target) ->
+                                    add("$invLabel ${formatLastNameFirst(target.name)}")
+                                }
+                            }
                             val personEvents = specialEvents.filter { it.personId == person.id }
                             val resolved = ContactResolver.resolveTarget(person, personRelations)
                             val bdayLine = if (showPastDates) {
@@ -2583,6 +2646,12 @@ fun KontaktChronikApp(
                                             Text(
                                                 text = bdayLine,
                                                 color = if (showPastDates) WarnAmber else TextSecondary,
+                                                fontSize = 12.sp
+                                            )
+                                        } else if (relationDescriptions.isNotEmpty()) {
+                                            Text(
+                                                text = "🔗 ${relationDescriptions.joinToString(" • ")}",
+                                                color = TextSecondary,
                                                 fontSize = 12.sp
                                             )
                                         }
@@ -2662,7 +2731,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.31")
+                put("version", "1.0.32")
                 put("createdAt", dateStr)
                 put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))

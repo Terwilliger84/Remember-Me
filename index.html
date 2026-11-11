@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.31 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.32 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1891,7 +1891,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.31</div>
+            <div class="app-title">Remember Me v1.0.32</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2513,8 +2513,19 @@
     }
 
     function renderPersonsList() {
-      const hiddenPersons = state.persons.filter(p => p.isHidden);
-      const visiblePersons = state.persons.filter(p => !p.isHidden);
+      const linkedPersonIds = new Set();
+      (state.relations || []).forEach(r => {
+        linkedPersonIds.add(r.fromPersonId);
+        linkedPersonIds.add(r.toPersonId);
+      });
+      const eventPersonIds = new Set((state.specialEvents || []).map(e => e.personId));
+      const isOverviewEligible = (p) =>
+        Boolean(p.birthdayIso && p.birthdayIso.trim()) ||
+        eventPersonIds.has(p.id) ||
+        linkedPersonIds.has(p.id);
+
+      const hiddenPersons = state.persons.filter(p => p.isHidden && isOverviewEligible(p));
+      const visiblePersons = state.persons.filter(p => !p.isHidden && isOverviewEligible(p));
       const filteredVisible = visiblePersons.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
       const sorted = sortPersonsArray(filteredVisible);
       const matchingHiddenInOverview = (tabSearchQuery || tabSelectedLetter)
@@ -2556,9 +2567,37 @@
         ${hiddenBannerHtml}
       `;
 
+      if (sorted.length === 0) {
+        return headerBar + `
+          <div class="card" style="display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size:12px; color:var(--text-secondary);">
+              ${visiblePersons.length === 0
+                ? "Noch keine Kontakte mit Datum oder Verknüpfung vorhanden."
+                : "Keine Kontakte mit Datum oder Verknüpfung für diesen Filter gefunden."}
+            </div>
+            <div class="btn-row">
+              <button class="compact-btn" onclick="allContactsFilter='all'; activeTab='Alle Kontakte'; renderPhoneApp();">👥 Alle Kontakte öffnen</button>
+            </div>
+          </div>
+        `;
+      }
+
       const today = todayIso();
       const listHtml = sorted.map(person => {
         const personEvents = state.specialEvents.filter(e => e.personId === person.id);
+        const fwdRels = getRelationsForPerson(person.id);
+        const fwdTargetIds = new Set(fwdRels.map(x => x.target.id));
+        const incRels = (state.relations || [])
+          .filter(r => r.toPersonId === person.id && !fwdTargetIds.has(r.fromPersonId))
+          .map(r => {
+            const target = state.persons.find(p => p.id === r.fromPersonId);
+            return target ? `${inverseRelationLabel(r.relationLabel)} ${formatLastNameFirst(target.name)}` : null;
+          })
+          .filter(Boolean);
+        const relationDescriptions = [
+          ...fwdRels.map(x => `${x.rel.relationLabel} ${formatLastNameFirst(x.target.name)}`),
+          ...incRels
+        ];
         const bdayLine = showPastDates
           ? formatPassedBirthdayLine(person.birthdayIso)
           : formatCompactBirthdayLine(person.birthdayIso);
@@ -2575,7 +2614,11 @@
                   <span style="font-size:15px; font-weight:700; color:var(--text-primary); word-break:break-word;">${escapeHtml(formatLastNameFirst(person.name))}</span>
                   ${pillHtml}
                 </div>
-                ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : ""}
+                ${bdayLine
+                  ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>`
+                  : (relationDescriptions.length > 0
+                      ? `<div class="person-sub" style="margin-top:2px; color:var(--text-secondary);">🔗 ${escapeHtml(relationDescriptions.join(" • "))}</div>`
+                      : "")}
                 ${personEvents.length > 0 ? `
                   <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:5px;">
                     ${personEvents.map(e => {
@@ -6023,7 +6066,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.31",
+        version: "1.0.32",
         createdAt: dateStr,
         state
       };
@@ -6041,7 +6084,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.31",
+        version: "1.0.32",
         createdAt: dateStr,
         state
       };
@@ -6116,7 +6159,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.31 gestartet.");
+    addLog("Remember Me v1.0.32 gestartet.");
     renderAll();
   </script>
 </body>
