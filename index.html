@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.35 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.36 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1892,7 +1892,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.35</div>
+            <div class="app-title">Remember Me v1.0.36</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2937,6 +2937,244 @@
       return headerBar + listHtml;
     }
 
+    let overviewSortMode = "upcoming"; // "upcoming" | "lastname"
+
+    function toggleOverviewSortMode() {
+      overviewSortMode = overviewSortMode === "upcoming" ? "lastname" : "upcoming";
+      renderPhoneApp();
+    }
+
+    function expandSpecialEventOccurrencesJs(ev, today = todayIso(), maxOccurrences = 6, maxHorizonDays = 365) {
+      const clean = String(ev.dateIso || "").trim();
+      if (!clean) return [];
+      const results = [];
+      if (isWeeklyDateSpec(clean)) {
+        const wd = getWeeklyDayNumber(clean);
+        if (!wd) return [];
+        const dayName = WEEKDAY_NAMES_DE[wd] || "Wochentag";
+        const firstDiff = daysUntilWeeklyDay(wd, today);
+        for (let occ = 0; occ < maxOccurrences; occ++) {
+          const days = firstDiff + occ * 7;
+          if (days > maxHorizonDays) break;
+          results.push({
+            occIdx: occ,
+            dateIso: addIntervalToIsoDate(today, days, "DAYS"),
+            days,
+            isRecurring: true,
+            recurrenceNote: `🔁 Jeden ${dayName}`
+          });
+        }
+        return results;
+      }
+      if (isRepeatDateSpec(clean)) {
+        const rep = parseRepeatDateSpec(clean, today);
+        if (!rep) return [];
+        const rhythmStr = formatRhythmTextDe(rep.count, rep.unit);
+        let curIso = rep.nextIso;
+        for (let occ = 0; occ < maxOccurrences; occ++) {
+          const days = daysBetween(today, curIso);
+          if (days > maxHorizonDays) break;
+          results.push({
+            occIdx: occ,
+            dateIso: curIso,
+            days,
+            isRecurring: true,
+            recurrenceNote: `🔁 Alle ${rhythmStr}`
+          });
+          curIso = addIntervalToIsoDate(curIso, rep.count, rep.unit);
+        }
+        return results;
+      }
+      const diff = daysBetween(today, clean);
+      if (diff !== null && !Number.isNaN(diff)) {
+        results.push({
+          occIdx: 0,
+          dateIso: clean,
+          days: diff,
+          isRecurring: false,
+          recurrenceNote: ""
+        });
+      }
+      return results;
+    }
+
+    function expandTimerOccurrencesJs(person, today = todayIso(), maxOccurrences = 5, maxHorizonDays = 180) {
+      if (!person.timerEnabled || (Number(person.timerInterval) || 0) <= 0) return [];
+      const firstIso = ContactResolver.nextTimerDate(person, today);
+      if (!firstIso) return [];
+      const interval = Math.max(1, Number(person.timerInterval) || 14);
+      const unit = (person.timerUnit || "DAYS").toUpperCase();
+      const rhythmStr = formatRhythmTextDe(interval, unit);
+      const results = [];
+      let curIso = firstIso;
+      for (let occ = 0; occ < maxOccurrences; occ++) {
+        const rawDays = daysBetween(today, curIso);
+        if (rawDays > maxHorizonDays) break;
+        results.push({
+          occIdx: occ,
+          dateIso: curIso,
+          rawDays,
+          sortDays: Math.max(0, rawDays),
+          rhythmStr
+        });
+        const stepBase = curIso < today ? today : curIso;
+        curIso = addIntervalToIsoDate(stepBase, interval, unit);
+      }
+      return results;
+    }
+
+    function renderOverviewCountdownPillHtml(item, showPast) {
+      if (item.kind === "REL_ONLY") return "";
+      if (showPast) {
+        const d = item.daysUntil;
+        const label = d === 0 ? "Heute" : (d === -1 ? "Gestern" : `vor ${Math.abs(d)}T`);
+        return `<span class="countdown-pill" style="background:var(--warn-bg); color:var(--warn-amber);">${escapeHtml(label)}</span>`;
+      }
+      if (item.rawDays !== undefined && item.rawDays < 0) {
+        return `<span class="countdown-pill" style="background:var(--warn-bg); color:var(--warn-amber);">Überfällig (${Math.abs(item.rawDays)}T)</span>`;
+      }
+      const d = item.daysUntil;
+      if (d <= 0) {
+        const text = item.kind === "BIRTHDAY" ? "🎂 Heute!" : (item.kind === "TIMER" ? "⏳ Fällig!" : "🔔 Heute!");
+        return `<span class="countdown-pill" style="background:var(--warn-bg); color:var(--warn-amber);">${escapeHtml(text)}</span>`;
+      }
+      if (d === 1) {
+        return `<span class="countdown-pill" style="background:rgba(46, 125, 91, 0.16); color:var(--tree-green);">Morgen</span>`;
+      }
+      if (d <= 14) {
+        return `<span class="countdown-pill" style="background:rgba(46, 125, 91, 0.14); color:var(--tree-green);">in ${d} Tagen</span>`;
+      }
+      return `<span class="countdown-pill">in ${d}T</span>`;
+    }
+
+    function buildOverviewTimelineEntries(persons, linkedPersonIds, showPast, sortMode, today = todayIso()) {
+      const items = [];
+      for (const person of persons) {
+        const personEvents = (state.specialEvents || []).filter(e => e.personId === person.id);
+        let hasAnyTimelineEntry = false;
+
+        if (showPast) {
+          if (person.birthdayIso && person.birthdayIso.trim()) {
+            const negDays = ContactResolver.negativeDaysSinceLastBirthday(person.birthdayIso, today);
+            if (negDays !== null) {
+              hasAnyTimelineEntry = true;
+              items.push({
+                uniqueKey: `past_bday_${person.id}`,
+                person,
+                kind: "BIRTHDAY",
+                daysUntil: negDays,
+                priority: 0,
+                headline: formatPassedBirthdayLine(person.birthdayIso),
+                subline: "",
+                greetingOccasion: "Nachträglich zum Geburtstag"
+              });
+            }
+          }
+          for (const ev of personEvents) {
+            if (!isWeeklyDateSpec(ev.dateIso) && !isRepeatDateSpec(ev.dateIso)) {
+              const diff = daysBetween(today, ev.dateIso);
+              if (diff !== null && diff < 0) {
+                hasAnyTimelineEntry = true;
+                items.push({
+                  uniqueKey: `past_ev_${ev.id}`,
+                  person,
+                  kind: "EVENT",
+                  daysUntil: diff,
+                  priority: 1,
+                  headline: `🔔 ${ev.title} (${formatIsoToDdMmYyyy(ev.dateIso)})`,
+                  subline: "",
+                  greetingOccasion: ev.title
+                });
+              }
+            }
+          }
+          continue;
+        }
+
+        // 1. Geburtstag (nächster anstehender Geburtstag)
+        if (person.birthdayIso && person.birthdayIso.trim()) {
+          const bdayDays = ContactResolver.daysUntilNextBirthday(person.birthdayIso, today);
+          if (bdayDays !== null) {
+            hasAnyTimelineEntry = true;
+            items.push({
+              uniqueKey: `bday_${person.id}`,
+              person,
+              kind: "BIRTHDAY",
+              daysUntil: bdayDays,
+              priority: 0,
+              headline: `🎂 ${formatCompactBirthdayLine(person.birthdayIso)}`,
+              subline: "",
+              greetingOccasion: "Herzlichen Glückwunsch zum Geburtstag"
+            });
+          }
+        }
+
+        // 2. Einzelne & wiederkehrende Termine/Erinnerungen (mehrfache Vorkommen pro Kontakt erlaubt!)
+        for (const ev of personEvents) {
+          const occs = expandSpecialEventOccurrencesJs(ev, today, 6, 365);
+          for (const occ of occs) {
+            if (occ.days >= 0) {
+              hasAnyTimelineEntry = true;
+              const formattedDate = formatIsoToDdMmYyyy(occ.dateIso);
+              items.push({
+                uniqueKey: `ev_${ev.id}_${occ.occIdx}`,
+                person,
+                kind: "EVENT",
+                daysUntil: occ.days,
+                priority: 1,
+                isRecurring: occ.isRecurring,
+                headline: `🔔 ${ev.title} • ${formattedDate}`,
+                subline: occ.recurrenceNote || "",
+                greetingOccasion: ev.title
+              });
+            }
+          }
+        }
+
+        // 3. Wiederkehrender Melde-Timer (mehrfache Vorkommen pro Kontakt erlaubt!)
+        const timerOccs = expandTimerOccurrencesJs(person, today, 5, 180);
+        for (const tOcc of timerOccs) {
+          hasAnyTimelineEntry = true;
+          const formattedDate = formatIsoToDdMmYyyy(tOcc.dateIso);
+          items.push({
+            uniqueKey: `timer_${person.id}_${tOcc.occIdx}`,
+            person,
+            kind: "TIMER",
+            daysUntil: tOcc.sortDays,
+            rawDays: tOcc.rawDays,
+            priority: 2,
+            isRecurring: true,
+            headline: `⏳ Melde-Timer • ${formattedDate}`,
+            subline: `🔁 Alle ${tOcc.rhythmStr}`,
+            greetingOccasion: "Erinnerung"
+          });
+        }
+
+        // 4. Kontakte ohne Datum/Termin, aber mit Verknüpfung (z. B. Kind von ...) am Ende ohne "Ohne Datum"
+        if (!hasAnyTimelineEntry && linkedPersonIds.has(person.id)) {
+          items.push({
+            uniqueKey: `relonly_${person.id}`,
+            person,
+            kind: "REL_ONLY",
+            daysUntil: Number.MAX_SAFE_INTEGER,
+            priority: 9,
+            headline: "",
+            subline: "",
+            greetingOccasion: "Erinnerung"
+          });
+        }
+      }
+
+      if (showPast) {
+        items.sort((a, b) => (b.daysUntil - a.daysUntil) || (a.priority - b.priority) || formatLastNameFirst(a.person.name).localeCompare(formatLastNameFirst(b.person.name), "de"));
+      } else if (sortMode === "lastname") {
+        items.sort((a, b) => formatLastNameFirst(a.person.name).localeCompare(formatLastNameFirst(b.person.name), "de") || (a.daysUntil - b.daysUntil) || (a.priority - b.priority));
+      } else {
+        items.sort((a, b) => (a.daysUntil - b.daysUntil) || (a.priority - b.priority) || formatLastNameFirst(a.person.name).localeCompare(formatLastNameFirst(b.person.name), "de"));
+      }
+      return items;
+    }
+
     function renderPersonsList() {
       const linkedPersonIds = new Set();
       (state.relations || []).forEach(r => {
@@ -2946,13 +3184,15 @@
       const eventPersonIds = new Set((state.specialEvents || []).map(e => e.personId));
       const isOverviewEligible = (p) =>
         Boolean(p.birthdayIso && p.birthdayIso.trim()) ||
+        Boolean(p.timerEnabled && (Number(p.timerInterval) || 0) > 0) ||
         eventPersonIds.has(p.id) ||
         linkedPersonIds.has(p.id);
 
       const hiddenPersons = state.persons.filter(p => p.isHidden && isOverviewEligible(p));
       const visiblePersons = state.persons.filter(p => !p.isHidden && isOverviewEligible(p));
       const filteredVisible = visiblePersons.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
-      const sorted = sortPersonsArray(filteredVisible);
+      const today = todayIso();
+      const timelineItems = buildOverviewTimelineEntries(filteredVisible, linkedPersonIds, showPastDates, overviewSortMode, today);
       const matchingHiddenInOverview = (tabSearchQuery || tabSelectedLetter)
         ? hiddenPersons.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter)).length
         : 0;
@@ -2961,7 +3201,7 @@
         key: "tab_overview",
         persons: visiblePersons,
         selectedPersonId: null,
-        placeholder: `🔎 Kontakt suchen / per Dropdown wählen (${sorted.length}/${visiblePersons.length})...`,
+        placeholder: `🔎 Kontakt suchen / per Dropdown wählen (${filteredVisible.length}/${visiblePersons.length})...`,
         onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
         showInlineAlphabet: true,
         inModal: false,
@@ -2977,11 +3217,12 @@
         </div>
       ` : "";
 
+      const sortLabel = overviewSortMode === "upcoming" ? "📅 Nächstes Ereignis" : "⇅ Nachname";
       const headerBar = `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-            <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
-              ${getSortModeButtonLabel()}
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+            <button class="compact-btn ${overviewSortMode === 'upcoming' && !showPastDates ? 'primary' : ''}" onclick="toggleOverviewSortMode()" title="Sortierung umschalten: Nächstes anstehendes Ereignis vs. Nachname">
+              ${sortLabel}
             </button>
             <button class="compact-btn ${showPastDates ? 'primary' : ''}" onclick="showPastDates=!showPastDates; renderPhoneApp();">
               ${showPastDates ? "Anstehende zeigen" : "Vergangene Termine"}
@@ -2992,13 +3233,13 @@
         ${hiddenBannerHtml}
       `;
 
-      if (sorted.length === 0) {
+      if (timelineItems.length === 0) {
         return headerBar + `
           <div class="card" style="display:flex; flex-direction:column; gap:8px;">
             <div style="font-size:12px; color:var(--text-secondary);">
               ${visiblePersons.length === 0
-                ? "Noch keine Kontakte mit Datum oder Verknüpfung vorhanden."
-                : "Keine Kontakte mit Datum oder Verknüpfung für diesen Filter gefunden."}
+                ? "Noch keine anstehenden Ereignisse oder verknüpften Kontakte vorhanden."
+                : "Keine Ereignisse oder verknüpften Kontakte für diesen Filter gefunden."}
             </div>
             <div class="btn-row">
               <button class="compact-btn" onclick="allContactsFilter='all'; activeTab='Alle Kontakte'; renderPhoneApp();">👥 Alle Kontakte öffnen</button>
@@ -3007,9 +3248,13 @@
         `;
       }
 
-      const today = todayIso();
-      const listHtml = sorted.map(person => {
-        const personEvents = state.specialEvents.filter(e => e.personId === person.id);
+      const firstUpcomingKey = (!showPastDates && overviewSortMode === "upcoming")
+        ? (timelineItems.find(it => it.kind !== "REL_ONLY")?.uniqueKey || null)
+        : null;
+
+      const listHtml = timelineItems.map((item) => {
+        const person = item.person;
+        const isFirstNext = firstUpcomingKey && item.uniqueKey === firstUpcomingKey;
         const fwdRels = getRelationsForPerson(person.id);
         const fwdTargetIds = new Set(fwdRels.map(x => x.target.id));
         const incRels = (state.relations || [])
@@ -3023,13 +3268,21 @@
           ...fwdRels.map(x => `${x.rel.relationLabel} ${formatLastNameFirst(x.target.name)}`),
           ...incRels
         ];
-        const bdayLine = showPastDates
-          ? formatPassedBirthdayLine(person.birthdayIso)
-          : formatCompactBirthdayLine(person.birthdayIso);
-        const pillHtml = renderBirthdayCountdownPill(person.birthdayIso, showPastDates);
+        const pillHtml = renderOverviewCountdownPillHtml(item, showPastDates);
+        const topHighlightHtml = isFirstNext
+          ? `<div style="margin-bottom:5px;">
+               <span style="font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; background:${item.daysUntil <= 0 ? 'var(--warn-bg)' : 'rgba(59,130,246,0.14)'}; color:${item.daysUntil <= 0 ? 'var(--warn-amber)' : 'var(--accent-steel)'};">
+                 ${item.daysUntil <= 0 ? "🔥 Heute anstehend" : "⭐ Als Nächstes anstehend"}
+               </span>
+             </div>`
+          : "";
+        const borderStyle = isFirstNext
+          ? `border: 1.5px solid ${item.daysUntil <= 0 ? 'var(--warn-amber)' : 'var(--accent-steel)'};`
+          : "";
 
         return `
-          <div class="card" style="padding: 10px 12px;">
+          <div class="card" style="padding: 10px 12px; ${borderStyle}">
+            ${topHighlightHtml}
             <div class="person-header" style="align-items: center;">
               <div style="cursor:pointer;" onclick="openDetailModal(${person.id})">
                 ${renderPersonAvatarHtml(person.name)}
@@ -3039,25 +3292,18 @@
                   <span style="font-size:15px; font-weight:700; color:var(--text-primary); word-break:break-word;">${escapeHtml(formatLastNameFirst(person.name))}</span>
                   ${pillHtml}
                 </div>
-                ${bdayLine
-                  ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>`
-                  : (relationDescriptions.length > 0
-                      ? `<div class="person-sub" style="margin-top:2px; color:var(--text-secondary);">🔗 ${escapeHtml(relationDescriptions.join(" • "))}</div>`
-                      : "")}
-                ${personEvents.length > 0 ? `
-                  <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:5px;">
-                    ${personEvents.map(e => {
-                      const isDueToday = daysUntilEventSpec(e.dateIso, today) === 0;
-                      const isWeekly = isWeeklyDateSpec(e.dateIso) || isRepeatDateSpec(e.dateIso);
-                      const badgeBg = isDueToday ? "var(--warn-bg)" : (isWeekly ? "rgba(46, 125, 91, 0.14)" : "var(--btn-bg)");
-                      const badgeColor = isDueToday ? "var(--warn-amber)" : (isWeekly ? "var(--tree-green)" : "var(--accent-steel)");
-                      return `<span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; background:${badgeBg}; color:${badgeColor}; word-break:break-word; max-width:100%; display:inline-block;">${escapeHtml(formatEventBadgeText(e, today))}</span>`;
-                    }).join("")}
-                  </div>
-                ` : ""}
+                ${item.headline
+                  ? `<div class="person-sub" style="margin-top:2px; font-weight:600; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-primary)'};">${escapeHtml(item.headline)}</div>`
+                  : ""}
+                ${item.subline
+                  ? `<div style="margin-top:3px;"><span style="font-size:10.5px; font-weight:600; padding:1.5px 7px; border-radius:999px; background:rgba(46, 125, 91, 0.14); color:var(--tree-green); display:inline-block;">${escapeHtml(item.subline)}</span></div>`
+                  : ""}
+                ${relationDescriptions.length > 0
+                  ? `<div class="person-sub" style="margin-top:2px; color:var(--text-secondary);">🔗 ${escapeHtml(relationDescriptions.join(" • "))}</div>`
+                  : ""}
               </div>
               <div class="btn-row">
-                <button class="compact-btn primary" onclick="openPopupForPerson(${person.id}, '${showPastDates ? 'Nachträglich zum Geburtstag' : 'Erinnerung'}')">💬 Gruß</button>
+                <button class="compact-btn primary" onclick="openPopupForPerson(${person.id}, '${escapeHtml(item.greetingOccasion || "Erinnerung")}')">💬 Gruß</button>
               </div>
             </div>
           </div>
@@ -5525,19 +5771,20 @@
             badge: bdayDays === 0 ? "Heute!" : (bdayDays === 1 ? "Morgen" : `${bdayDays}T`)
           });
         }
-        const timerDate = ContactResolver.nextTimerDate(p, today);
-        if (timerDate) {
-          const diff = Math.round((new Date(timerDate + "T00:00:00") - new Date(today + "T00:00:00")) / 86400000);
-          if (diff <= 14) {
+        const timerOccs = expandTimerOccurrencesJs(p, today, 4, 60);
+        for (const tOcc of timerOccs) {
+          if (tOcc.rawDays <= 45) {
+            const dParts = String(tOcc.dateIso || "").split("-");
+            const ddMm = dParts.length === 3 ? `${dParts[2]}.${dParts[1]}.` : "Timer";
             list.push({
-              days: Math.max(0, diff),
+              days: tOcc.sortDays,
               prio: 2,
               personId: p.id,
               icon: "⏳",
               name: p.name,
-              meta: "Timer",
-              reason: "⏳ Melde-Timer",
-              badge: diff <= 0 ? "Fällig" : (diff === 1 ? "Morgen" : `${diff}T`)
+              meta: `Timer ${ddMm}`,
+              reason: `⏳ Melde-Timer (${ddMm})`,
+              badge: tOcc.rawDays <= 0 ? "Fällig" : (tOcc.rawDays === 1 ? "Morgen" : `${tOcc.rawDays}T`)
             });
           }
         }
@@ -5545,18 +5792,22 @@
       for (const ev of (state.specialEvents || [])) {
         const p = state.persons.find(x => x.id === ev.personId && !x.isHidden);
         if (!p) continue;
-        const diff = daysUntilEventSpec(ev.dateIso, today);
-        if (diff !== null && diff >= 0 && diff <= 60) {
-          list.push({
-            days: diff,
-            prio: 1,
-            personId: p.id,
-            icon: "🔔",
-            name: p.name,
-            meta: ev.title,
-            reason: `🔔 ${ev.title}`,
-            badge: diff === 0 ? "Heute" : (diff === 1 ? "Morgen" : `${diff}T`)
-          });
+        const occs = expandSpecialEventOccurrencesJs(ev, today, 4, 60);
+        for (const occ of occs) {
+          if (occ.days >= 0 && occ.days <= 60) {
+            const dParts = String(occ.dateIso || "").split("-");
+            const ddMm = dParts.length === 3 ? `${dParts[2]}.${dParts[1]}.` : "";
+            list.push({
+              days: occ.days,
+              prio: 1,
+              personId: p.id,
+              icon: occ.isRecurring ? "🔁" : "🔔",
+              name: p.name,
+              meta: ddMm ? `${ev.title} (${ddMm})` : ev.title,
+              reason: `${occ.isRecurring ? "🔁" : "🔔"} ${ev.title}${ddMm ? ` (${ddMm})` : ""}`,
+              badge: occ.days === 0 ? "Heute" : (occ.days === 1 ? "Morgen" : `${occ.days}T`)
+            });
+          }
         }
       }
       list.sort((a, b) => (a.days - b.days) || (a.prio - b.prio) || a.name.localeCompare(b.name, "de"));
@@ -6962,7 +7213,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.35",
+        version: "1.0.36",
         createdAt: dateStr,
         state
       };
@@ -6980,7 +7231,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.35",
+        version: "1.0.36",
         createdAt: dateStr,
         state
       };
@@ -7055,7 +7306,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.35 gestartet.");
+    addLog("Remember Me v1.0.36 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

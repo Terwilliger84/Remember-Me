@@ -1187,6 +1187,344 @@ fun formatPassedBirthdayLine(birthdayIso: String?, today: LocalDate = LocalDate.
     return "$dateStr  •  $passedAgeStr ($negLabel)"
 }
 
+data class OverviewTimelineItem(
+    val uniqueKey: String,
+    val person: PersonEntity,
+    val daysUntil: Long,
+    val typePriority: Int, // 0 = Geburtstag, 1 = Erinnerung/Termin, 2 = Melde-Timer, 3 = nur Verknüpfung
+    val pillText: String,
+    val isUrgent: Boolean,
+    val isSoon: Boolean,
+    val isRecurring: Boolean,
+    val primaryLine: String,
+    val secondaryLine: String = "",
+    val popupReason: String
+)
+
+@Composable
+fun OverviewCountdownPill(pillText: String, isUrgent: Boolean, isSoon: Boolean, isRecurring: Boolean = false) {
+    if (pillText.isBlank()) return
+    val bgColor = when {
+        isUrgent -> WarnAmber
+        isSoon -> AccentSteel.copy(alpha = 0.16f)
+        isRecurring -> TreeGreen.copy(alpha = 0.14f)
+        else -> BtnBg
+    }
+    val borderColor = when {
+        isUrgent -> WarnAmber
+        isSoon -> AccentSteel
+        isRecurring -> TreeGreen
+        else -> BorderSlate
+    }
+    val textColor = when {
+        isUrgent -> Color.White
+        isSoon -> AccentSteel
+        isRecurring -> TreeGreen
+        else -> TextSecondary
+    }
+    Box(
+        modifier = Modifier
+            .background(bgColor, RoundedCornerShape(999.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(999.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = pillText,
+            color = textColor,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            style = CenteredPillTextStyle,
+            maxLines = 1,
+            softWrap = false
+        )
+    }
+}
+
+fun buildOverviewTimelineItems(
+    filteredPersons: List<PersonEntity>,
+    allPersons: List<PersonEntity>,
+    specialEvents: List<SpecialEventEntity>,
+    relations: List<RelationEntity>,
+    showPastDates: Boolean,
+    sortMode: String, // "upcoming" | "lastname"
+    today: LocalDate = LocalDate.now()
+): List<OverviewTimelineItem> {
+    val entries = mutableListOf<OverviewTimelineItem>()
+
+    if (showPastDates) {
+        filteredPersons.forEach { person ->
+            if (!person.birthdayIso.isNullOrBlank()) {
+                val negDays = ContactResolver.negativeDaysSinceLastBirthday(person.birthdayIso, today)
+                if (negDays != null) {
+                    val pill = if (negDays == 0L) "🎂 Heute!" else "🎂 vor ${abs(negDays)}T"
+                    entries += OverviewTimelineItem(
+                        uniqueKey = "past_bday_${person.id}",
+                        person = person,
+                        daysUntil = abs(negDays),
+                        typePriority = 0,
+                        pillText = pill,
+                        isUrgent = negDays == 0L,
+                        isSoon = abs(negDays) <= 14L,
+                        isRecurring = false,
+                        primaryLine = "🎂 ${formatPassedBirthdayLine(person.birthdayIso, today).orEmpty()}",
+                        popupReason = "Nachträglich zum Geburtstag"
+                    )
+                }
+            }
+            specialEvents.filter { it.personId == person.id }.forEach { ev ->
+                if (!isWeeklyDateSpec(ev.dateIso) && !isRepeatDateSpec(ev.dateIso)) {
+                    val d = runCatching { LocalDate.parse(ev.dateIso.trim()) }.getOrNull()
+                    if (d != null && !d.isAfter(today)) {
+                        val ago = ChronoUnit.DAYS.between(d, today)
+                        val pill = if (ago == 0L) "🔔 Heute!" else "🔔 vor ${ago}T"
+                        entries += OverviewTimelineItem(
+                            uniqueKey = "past_ev_${ev.id}",
+                            person = person,
+                            daysUntil = ago,
+                            typePriority = 1,
+                            pillText = pill,
+                            isUrgent = ago == 0L,
+                            isSoon = ago <= 14L,
+                            isRecurring = false,
+                            primaryLine = "🔔 ${ev.title}  •  ${formatIsoToDdMmYyyy(ev.dateIso)}",
+                            secondaryLine = ev.note,
+                            popupReason = "Erinnerung: ${ev.title}"
+                        )
+                    }
+                }
+            }
+        }
+        return if (sortMode == "lastname") {
+            entries.sortedWith(
+                compareBy<OverviewTimelineItem, PersonEntity>(LastNamePersonComparator) { it.person }
+                    .thenBy { it.daysUntil }
+            )
+        } else {
+            entries.sortedWith(
+                compareBy<OverviewTimelineItem> { it.daysUntil }
+                    .thenBy { it.typePriority }
+                    .thenBy(LastNamePersonComparator) { it.person }
+            )
+        }
+    }
+
+    // Anstehende Ereignisse inkl. mehrfacher Einträge bei wiederkehrenden Terminen / Timern & mehreren Ereignissen pro Kontakt
+    filteredPersons.forEach { person ->
+        var hasAnyDatedEntry = false
+
+        val personRelations = relations
+            .filter { it.fromPersonId == person.id }
+            .mapNotNull { rel -> allPersons.find { it.id == rel.toPersonId }?.let { rel to it } }
+        val incomingOnlyRelations = relations
+            .filter { inc ->
+                inc.toPersonId == person.id &&
+                    personRelations.none { it.second.id == inc.fromPersonId }
+            }
+            .mapNotNull { inc ->
+                allPersons.find { it.id == inc.fromPersonId }?.let { inverseRelationLabel(inc.relationLabel) to it }
+            }
+        val relationSummary = buildList {
+            personRelations.forEach { (rel, target) ->
+                add("${rel.relationLabel} ${formatLastNameFirst(target.name)}")
+            }
+            incomingOnlyRelations.forEach { (invLabel, target) ->
+                add("$invLabel ${formatLastNameFirst(target.name)}")
+            }
+        }.joinToString(" • ")
+
+        // 1. Geburtstag
+        if (!person.birthdayIso.isNullOrBlank()) {
+            val bdayDays = ContactResolver.daysUntilNextBirthday(person.birthdayIso, today)
+            if (bdayDays != null) {
+                hasAnyDatedEntry = true
+                val pill = when (bdayDays) {
+                    0L -> "🎂 Heute!"
+                    1L -> "🎂 Morgen!"
+                    else -> "🎂 in ${bdayDays}T"
+                }
+                val ageInfo = ContactResolver.formatUpcomingAge(person.birthdayIso, today)
+                entries += OverviewTimelineItem(
+                    uniqueKey = "bday_${person.id}",
+                    person = person,
+                    daysUntil = bdayDays,
+                    typePriority = 0,
+                    pillText = pill,
+                    isUrgent = bdayDays == 0L,
+                    isSoon = bdayDays in 1L..14L,
+                    isRecurring = false,
+                    primaryLine = "🎂 ${formatCompactBirthdayLine(person.birthdayIso, today).orEmpty()}",
+                    secondaryLine = if (relationSummary.isNotBlank() && person.hasNoOwnPhone) "🔗 $relationSummary" else "",
+                    popupReason = "🎂 Geburtstag ($ageInfo)"
+                )
+            }
+        }
+
+        // 2. Erinnerungen & wiederkehrende Termine (WEEKLY:, REPEAT: und Einzeltermine)
+        specialEvents.filter { it.personId == person.id }.forEach { ev ->
+            when {
+                isRepeatDateSpec(ev.dateIso) -> {
+                    val rep = parseRepeatDateSpec(ev.dateIso, today)
+                    if (rep != null) {
+                        val rhythmStr = formatRhythmTextDe(rep.count, rep.unit)
+                        var occDate = rep.nextDate
+                        for (occIdx in 0 until 6) {
+                            val diff = ChronoUnit.DAYS.between(today, occDate)
+                            if (occIdx > 0 && diff > 180L) break
+                            hasAnyDatedEntry = true
+                            val dateStr = formatIsoToDdMmYyyy(occDate.toString())
+                            val pill = when (diff) {
+                                0L -> "🔔 Heute!"
+                                1L -> "🔔 Morgen!"
+                                else -> "🔁 in ${diff}T"
+                            }
+                            entries += OverviewTimelineItem(
+                                uniqueKey = "ev_${ev.id}_$occIdx",
+                                person = person,
+                                daysUntil = diff,
+                                typePriority = 1,
+                                pillText = pill,
+                                isUrgent = diff == 0L,
+                                isSoon = diff in 1L..7L,
+                                isRecurring = true,
+                                primaryLine = "🔁 ${ev.title}  •  $dateStr (alle $rhythmStr)",
+                                secondaryLine = ev.note,
+                                popupReason = "Erinnerung: ${ev.title}"
+                            )
+                            occDate = addIntervalToIsoDate(occDate, rep.count, rep.unit)
+                        }
+                    }
+                }
+                isWeeklyDateSpec(ev.dateIso) -> {
+                    val wd = getWeeklyDayNumber(ev.dateIso) ?: 1
+                    val firstDiff = daysUntilWeeklyDay(wd, today)
+                    val dayName = WEEKDAY_NAMES_DE[wd] ?: "Wochentag"
+                    for (occIdx in 0 until 6) {
+                        val diff = firstDiff + occIdx * 7L
+                        if (occIdx > 0 && diff > 60L) break
+                        hasAnyDatedEntry = true
+                        val occDate = today.plusDays(diff)
+                        val dateStr = formatIsoToDdMmYyyy(occDate.toString())
+                        val pill = when (diff) {
+                            0L -> "🔔 Heute!"
+                            1L -> "🔔 Morgen!"
+                            else -> "🔁 in ${diff}T"
+                        }
+                        entries += OverviewTimelineItem(
+                            uniqueKey = "ev_${ev.id}_$occIdx",
+                            person = person,
+                            daysUntil = diff,
+                            typePriority = 1,
+                            pillText = pill,
+                            isUrgent = diff == 0L,
+                            isSoon = diff in 1L..7L,
+                            isRecurring = true,
+                            primaryLine = "🔁 ${ev.title}  •  $dayName, $dateStr",
+                            secondaryLine = ev.note,
+                            popupReason = "Erinnerung: ${ev.title}"
+                        )
+                    }
+                }
+                else -> {
+                    val parsed = runCatching { LocalDate.parse(ev.dateIso.trim()) }.getOrNull()
+                    if (parsed != null) {
+                        val diff = ChronoUnit.DAYS.between(today, parsed)
+                        if (diff >= 0L) {
+                            hasAnyDatedEntry = true
+                            val dateStr = formatIsoToDdMmYyyy(parsed.toString())
+                            val pill = when (diff) {
+                                0L -> "🔔 Heute!"
+                                1L -> "🔔 Morgen!"
+                                else -> "🔔 in ${diff}T"
+                            }
+                            entries += OverviewTimelineItem(
+                                uniqueKey = "ev_${ev.id}_0",
+                                person = person,
+                                daysUntil = diff,
+                                typePriority = 1,
+                                pillText = pill,
+                                isUrgent = diff == 0L,
+                                isSoon = diff in 1L..14L,
+                                isRecurring = false,
+                                primaryLine = "🔔 ${ev.title}  •  $dateStr",
+                                secondaryLine = ev.note,
+                                popupReason = "Erinnerung: ${ev.title}"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Wiederkehrender Melde-Timer (zeigt fälligen Termin + nächste Wiederholungen)
+        if (person.timerEnabled) {
+            val firstTimer = ContactResolver.nextTimerDate(person, today)
+            if (firstTimer != null) {
+                val rhythmStr = formatRhythmTextDe(person.timerInterval, person.timerUnit)
+                var curTimer: LocalDate = firstTimer
+                for (occIdx in 0 until 5) {
+                    val rawDiff = ChronoUnit.DAYS.between(today, curTimer)
+                    if (occIdx > 0 && rawDiff > 90L) break
+                    hasAnyDatedEntry = true
+                    val sortDays = rawDiff.coerceAtLeast(0L)
+                    val dateStr = formatIsoToDdMmYyyy(curTimer.toString())
+                    val pill = when {
+                        rawDiff < 0L -> "⏳ Überfällig!"
+                        rawDiff == 0L -> "⏳ Heute!"
+                        rawDiff == 1L -> "⏳ Morgen"
+                        else -> "⏳ in ${rawDiff}T"
+                    }
+                    entries += OverviewTimelineItem(
+                        uniqueKey = "timer_${person.id}_$occIdx",
+                        person = person,
+                        daysUntil = sortDays,
+                        typePriority = 2,
+                        pillText = pill,
+                        isUrgent = rawDiff <= 0L,
+                        isSoon = rawDiff in 1L..7L,
+                        isRecurring = true,
+                        primaryLine = "⏳ Melde-Timer (alle $rhythmStr)  •  $dateStr",
+                        popupReason = "Melde-Timer"
+                    )
+                    val baseForNext = if (curTimer.isBefore(today)) today else curTimer
+                    curTimer = addIntervalToIsoDate(baseForNext, person.timerInterval, person.timerUnit)
+                }
+            }
+        }
+
+        // 4. Verknüpfte Kontakte ohne eigenes Datum/Ereignis (am Ende der Liste einreihen)
+        if (!hasAnyDatedEntry && relationSummary.isNotBlank()) {
+            entries += OverviewTimelineItem(
+                uniqueKey = "relonly_${person.id}",
+                person = person,
+                daysUntil = Long.MAX_VALUE,
+                typePriority = 3,
+                pillText = "",
+                isUrgent = false,
+                isSoon = false,
+                isRecurring = false,
+                primaryLine = "🔗 $relationSummary",
+                popupReason = "Nachricht"
+            )
+        }
+    }
+
+    return if (sortMode == "lastname") {
+        entries.sortedWith(
+            compareBy<OverviewTimelineItem, PersonEntity>(LastNamePersonComparator) { it.person }
+                .thenBy { it.daysUntil }
+                .thenBy { it.typePriority }
+        )
+    } else {
+        entries.sortedWith(
+            compareBy<OverviewTimelineItem> { it.daysUntil }
+                .thenBy { it.typePriority }
+                .thenBy(LastNamePersonComparator) { it.person }
+        )
+    }
+}
+
 data class WichtelParticipant(
     val id: Long,
     val personId: Long? = null,
@@ -1995,6 +2333,7 @@ fun KontaktChronikApp(
         appPrefs.edit().putString("wichtel_history_json", serializeWichtelHistoryJson(updated)).apply()
     }
     var showPastDates by remember { mutableStateOf(false) }
+    var overviewSortMode by remember { mutableStateOf("upcoming") } // "upcoming" (Nächstes Ereignis zuerst) | "lastname"
     var contactSortMode by remember { mutableStateOf("lastname") } // "lastname" | "birthday"
     var allContactsFilter by remember { mutableStateOf("all") } // "all" | "hidden"
     var tabSearchQuery by remember { mutableStateOf("") }
@@ -2255,7 +2594,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.35", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.36", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -2896,6 +3235,7 @@ fun KontaktChronikApp(
                 val overviewVisiblePersons = remember(visiblePersons, linkedPersonIds, eventPersonIds) {
                     visiblePersons.filter { p ->
                         !p.birthdayIso.isNullOrBlank() ||
+                            p.timerEnabled ||
                             eventPersonIds.contains(p.id) ||
                             linkedPersonIds.contains(p.id)
                     }
@@ -2904,6 +3244,7 @@ fun KontaktChronikApp(
                     persons.filter { p ->
                         (p.isHidden || hiddenPersonIds.contains(p.id)) &&
                             (!p.birthdayIso.isNullOrBlank() ||
+                                p.timerEnabled ||
                                 eventPersonIds.contains(p.id) ||
                                 linkedPersonIds.contains(p.id))
                     }
@@ -2916,29 +3257,22 @@ fun KontaktChronikApp(
                     if (!isFilteringByLetterOrQuery) 0
                     else hiddenOverviewList.count { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
                 }
-                val sortedPersons = remember(filteredOverview, showPastDates, contactSortMode, isFilteringByLetterOrQuery) {
-                    when {
-                        isFilteringByLetterOrQuery || contactSortMode == "lastname" -> {
-                            filteredOverview.sortedWith(LastNamePersonComparator)
-                        }
-                        !showPastDates -> {
-                            filteredOverview.sortedWith(
-                                compareBy<PersonEntity> {
-                                    ContactResolver.daysUntilNextBirthday(it.birthdayIso) ?: Long.MAX_VALUE
-                                }.then(LastNamePersonComparator)
-                            )
-                        }
-                        else -> {
-                            filteredOverview.sortedWith(
-                                compareByDescending<PersonEntity> {
-                                    ContactResolver.negativeDaysSinceLastBirthday(it.birthdayIso) ?: Long.MIN_VALUE
-                                }.then(LastNamePersonComparator)
-                            )
-                        }
-                    }
+                val timelineItems = remember(filteredOverview, persons, specialEvents, relations, showPastDates, overviewSortMode) {
+                    buildOverviewTimelineItems(
+                        filteredPersons = filteredOverview,
+                        allPersons = persons,
+                        specialEvents = specialEvents,
+                        relations = relations,
+                        showPastDates = showPastDates,
+                        sortMode = overviewSortMode
+                    )
+                }
+                val nextUpcomingDays = remember(timelineItems, showPastDates) {
+                    if (showPastDates) null
+                    else timelineItems.firstOrNull { it.daysUntil != Long.MAX_VALUE }?.daysUntil
                 }
 
-                val sortBtnLabel = if (contactSortMode == "birthday") "⇅ Geburtstag" else "⇅ Nachname"
+                val sortBtnLabel = if (overviewSortMode == "upcoming") "📅 Nächstes Ereignis" else "⇅ Nachname"
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     ContactSearchDropdown(
@@ -2967,7 +3301,7 @@ fun KontaktChronikApp(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CompactButton(sortBtnLabel) {
-                            contactSortMode = if (contactSortMode == "lastname") "birthday" else "lastname"
+                            overviewSortMode = if (overviewSortMode == "upcoming") "lastname" else "upcoming"
                         }
                         Box(
                             modifier = Modifier
@@ -3022,7 +3356,7 @@ fun KontaktChronikApp(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        if (sortedPersons.isEmpty()) {
+                        if (timelineItems.isEmpty()) {
                             item(key = "overview_empty") {
                                 Column(
                                     modifier = Modifier
@@ -3034,9 +3368,9 @@ fun KontaktChronikApp(
                                 ) {
                                     Text(
                                         text = if (overviewVisiblePersons.isEmpty()) {
-                                            "Noch keine Kontakte mit Datum oder Verknüpfung vorhanden."
+                                            "Noch keine Kontakte mit Ereignis, Datum oder Verknüpfung vorhanden."
                                         } else {
-                                            "Keine Kontakte mit Datum oder Verknüpfung für diesen Filter gefunden."
+                                            "Keine anstehenden Ereignisse oder verknüpften Kontakte für diesen Filter gefunden."
                                         },
                                         color = TextSecondary,
                                         fontSize = 12.sp
@@ -3048,39 +3382,28 @@ fun KontaktChronikApp(
                                 }
                             }
                         }
-                        items(sortedPersons, key = { it.id }) { person ->
+                        items(timelineItems, key = { it.uniqueKey }) { entry ->
+                            val person = entry.person
                             val personRelations = relations
                                 .filter { it.fromPersonId == person.id }
                                 .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
-                            val incomingOnlyRelations = relations
-                                .filter { inc ->
-                                    inc.toPersonId == person.id &&
-                                        personRelations.none { it.second.id == inc.fromPersonId }
-                                }
-                                .mapNotNull { inc ->
-                                    persons.find { it.id == inc.fromPersonId }?.let { inverseRelationLabel(inc.relationLabel) to it }
-                                }
-                            val relationDescriptions = buildList {
-                                personRelations.forEach { (rel, target) ->
-                                    add("${rel.relationLabel} ${formatLastNameFirst(target.name)}")
-                                }
-                                incomingOnlyRelations.forEach { (invLabel, target) ->
-                                    add("$invLabel ${formatLastNameFirst(target.name)}")
-                                }
-                            }
-                            val personEvents = specialEvents.filter { it.personId == person.id }
                             val resolved = ContactResolver.resolveTarget(person, personRelations)
-                            val bdayLine = if (showPastDates) {
-                                formatPassedBirthdayLine(person.birthdayIso)
-                            } else {
-                                formatCompactBirthdayLine(person.birthdayIso)
+                            val isNextHighlight = !showPastDates &&
+                                overviewSortMode == "upcoming" &&
+                                nextUpcomingDays != null &&
+                                entry.daysUntil == nextUpcomingDays
+
+                            val cardBorder = when {
+                                entry.isUrgent -> WarnAmber
+                                isNextHighlight -> AccentSteel
+                                else -> BorderSlate
                             }
 
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(CardSlate, RoundedCornerShape(10.dp))
-                                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                    .border(if (isNextHighlight || entry.isUrgent) 1.5.dp else 1.dp, cardBorder, RoundedCornerShape(10.dp))
                                     .padding(horizontal = 12.dp, vertical = 9.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -3098,6 +3421,14 @@ fun KontaktChronikApp(
                                         modifier = Modifier.weight(1f),
                                         verticalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
+                                        if (isNextHighlight) {
+                                            Text(
+                                                text = if (entry.daysUntil == 0L) "🔥 Heute anstehend" else "⭐ Als Nächstes anstehend",
+                                                color = if (entry.daysUntil == 0L) WarnAmber else AccentSteel,
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                         Row(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                                             verticalAlignment = Alignment.CenterVertically
@@ -3109,43 +3440,36 @@ fun KontaktChronikApp(
                                                 fontWeight = FontWeight.SemiBold,
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
-                                            BirthdayCountdownPill(birthdayIso = person.birthdayIso, isPastMode = showPastDates)
-                                        }
-                                        if (!bdayLine.isNullOrBlank()) {
-                                            Text(
-                                                text = bdayLine,
-                                                color = if (showPastDates) WarnAmber else TextSecondary,
-                                                fontSize = 12.sp
-                                            )
-                                        } else if (relationDescriptions.isNotEmpty()) {
-                                            Text(
-                                                text = "🔗 ${relationDescriptions.joinToString(" • ")}",
-                                                color = TextSecondary,
-                                                fontSize = 12.sp
+                                            OverviewCountdownPill(
+                                                pillText = entry.pillText,
+                                                isUrgent = entry.isUrgent,
+                                                isSoon = entry.isSoon,
+                                                isRecurring = entry.isRecurring
                                             )
                                         }
-                                        if (personEvents.isNotEmpty()) {
-                                            personEvents.forEach { ev ->
-                                                val diff = daysUntilEventSpec(ev.dateIso)
-                                                val isDueToday = diff == 0L
-                                                val isWeekly = isWeeklyDateSpec(ev.dateIso) || isRepeatDateSpec(ev.dateIso)
-                                                val badgeColor = when {
-                                                    isDueToday -> WarnAmber
-                                                    isWeekly -> TreeGreen
-                                                    else -> AccentSteel
-                                                }
-                                                Text(
-                                                    text = formatEventBadgeText(ev),
-                                                    color = badgeColor,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                            }
+                                        if (entry.primaryLine.isNotBlank()) {
+                                            Text(
+                                                text = entry.primaryLine,
+                                                color = when {
+                                                    showPastDates || entry.isUrgent -> WarnAmber
+                                                    entry.isRecurring -> TreeGreen
+                                                    else -> TextSecondary
+                                                },
+                                                fontSize = 12.sp,
+                                                fontWeight = if (entry.isUrgent || isNextHighlight) FontWeight.SemiBold else FontWeight.Normal
+                                            )
+                                        }
+                                        if (entry.secondaryLine.isNotBlank()) {
+                                            Text(
+                                                text = entry.secondaryLine,
+                                                color = TextMuted,
+                                                fontSize = 11.sp
+                                            )
                                         }
                                     }
                                 }
                                 CompactButton("Nachricht") {
-                                    popupReason = if (showPastDates) "Nachträglich zum Geburtstag" else "Erinnerung"
+                                    popupReason = entry.popupReason
                                     quickMessageText = pickRandomBirthdayGreeting(
                                         extractFirstName(resolved.targetPersonName),
                                         showPastDates
@@ -3200,7 +3524,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.35")
+                put("version", "1.0.36")
                 put("createdAt", dateStr)
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
                 put("birthdayPopupHour", birthdayPopupHour)

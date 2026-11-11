@@ -137,35 +137,64 @@ object RememberMeWidgetHelper {
         return if (digits.isNotBlank()) "${digits}." else ""
     }
 
-    private fun resolveSpecialEventDate(rawSpec: String, today: LocalDate): LocalDate? {
+    private fun addWidgetInterval(base: LocalDate, count: Long, unit: String): LocalDate {
+        val step = count.coerceAtLeast(1L)
+        return when (unit.uppercase()) {
+            "WEEKS" -> base.plusWeeks(step)
+            "MONTHS" -> base.plusMonths(step)
+            "YEARS" -> base.plusYears(step)
+            else -> base.plusDays(step)
+        }
+    }
+
+    private fun resolveSpecialEventOccurrences(
+        rawSpec: String,
+        today: LocalDate,
+        horizonDays: Long = 90L,
+        maxOccurrences: Int = 5
+    ): List<LocalDate> {
         val spec = rawSpec.trim()
         return when {
             spec.startsWith("REPEAT:") -> {
                 val parts = spec.split(":")
                 if (parts.size >= 4) {
                     val count = parts[1].toLongOrNull()?.coerceAtLeast(1L) ?: 1L
-                    val unit = parts[2]
-                    var nextD = runCatching { LocalDate.parse(parts[3]) }.getOrNull() ?: return null
+                    val unit = parts[2].uppercase()
+                    var nextD = runCatching { LocalDate.parse(parts[3]) }.getOrNull() ?: return emptyList()
                     var guard = 0
-                    while (nextD.isBefore(today) && guard < 500) {
-                        nextD = when (unit) {
-                            "WEEKS" -> nextD.plusWeeks(count)
-                            "MONTHS" -> nextD.plusMonths(count)
-                            "YEARS" -> nextD.plusYears(count)
-                            else -> nextD.plusDays(count)
-                        }
+                    while (nextD.isBefore(today) && guard < 1000) {
+                        nextD = addWidgetInterval(nextD, count, unit)
                         guard++
                     }
-                    nextD
-                } else null
+                    val list = mutableListOf<LocalDate>()
+                    var cur = nextD
+                    for (idx in 0 until maxOccurrences) {
+                        val diff = ChronoUnit.DAYS.between(today, cur)
+                        if (idx > 0 && diff > horizonDays) break
+                        list += cur
+                        cur = addWidgetInterval(cur, count, unit)
+                    }
+                    list
+                } else emptyList()
             }
             spec.startsWith("WEEKLY:") -> {
-                val targetDow = spec.removePrefix("WEEKLY:").toIntOrNull() ?: return null
-                val currentDow = today.dayOfWeek.value % 7
-                val delta = ((targetDow - currentDow) + 7) % 7
-                today.plusDays(delta.toLong())
+                val targetDow = spec.removePrefix("WEEKLY:").toIntOrNull() ?: return emptyList()
+                if (targetDow !in 1..7) return emptyList()
+                val currentDow = today.dayOfWeek.value // 1=Mo..7=So
+                val firstDelta = ((targetDow - currentDow) + 7) % 7
+                val firstDate = today.plusDays(firstDelta.toLong())
+                val list = mutableListOf<LocalDate>()
+                for (idx in 0 until maxOccurrences) {
+                    val cur = firstDate.plusWeeks(idx.toLong())
+                    if (idx > 0 && ChronoUnit.DAYS.between(today, cur) > horizonDays) break
+                    list += cur
+                }
+                list
             }
-            else -> runCatching { LocalDate.parse(spec) }.getOrNull()
+            else -> {
+                val single = runCatching { LocalDate.parse(spec) }.getOrNull()
+                if (single != null && !single.isBefore(today)) listOf(single) else emptyList()
+            }
         }
     }
 
@@ -181,12 +210,12 @@ object RememberMeWidgetHelper {
         val events = dao.getAllSpecialEventsOnce()
         val today = LocalDate.now()
 
-        // Sortierschlüssel: (Tage bis Termin, Typ-Priorität, Name)
+        // Sortierschlüssel: (Tage bis Ereignis, Typ-Priorität, Name) – Kontakte können mehrfach vorkommen
         val candidates = mutableListOf<Triple<Long, Int, WidgetRowItem>>()
 
         for (p in persons) {
             val bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today)
-            if (bdayDays != null && bdayDays <= 90L) {
+            if (bdayDays != null && bdayDays <= 180L) {
                 val ddMm = shortDateDdMm(p.birthdayIso)
                 val ageDot = shortAgeNumber(p.birthdayIso, today)
                 val meta = when {
@@ -221,59 +250,70 @@ object RememberMeWidgetHelper {
                 )
             }
 
-            val timerDate = ContactResolver.nextTimerDate(p, today)
-            if (timerDate != null) {
-                val diff = ChronoUnit.DAYS.between(today, timerDate)
-                if (diff <= 14L) {
-                    val sortDays = diff.coerceAtLeast(0L)
-                    val badge = when {
-                        diff <= 0L -> "Fällig"
-                        diff == 1L -> "Morgen"
-                        else -> "${diff}T"
-                    }
-                    candidates += Triple(
-                        sortDays,
-                        2,
-                        WidgetRowItem(
-                            key = "timer_${p.id}",
-                            personId = p.id,
-                            icon = "⏳",
-                            name = p.name,
-                            shortMeta = "Timer",
-                            popupReason = "⏳ Melde-Timer",
-                            badge = badge,
-                            isTodayOrDue = diff <= 0L
+            val firstTimerDate = ContactResolver.nextTimerDate(p, today)
+            if (firstTimerDate != null) {
+                var curTimer: LocalDate = firstTimerDate
+                val stepCount = p.timerInterval.coerceAtLeast(1).toLong()
+                for (occIdx in 0 until 4) {
+                    val diff = ChronoUnit.DAYS.between(today, curTimer)
+                    if (occIdx > 0 && diff > 60L) break
+                    if (diff <= 60L) {
+                        val sortDays = diff.coerceAtLeast(0L)
+                        val ddMm = "%02d.%02d.".format(curTimer.dayOfMonth, curTimer.monthValue)
+                        val badge = when {
+                            diff <= 0L -> "Fällig"
+                            diff == 1L -> "Morgen"
+                            else -> "${diff}T"
+                        }
+                        candidates += Triple(
+                            sortDays,
+                            2,
+                            WidgetRowItem(
+                                key = "timer_${p.id}_$occIdx",
+                                personId = p.id,
+                                icon = "⏳",
+                                name = p.name,
+                                shortMeta = "Timer ($ddMm)",
+                                popupReason = "⏳ Melde-Timer",
+                                badge = badge,
+                                isTodayOrDue = diff <= 0L
+                            )
                         )
-                    )
+                    }
+                    val baseForNext = if (curTimer.isBefore(today)) today else curTimer
+                    curTimer = addWidgetInterval(baseForNext, stepCount, p.timerUnit)
                 }
             }
         }
 
         for (ev in events) {
             val person = persons.find { it.id == ev.personId } ?: continue
-            val evDate = resolveSpecialEventDate(ev.dateIso, today) ?: continue
-            val diff = ChronoUnit.DAYS.between(today, evDate)
-            if (diff in 0L..60L) {
-                val ddMm = "%02d.%02d.".format(evDate.dayOfMonth, evDate.monthValue)
-                val badge = when (diff) {
-                    0L -> "Heute"
-                    1L -> "Morgen"
-                    else -> "${diff}T"
-                }
-                candidates += Triple(
-                    diff,
-                    1,
-                    WidgetRowItem(
-                        key = "ev_${ev.id}",
-                        personId = person.id,
-                        icon = "🔔",
-                        name = person.name,
-                        shortMeta = "${ev.title} ($ddMm)",
-                        popupReason = "🔔 ${ev.title}",
-                        badge = badge,
-                        isTodayOrDue = diff == 0L
+            val occurrences = resolveSpecialEventOccurrences(ev.dateIso, today, horizonDays = 90L, maxOccurrences = 5)
+            occurrences.forEachIndexed { occIdx, evDate ->
+                val diff = ChronoUnit.DAYS.between(today, evDate)
+                if (diff in 0L..90L) {
+                    val ddMm = "%02d.%02d.".format(evDate.dayOfMonth, evDate.monthValue)
+                    val isRecurring = ev.dateIso.startsWith("WEEKLY:") || ev.dateIso.startsWith("REPEAT:")
+                    val badge = when (diff) {
+                        0L -> "Heute"
+                        1L -> "Morgen"
+                        else -> "${diff}T"
+                    }
+                    candidates += Triple(
+                        diff,
+                        1,
+                        WidgetRowItem(
+                            key = "ev_${ev.id}_$occIdx",
+                            personId = person.id,
+                            icon = if (isRecurring) "🔁" else "🔔",
+                            name = person.name,
+                            shortMeta = "${ev.title} ($ddMm)",
+                            popupReason = "🔔 ${ev.title}",
+                            badge = badge,
+                            isTodayOrDue = diff == 0L
+                        )
                     )
-                )
+                }
             }
         }
 

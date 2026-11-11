@@ -531,8 +531,8 @@ class DailyReminderWorker(
                 }
                 rawSpec.startsWith("WEEKLY:") -> {
                     val targetDow = rawSpec.removePrefix("WEEKLY:").toIntOrNull()
-                    if (targetDow != null) {
-                        val currentDow = today.dayOfWeek.value % 7 // 0=So..6=Sa
+                    if (targetDow != null && targetDow in 1..7) {
+                        val currentDow = today.dayOfWeek.value // 1=Mo..7=So
                         val delta = ((targetDow - currentDow) + 7) % 7
                         today.plusDays(delta.toLong())
                     } else null
