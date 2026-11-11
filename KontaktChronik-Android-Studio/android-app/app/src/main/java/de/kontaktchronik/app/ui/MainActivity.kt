@@ -1507,6 +1507,8 @@ fun KontaktChronikApp(
     var showTimerEntryDialog by remember { mutableStateOf(false) }
     var editingTimerPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var detailPerson by remember { mutableStateOf<PersonEntity?>(null) }
+    var quickIgnoreMode by remember { mutableStateOf(false) }
+    var quickIgnoreSelectedIds by remember { mutableStateOf(setOf<Long>()) }
     var syncStatus by remember { mutableStateOf("") }
     var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
     var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -1522,6 +1524,32 @@ fun KontaktChronikApp(
         val p = persons.find { it.id == personId }
         if (p != null && p.isHidden != hidden) {
             scope.launch { db.updatePerson(p.copy(isHidden = hidden)) }
+        }
+    }
+
+    fun setPersonsHiddenBatch(personIds: Set<Long>, hidden: Boolean) {
+        if (personIds.isEmpty()) return
+        if (hidden && detailPerson?.id in personIds) {
+            detailPerson = null
+        }
+        val next = if (hidden) hiddenPersonIds + personIds else hiddenPersonIds - personIds
+        hiddenPersonIds = next
+        appPrefs.edit().putStringSet("hidden_person_ids", next.map { it.toString() }.toSet()).apply()
+        val toUpdate = persons.filter { it.id in personIds && it.isHidden != hidden }
+        if (toUpdate.isNotEmpty()) {
+            scope.launch {
+                toUpdate.forEach { p ->
+                    db.updatePerson(p.copy(isHidden = hidden))
+                }
+            }
+        }
+    }
+
+    fun toggleQuickIgnoreSelection(personId: Long) {
+        quickIgnoreSelectedIds = if (quickIgnoreSelectedIds.contains(personId)) {
+            quickIgnoreSelectedIds - personId
+        } else {
+            quickIgnoreSelectedIds + personId
         }
     }
 
@@ -1668,7 +1696,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.26", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.27", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1824,18 +1852,41 @@ fun KontaktChronikApp(
                     }
                 }
                 val sortBtnLabel = if (contactSortMode == "birthday") "⇅ Geburtstag" else "⇅ Nachname"
+                val targetHideState = allContactsFilter != "hidden"
+                val activeSelectedIds = remember(quickIgnoreSelectedIds, baseList) {
+                    val validIds = baseList.map { it.id }.toSet()
+                    quickIgnoreSelectedIds.intersect(validIds)
+                }
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     ContactSearchDropdown(
                         persons = baseList,
-                        onSelectPerson = { detailPerson = it },
+                        onSelectPerson = { p ->
+                            if (quickIgnoreMode) {
+                                toggleQuickIgnoreSelection(p.id)
+                            } else {
+                                detailPerson = p
+                            }
+                        },
                         placeholderText = "🔎 Kontakt suchen / Dropdown-Liste",
-                        confirmButtonLabel = "✓ Bestätigen",
+                        confirmButtonLabel = if (quickIgnoreMode && activeSelectedIds.isNotEmpty()) {
+                            if (targetHideState) "🙈 Ausblenden (${activeSelectedIds.size})" else "👁 Einblenden (${activeSelectedIds.size})"
+                        } else {
+                            "✓ Bestätigen"
+                        },
+                        onConfirmAction = if (quickIgnoreMode && activeSelectedIds.isNotEmpty()) {
+                            {
+                                setPersonsHiddenBatch(activeSelectedIds, targetHideState)
+                                quickIgnoreSelectedIds = emptySet()
+                            }
+                        } else null,
                         externalSearchQuery = tabSearchQuery,
                         onExternalSearchQueryChange = { tabSearchQuery = it },
                         externalSelectedLetter = tabSelectedLetter,
                         onExternalSelectedLetterChange = { tabSelectedLetter = it },
-                        showInlineAlphabet = true
+                        showInlineAlphabet = true,
+                        checkedPersonIds = if (quickIgnoreMode) activeSelectedIds else null,
+                        onToggleCheckedPerson = if (quickIgnoreMode) { p -> toggleQuickIgnoreSelection(p.id) } else null
                     )
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -1846,18 +1897,108 @@ fun KontaktChronikApp(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CompactButton(sortBtnLabel) {
-                            contactSortMode = if (contactSortMode == "lastname") "birthday" else "lastname"
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            CompactButton(sortBtnLabel) {
+                                contactSortMode = if (contactSortMode == "lastname") "birthday" else "lastname"
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        if (quickIgnoreMode) WarnAmber else BtnBg,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .border(1.dp, if (quickIgnoreMode) WarnAmber else BorderSlate, RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        quickIgnoreMode = !quickIgnoreMode
+                                        if (!quickIgnoreMode) quickIgnoreSelectedIds = emptySet()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (quickIgnoreMode) "🙈 Schnellwahl aktiv" else "🙈 Schnell-Ignorieren",
+                                    color = if (quickIgnoreMode) BgSlate else TextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center,
+                                    style = CenteredPillTextStyle,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             CompactButton(if (allContactsFilter == "all") "✓ Alle (${visiblePersons.size})" else "Alle (${visiblePersons.size})") {
                                 allContactsFilter = "all"
+                                quickIgnoreSelectedIds = emptySet()
                             }
                             CompactButton(
                                 if (allContactsFilter == "hidden") "✓ Ausgeblendet ($hiddenCount)"
                                 else "Ausgeblendet ($hiddenCount)"
                             ) {
                                 allContactsFilter = "hidden"
+                                quickIgnoreSelectedIds = emptySet()
+                            }
+                        }
+                    }
+
+                    if (quickIgnoreMode) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .background(BgSlate, RoundedCornerShape(8.dp))
+                                .border(1.5.dp, WarnAmber, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "🙈 ${activeSelectedIds.size} markiert",
+                                color = WarnAmber,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CompactButton("Alle (${sortedAll.size})") {
+                                    quickIgnoreSelectedIds = quickIgnoreSelectedIds + sortedAll.map { it.id }
+                                }
+                                if (activeSelectedIds.isNotEmpty()) {
+                                    CompactButton("Keine") {
+                                        quickIgnoreSelectedIds = emptySet()
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (activeSelectedIds.isNotEmpty()) WarnAmber else BtnBg,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .border(1.dp, if (activeSelectedIds.isNotEmpty()) WarnAmber else BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable(enabled = activeSelectedIds.isNotEmpty()) {
+                                            setPersonsHiddenBatch(activeSelectedIds, targetHideState)
+                                            quickIgnoreSelectedIds = emptySet()
+                                        }
+                                        .padding(horizontal = 9.dp, vertical = 5.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (targetHideState) "✓ Ausblenden (${activeSelectedIds.size})" else "✓ Einblenden (${activeSelectedIds.size})",
+                                        color = if (activeSelectedIds.isNotEmpty()) BgSlate else TextMuted,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        style = CenteredPillTextStyle,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                                CompactButton("✕") {
+                                    quickIgnoreMode = false
+                                    quickIgnoreSelectedIds = emptySet()
+                                }
                             }
                         }
                     }
@@ -1868,14 +2009,30 @@ fun KontaktChronikApp(
                     ) {
                         items(sortedAll, key = { it.id }) { person ->
                             val isHidden = person.isHidden || hiddenPersonIds.contains(person.id)
+                            val isChecked = quickIgnoreMode && activeSelectedIds.contains(person.id)
                             val bdayLine = formatCompactBirthdayLine(person.birthdayIso)
                             val subText = bdayLine ?: if (person.phone.isNotBlank()) "Ohne Datum • ${person.phone}" else "Ohne Datumsangabe"
 
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(CardSlate, RoundedCornerShape(10.dp))
-                                    .border(1.dp, if (isHidden) WarnAmber else BorderSlate, RoundedCornerShape(10.dp))
+                                    .background(if (isChecked) BtnBg else CardSlate, RoundedCornerShape(10.dp))
+                                    .border(
+                                        if (isChecked) 1.5.dp else 1.dp,
+                                        when {
+                                            isChecked -> WarnAmber
+                                            isHidden -> WarnAmber
+                                            else -> BorderSlate
+                                        },
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable {
+                                        if (quickIgnoreMode) {
+                                            toggleQuickIgnoreSelection(person.id)
+                                        } else {
+                                            detailPerson = person
+                                        }
+                                    }
                                     .padding(horizontal = 12.dp, vertical = 9.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -1883,10 +2040,28 @@ fun KontaktChronikApp(
                                 Row(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .clickable { detailPerson = person }
                                         .padding(end = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    if (quickIgnoreMode) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(22.dp)
+                                                .background(if (isChecked) WarnAmber else BgSlate, RoundedCornerShape(5.dp))
+                                                .border(1.5.dp, if (isChecked) WarnAmber else AccentSteel, RoundedCornerShape(5.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (isChecked) "✓" else "",
+                                                color = BgSlate,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center,
+                                                style = CenteredPillTextStyle
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
                                     PersonAvatar(name = person.name, photoBase64 = person.photoBase64)
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column(
@@ -2298,18 +2473,40 @@ fun KontaktChronikApp(
                 }
 
                 val sortBtnLabel = if (contactSortMode == "birthday") "⇅ Geburtstag" else "⇅ Nachname"
+                val activeOverviewSelectedIds = remember(quickIgnoreSelectedIds, visiblePersons) {
+                    val validIds = visiblePersons.map { it.id }.toSet()
+                    quickIgnoreSelectedIds.intersect(validIds)
+                }
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     ContactSearchDropdown(
                         persons = visiblePersons,
-                        onSelectPerson = { detailPerson = it },
+                        onSelectPerson = { p ->
+                            if (quickIgnoreMode) {
+                                toggleQuickIgnoreSelection(p.id)
+                            } else {
+                                detailPerson = p
+                            }
+                        },
                         placeholderText = "🔎 Kontakt suchen / Dropdown-Liste",
-                        confirmButtonLabel = "✓ Bestätigen",
+                        confirmButtonLabel = if (quickIgnoreMode && activeOverviewSelectedIds.isNotEmpty()) {
+                            "🙈 Ausblenden (${activeOverviewSelectedIds.size})"
+                        } else {
+                            "✓ Bestätigen"
+                        },
+                        onConfirmAction = if (quickIgnoreMode && activeOverviewSelectedIds.isNotEmpty()) {
+                            {
+                                setPersonsHiddenBatch(activeOverviewSelectedIds, true)
+                                quickIgnoreSelectedIds = emptySet()
+                            }
+                        } else null,
                         externalSearchQuery = tabSearchQuery,
                         onExternalSearchQueryChange = { tabSearchQuery = it },
                         externalSelectedLetter = tabSelectedLetter,
                         onExternalSelectedLetterChange = { tabSelectedLetter = it },
-                        showInlineAlphabet = true
+                        showInlineAlphabet = true,
+                        checkedPersonIds = if (quickIgnoreMode) activeOverviewSelectedIds else null,
+                        onToggleCheckedPerson = if (quickIgnoreMode) { p -> toggleQuickIgnoreSelection(p.id) } else null
                     )
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -2320,8 +2517,35 @@ fun KontaktChronikApp(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CompactButton(sortBtnLabel) {
-                            contactSortMode = if (contactSortMode == "lastname") "birthday" else "lastname"
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            CompactButton(sortBtnLabel) {
+                                contactSortMode = if (contactSortMode == "lastname") "birthday" else "lastname"
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        if (quickIgnoreMode) WarnAmber else BtnBg,
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .border(1.dp, if (quickIgnoreMode) WarnAmber else BorderSlate, RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        quickIgnoreMode = !quickIgnoreMode
+                                        if (!quickIgnoreMode) quickIgnoreSelectedIds = emptySet()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (quickIgnoreMode) "🙈 Schnellwahl aktiv" else "🙈 Schnell-Ignorieren",
+                                    color = if (quickIgnoreMode) BgSlate else TextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center,
+                                    style = CenteredPillTextStyle,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
                         Box(
                             modifier = Modifier
@@ -2347,11 +2571,73 @@ fun KontaktChronikApp(
                         }
                     }
 
+                    if (quickIgnoreMode) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .background(BgSlate, RoundedCornerShape(8.dp))
+                                .border(1.5.dp, WarnAmber, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "🙈 ${activeOverviewSelectedIds.size} markiert",
+                                color = WarnAmber,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CompactButton("Alle (${sortedPersons.size})") {
+                                    quickIgnoreSelectedIds = quickIgnoreSelectedIds + sortedPersons.map { it.id }
+                                }
+                                if (activeOverviewSelectedIds.isNotEmpty()) {
+                                    CompactButton("Keine") {
+                                        quickIgnoreSelectedIds = emptySet()
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (activeOverviewSelectedIds.isNotEmpty()) WarnAmber else BtnBg,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .border(1.dp, if (activeOverviewSelectedIds.isNotEmpty()) WarnAmber else BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable(enabled = activeOverviewSelectedIds.isNotEmpty()) {
+                                            setPersonsHiddenBatch(activeOverviewSelectedIds, true)
+                                            quickIgnoreSelectedIds = emptySet()
+                                        }
+                                        .padding(horizontal = 9.dp, vertical = 5.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "✓ Ausblenden (${activeOverviewSelectedIds.size})",
+                                        color = if (activeOverviewSelectedIds.isNotEmpty()) BgSlate else TextMuted,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        style = CenteredPillTextStyle,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                                CompactButton("✕") {
+                                    quickIgnoreMode = false
+                                    quickIgnoreSelectedIds = emptySet()
+                                }
+                            }
+                        }
+                    }
+
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(sortedPersons, key = { it.id }) { person ->
+                            val isChecked = quickIgnoreMode && activeOverviewSelectedIds.contains(person.id)
                             val personRelations = relations
                                 .filter { it.fromPersonId == person.id }
                                 .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
@@ -2366,8 +2652,19 @@ fun KontaktChronikApp(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(CardSlate, RoundedCornerShape(10.dp))
-                                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                    .background(if (isChecked) BtnBg else CardSlate, RoundedCornerShape(10.dp))
+                                    .border(
+                                        if (isChecked) 1.5.dp else 1.dp,
+                                        if (isChecked) WarnAmber else BorderSlate,
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable {
+                                        if (quickIgnoreMode) {
+                                            toggleQuickIgnoreSelection(person.id)
+                                        } else {
+                                            detailPerson = person
+                                        }
+                                    }
                                     .padding(horizontal = 12.dp, vertical = 9.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -2375,10 +2672,28 @@ fun KontaktChronikApp(
                                 Row(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .clickable { detailPerson = person }
                                         .padding(end = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    if (quickIgnoreMode) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(22.dp)
+                                                .background(if (isChecked) WarnAmber else BgSlate, RoundedCornerShape(5.dp))
+                                                .border(1.5.dp, if (isChecked) WarnAmber else AccentSteel, RoundedCornerShape(5.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (isChecked) "✓" else "",
+                                                color = BgSlate,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center,
+                                                style = CenteredPillTextStyle
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
                                     PersonAvatar(name = person.name, photoBase64 = person.photoBase64)
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column(
@@ -2435,13 +2750,27 @@ fun KontaktChronikApp(
                                         }
                                     }
                                 }
-                                CompactButton("Nachricht") {
-                                    popupReason = if (showPastDates) "Nachträglich zum Geburtstag" else "Erinnerung"
-                                    quickMessageText = pickRandomBirthdayGreeting(
-                                        extractFirstName(resolved.targetPersonName),
-                                        showPastDates
-                                    )
-                                    popupPerson = person
+                                if (quickIgnoreMode) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        CompactButton("🙈 Sofort") {
+                                            setPersonHidden(person.id, true)
+                                            quickIgnoreSelectedIds = quickIgnoreSelectedIds - person.id
+                                        }
+                                    }
+                                } else {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        CompactButton("🙈") {
+                                            setPersonHidden(person.id, true)
+                                        }
+                                        CompactButton("Nachricht") {
+                                            popupReason = if (showPastDates) "Nachträglich zum Geburtstag" else "Erinnerung"
+                                            quickMessageText = pickRandomBirthdayGreeting(
+                                                extractFirstName(resolved.targetPersonName),
+                                                showPastDates
+                                            )
+                                            popupPerson = person
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2491,7 +2820,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.26")
+                put("version", "1.0.27")
                 put("createdAt", dateStr)
                 put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
