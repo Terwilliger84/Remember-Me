@@ -75,6 +75,7 @@ import de.kontaktchronik.app.model.*
 import de.kontaktchronik.app.reminders.BirthdayNotificationHelper
 import de.kontaktchronik.app.reminders.DailyReminderWorker
 import de.kontaktchronik.app.reminders.QuickActionDispatcher
+import de.kontaktchronik.app.widget.RememberMeWidgetUpdater
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -2088,6 +2089,11 @@ fun KontaktChronikApp(
     fun applyThemeMode(mode: String) {
         appThemeMode = mode
         appPrefs.edit().putString("theme_mode", mode).apply()
+        RememberMeWidgetUpdater.updateAllAsync(context)
+    }
+
+    LaunchedEffect(persons, specialEvents, hiddenPersonIds, appThemeMode) {
+        RememberMeWidgetUpdater.updateAllAsync(context)
     }
 
     LaunchedEffect(Unit) {
@@ -2249,7 +2255,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.34", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.35", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -3194,7 +3200,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.34")
+                put("version", "1.0.35")
                 put("createdAt", dateStr)
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
                 put("birthdayPopupHour", birthdayPopupHour)
@@ -3402,6 +3408,32 @@ fun KontaktChronikApp(
                                 }
                             }
                         }
+                    }
+                }
+
+                HorizontalDivider(color = BorderSlate)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "📱 Homescreen-Widgets (4 Größen)",
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Mini (2×1) • Leiste (4×1) • Kompakt (3×2) • Groß (4×3)",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    CompactButton("↻ Aktualisieren") {
+                        RememberMeWidgetUpdater.updateAllAsync(context)
+                        syncStatus = "Alle 4 Homescreen-Widgets aktualisiert"
                     }
                 }
 

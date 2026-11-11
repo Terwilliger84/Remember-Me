@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.34 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.35 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1892,7 +1892,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.34</div>
+            <div class="app-title">Remember Me v1.0.35</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -4452,6 +4452,14 @@
 
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
                 <div>
+                  <div style="font-size:13px; font-weight:600; color:var(--text-primary);">📱 Homescreen-Widgets (4 Größen)</div>
+                  <div style="font-size:10.5px; color:var(--text-secondary);">Mini (2×1) • Leiste (4×1) • Kompakt (3×2) • Groß (4×3)</div>
+                </div>
+                <button class="compact-btn primary" onclick="showWidgetPreviewModal=true; showOptionsDialog=false; renderModals();">📱 Vorschau</button>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
+                <div>
                   <div style="font-size:13px; font-weight:600; color:var(--text-primary);">🎂 Geburtstagsgrüße (${greetingsCount})</div>
                   <div style="font-size:10.5px; color:var(--text-secondary);">Zufällige Glückwunschtexte mit {Name}</div>
                 </div>
@@ -4489,6 +4497,91 @@
 
               <div class="modal-footer" style="justify-content:flex-end;">
                 <button class="compact-btn primary" onclick="showOptionsDialog=false; renderModals();">Schließen</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (showWidgetPreviewModal) {
+        const wRows = buildWidgetPreviewRows(15);
+        const first = wRows[0] || null;
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="showWidgetPreviewModal=false; renderModals();">
+            <div class="modal" style="max-width:390px;" onclick="event.stopPropagation()">
+              <div class="modal-header-sticky">
+                <div class="modal-title">📱 4 Kompakte Homescreen-Widgets</div>
+                <button class="compact-btn primary" onclick="showWidgetPreviewModal=false; renderModals();">✓ Fertig</button>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:10px; max-height:72vh; overflow-y:auto; padding-right:2px;">
+                <div style="font-size:11px; color:var(--text-secondary);">Alle 4 Größen stehen auf dem Handy im Widget-Menü unter „Remember Me“ bereit und sind frei skalierbar:</div>
+
+                <div>
+                  <div style="font-size:11.5px; font-weight:700; color:var(--accent-steel); margin-bottom:4px;">1. 🎂 Mini (2×1) – Nächster Termin</div>
+                  <div style="width:185px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:12px; padding:6px;">
+                    ${first ? `
+                      <div style="background:var(--card-slate); border-radius:8px; padding:5px 7px; cursor:pointer;" onclick="showWidgetPreviewModal=false; openPopupForPerson(${first.personId}, '${escapeHtml(first.reason)}')">
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; font-weight:700; color:var(--accent-steel);">
+                          <span>${escapeHtml(first.icon)} ${escapeHtml(first.meta)}</span>
+                          <span class="badge">${escapeHtml(first.badge)}</span>
+                        </div>
+                        <div style="font-size:12px; font-weight:700; color:var(--text-primary); margin-top:2px;">${escapeHtml(first.name)}</div>
+                      </div>
+                    ` : `<div style="font-size:11px; color:var(--text-secondary); text-align:center; padding:6px;">🎂 Keine Termine</div>`}
+                  </div>
+                </div>
+
+                <div>
+                  <div style="font-size:11.5px; font-weight:700; color:var(--accent-steel); margin-bottom:4px;">2. 🎂 Kompakt-Leiste (4×1)</div>
+                  <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:12px; padding:6px; display:grid; grid-template-columns:1fr 1fr; gap:5px;">
+                    ${wRows.slice(0, 2).map(it => `
+                      <div style="background:var(--card-slate); border-radius:8px; padding:4px 6px; cursor:pointer;" onclick="showWidgetPreviewModal=false; openPopupForPerson(${it.personId}, '${escapeHtml(it.reason)}')">
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:9.5px; color:var(--text-secondary);">
+                          <span>${escapeHtml(it.icon)} ${escapeHtml(it.meta)}</span>
+                          <span class="badge">${escapeHtml(it.badge)}</span>
+                        </div>
+                        <div style="font-size:11px; font-weight:700; color:var(--text-primary); margin-top:1px;">${escapeHtml(it.name)}</div>
+                      </div>
+                    `).join("") || `<div style="font-size:11px; color:var(--text-secondary); grid-column:span 2; padding:4px;">🎂 Keine Termine</div>`}
+                  </div>
+                </div>
+
+                <div>
+                  <div style="font-size:11.5px; font-weight:700; color:var(--accent-steel); margin-bottom:4px;">3. 🎂 Kompakt-Liste (3×2)</div>
+                  <div style="width:270px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:12px; padding:6px; display:flex; flex-direction:column; gap:3px;">
+                    <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:700; color:var(--accent-steel); padding:0 2px;">
+                      <span>🎂 Termine</span><span style="font-size:10px; color:var(--text-secondary);">Öffnen ↗</span>
+                    </div>
+                    ${wRows.slice(0, 4).map(it => `
+                      <div style="background:var(--card-slate); border-radius:7px; padding:3px 6px; display:flex; justify-content:space-between; align-items:center; gap:6px; cursor:pointer;" onclick="showWidgetPreviewModal=false; openPopupForPerson(${it.personId}, '${escapeHtml(it.reason)}')">
+                        <span style="font-size:11.5px; font-weight:600; color:var(--text-primary);">${escapeHtml(it.icon)} ${escapeHtml(it.name)}</span>
+                        <span style="font-size:10px; color:var(--text-secondary); white-space:nowrap;">${escapeHtml(it.meta)} • <b>${escapeHtml(it.badge)}</b></span>
+                      </div>
+                    `).join("") || `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">Keine anstehenden Einträge</div>`}
+                  </div>
+                </div>
+
+                <div>
+                  <div style="font-size:11.5px; font-weight:700; color:var(--accent-steel); margin-bottom:4px;">4. 🎂 Übersicht Groß (4×3, scrollbar)</div>
+                  <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:12px; padding:8px; display:flex; flex-direction:column; gap:3px; max-height:175px; overflow-y:auto;">
+                    <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; color:var(--accent-steel); padding:0 2px;">
+                      <span>🎂 Geburtstage & Termine (${wRows.length})</span><span style="font-size:10px; color:var(--text-secondary);">Öffnen ↗</span>
+                    </div>
+                    ${wRows.map(it => `
+                      <div style="background:var(--card-slate); border-radius:7px; padding:3px 6px; display:flex; justify-content:space-between; align-items:center; gap:6px; cursor:pointer;" onclick="showWidgetPreviewModal=false; openPopupForPerson(${it.personId}, '${escapeHtml(it.reason)}')">
+                        <span style="font-size:11.5px; font-weight:600; color:var(--text-primary);">${escapeHtml(it.icon)} ${escapeHtml(it.name)}</span>
+                        <span style="font-size:10px; color:var(--text-secondary); white-space:nowrap;">${escapeHtml(it.meta)} • <b>${escapeHtml(it.badge)}</b></span>
+                      </div>
+                    `).join("") || `<div style="font-size:11px; color:var(--text-secondary); padding:4px;">Keine anstehenden Einträge</div>`}
+                  </div>
+                </div>
+              </div>
+
+              <div class="modal-footer" style="justify-content:space-between;">
+                <button class="compact-btn" onclick="showWidgetPreviewModal=false; showOptionsDialog=true; renderModals();">← Optionen</button>
+                <button class="compact-btn primary" onclick="showWidgetPreviewModal=false; renderModals();">Schließen</button>
               </div>
             </div>
           </div>
@@ -5408,6 +5501,67 @@
     let photoPickerTargetMode = "create"; // "create" | "detail"
     let pendingDeleteConfirm = null;
     let showOptionsDialog = false;
+    let showWidgetPreviewModal = false;
+
+    function buildWidgetPreviewRows(maxCount = 15) {
+      const today = todayIso();
+      const list = [];
+      for (const p of state.persons.filter(x => !x.isHidden)) {
+        const bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
+        if (bdayDays !== null && bdayDays <= 90) {
+          const parts = String(p.birthdayIso || "").split("-");
+          const ddMm = parts.length >= 3 ? `${parts[2].slice(0,2)}.${parts[1]}.` : "";
+          const ageRaw = ContactResolver.formatUpcomingAge(p.birthdayIso, today);
+          const digits = String(ageRaw || "").replace(/\D+/g, "");
+          const meta = ddMm && digits ? `${ddMm} (${digits}.)` : ddMm;
+          list.push({
+            days: bdayDays,
+            prio: 0,
+            personId: p.id,
+            icon: "🎂",
+            name: p.name,
+            meta,
+            reason: `🎂 Geburtstag (${ageRaw})`,
+            badge: bdayDays === 0 ? "Heute!" : (bdayDays === 1 ? "Morgen" : `${bdayDays}T`)
+          });
+        }
+        const timerDate = ContactResolver.nextTimerDate(p, today);
+        if (timerDate) {
+          const diff = Math.round((new Date(timerDate + "T00:00:00") - new Date(today + "T00:00:00")) / 86400000);
+          if (diff <= 14) {
+            list.push({
+              days: Math.max(0, diff),
+              prio: 2,
+              personId: p.id,
+              icon: "⏳",
+              name: p.name,
+              meta: "Timer",
+              reason: "⏳ Melde-Timer",
+              badge: diff <= 0 ? "Fällig" : (diff === 1 ? "Morgen" : `${diff}T`)
+            });
+          }
+        }
+      }
+      for (const ev of (state.specialEvents || [])) {
+        const p = state.persons.find(x => x.id === ev.personId && !x.isHidden);
+        if (!p) continue;
+        const diff = daysUntilEventSpec(ev.dateIso, today);
+        if (diff !== null && diff >= 0 && diff <= 60) {
+          list.push({
+            days: diff,
+            prio: 1,
+            personId: p.id,
+            icon: "🔔",
+            name: p.name,
+            meta: ev.title,
+            reason: `🔔 ${ev.title}`,
+            badge: diff === 0 ? "Heute" : (diff === 1 ? "Morgen" : `${diff}T`)
+          });
+        }
+      }
+      list.sort((a, b) => (a.days - b.days) || (a.prio - b.prio) || a.name.localeCompare(b.name, "de"));
+      return list.slice(0, maxCount);
+    }
     let detailRelationsExpanded = false;
     let detailDraftRelLabel = "Kind von";
     let detailDraftRelTargetId = -1;
@@ -6808,7 +6962,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.34",
+        version: "1.0.35",
         createdAt: dateStr,
         state
       };
@@ -6826,7 +6980,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.34",
+        version: "1.0.35",
         createdAt: dateStr,
         state
       };
@@ -6901,7 +7055,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.34 gestartet.");
+    addLog("Remember Me v1.0.35 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

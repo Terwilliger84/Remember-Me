@@ -41,17 +41,53 @@
             </intent-filter>
         </activity>
 
-        <!-- Homescreen Widget Receiver (Glance AppWidget) -->
+        <!-- Homescreen Widgets in 4 kompakten Größen (Glance AppWidget) -->
+        <receiver
+            android:name=".widget.MiniWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_mini_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_mini_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.StripWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_strip_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_strip_info" />
+        </receiver>
+
         <receiver
             android:name=".widget.BirthdayWidgetReceiver"
             android:exported="true"
-            android:label="Geburtstage &amp; Termine">
+            android:label="@string/widget_compact_list_label">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/birthday_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.LargeWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_large_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_large_info" />
         </receiver>
 
         <!-- Boot- & Update-Receiver für Geburtstags-Popups, Timer & Erinnerungen -->

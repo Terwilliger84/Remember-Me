@@ -29,6 +29,7 @@ import de.kontaktchronik.app.model.ContactResolver
 import de.kontaktchronik.app.model.PersonEntity
 import de.kontaktchronik.app.model.TimerUnit
 import de.kontaktchronik.app.ui.MainActivity
+import de.kontaktchronik.app.widget.RememberMeWidgetUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -546,6 +547,7 @@ class DailyReminderWorker(
             }
         }
 
+        RememberMeWidgetUpdater.updateAll(applicationContext)
         return Result.success()
     }
 
