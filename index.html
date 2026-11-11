@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.32 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.33 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1891,7 +1891,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.32</div>
+            <div class="app-title">Remember Me v1.0.33</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2389,6 +2389,424 @@
     }
 
     let allContactsFilter = "all"; // "all" | "hidden"
+    let mergeContactsModalState = null;
+
+    function cleanMergeWhitespace(raw) {
+      return String(raw || "").trim().replace(/\s+/g, " ");
+    }
+
+    function canonicalPhoneKey(raw) {
+      const trimmed = String(raw || "").trim();
+      if (!trimmed) return "";
+      let cleaned = "";
+      for (let i = 0; i < trimmed.length; i++) {
+        const ch = trimmed[i];
+        if (ch >= "0" && ch <= "9") cleaned += ch;
+        else if (ch === "+" && cleaned === "" && i === 0) cleaned += "+";
+      }
+      const digitsOnly = cleaned.replace(/[^0-9]/g, "");
+      if (digitsOnly.length < 3) return "";
+      const intl = (cleaned.startsWith("00") && digitsOnly.length >= 5)
+        ? "+" + cleaned.slice(2)
+        : cleaned;
+      if (intl.startsWith("+49")) {
+        const sub = intl.slice(3).replace(/^0+/, "");
+        return sub ? `DE:${sub}` : "DE:0";
+      }
+      if (intl.startsWith("+43")) return `AT:${intl.slice(3).replace(/^0+/, "")}`;
+      if (intl.startsWith("+41")) return `CH:${intl.slice(3).replace(/^0+/, "")}`;
+      if (intl.startsWith("+")) return intl;
+      if (intl.startsWith("0")) {
+        const sub = intl.replace(/^0+/, "");
+        return sub ? `DE:${sub}` : `RAW:${digitsOnly}`;
+      }
+      return `RAW:${digitsOnly}`;
+    }
+
+    function isPhoneLike(raw) {
+      const t = String(raw || "").trim();
+      if (!t || t.includes("@") || /\p{L}/u.test(t)) return false;
+      if (/^\d{1,2}\.\d{1,2}\.(\d{2,4})?$/.test(t) || /^\d{4}-\d{2}-\d{2}$/.test(t)) return false;
+      return (t.match(/\d/g) || []).length >= 4;
+    }
+
+    function canonicalEmailKey(raw) {
+      const cleaned = String(raw || "")
+        .trim()
+        .replace(/^mailto:/i, "")
+        .trim()
+        .replace(/^<|>$/g, "")
+        .replace(/\s+/g, "")
+        .toLowerCase();
+      return (cleaned.includes("@") && cleaned.split("@")[1].includes(".")) ? cleaned : "";
+    }
+
+    function isEmailLike(raw) {
+      return Boolean(canonicalEmailKey(raw));
+    }
+
+    function isAddressLabel(label) {
+      const l = String(label || "").trim().toLowerCase();
+      return l.includes("adresse") || l.includes("anschrift") || l.includes("wohnort") || l.includes("straße") || l.includes("strasse") || l.includes("post");
+    }
+
+    function canonicalTextKey(raw) {
+      return normalizeSearchKey(
+        String(raw || "")
+          .trim()
+          .toLowerCase()
+          .replace(/straße/g, "str ")
+          .replace(/strasse/g, "str ")
+          .replace(/str\./g, "str ")
+      ).replace(/[\s,.;:/\-–_•|]+/g, " ").trim();
+    }
+
+    function canonicalPersonNameForMerge(fullName) {
+      let clean = stripNameRoleSuffix(fullName).trim();
+      clean = clean.replace(/\s*\((mobil|handy|privat|arbeit|festnetz|büro|buero|home|work|tel|telefon|alt|neu)\)\s*$/i, "").trim();
+      const parts = clean.split(/\s+/).filter(Boolean);
+      while (parts.length > 2 && TRAILING_CONTACT_TAGS.has(parts[parts.length - 1].toLowerCase())) {
+        parts.pop();
+      }
+      const reassembled = clean.includes(",") ? clean : parts.join(" ");
+      return canonicalTextKey(formatLastNameFirst(reassembled));
+    }
+
+    function findDuplicateSuggestionGroups(personsList) {
+      const list = Array.isArray(personsList) ? personsList : [];
+      if (list.length < 2) return [];
+      const result = [];
+      const seenSets = new Set();
+
+      const addGroup = (key, reasonBadge, priority, members) => {
+        const sortedMembers = sortPersonsByLastName(members);
+        const sig = sortedMembers.map(m => m.id).sort((a, b) => a - b).join(",");
+        if (!seenSets.has(sig)) {
+          seenSets.add(sig);
+          result.push({ key, reasonBadge, priority, members: sortedMembers });
+        }
+      };
+
+      const byName = new Map();
+      list.forEach(p => {
+        const nk = canonicalPersonNameForMerge(p.name);
+        if (!nk) return;
+        if (!byName.has(nk)) byName.set(nk, []);
+        byName.get(nk).push(p);
+      });
+      byName.forEach((grp, nk) => {
+        if (grp.length >= 2) addGroup(`name:${nk}`, "👤 Gleicher Name", 1, grp);
+      });
+
+      const byEmail = new Map();
+      list.forEach(p => {
+        const ek = canonicalEmailKey(p.email);
+        if (!ek) return;
+        if (!byEmail.has(ek)) byEmail.set(ek, []);
+        byEmail.get(ek).push(p);
+      });
+      byEmail.forEach((grp, ek) => {
+        if (grp.length >= 2) addGroup(`mail:${ek}`, "✉️ Gleiche E-Mail", 2, grp);
+      });
+
+      const byPhone = new Map();
+      list.forEach(p => {
+        const pk = canonicalPhoneKey(p.phone);
+        if (!pk) return;
+        if (!byPhone.has(pk)) byPhone.set(pk, []);
+        byPhone.get(pk).push(p);
+      });
+      byPhone.forEach((grp, pk) => {
+        if (grp.length >= 2) addGroup(`phone:${pk}`, "📞 Gleiche Nummer", 3, grp);
+      });
+
+      return result.sort((a, b) => a.priority !== b.priority ? a.priority - b.priority : comparePersonsByLastName(a.members[0], b.members[0]));
+    }
+
+    function buildMergedContactPreview(selectedPersons, primaryId, customName) {
+      if (!Array.isArray(selectedPersons) || selectedPersons.length < 2) return null;
+      const primary = selectedPersons.find(p => p.id === primaryId) || selectedPersons[0];
+      const ordered = [primary, ...selectedPersons.filter(p => p.id !== primary.id)];
+      let removedDuplicatesCount = 0;
+
+      const seenPhones = new Set();
+      const mergedPhones = [];
+      const seenEmails = new Set();
+      const mergedEmails = [];
+      const seenTexts = new Set();
+      const mergedOtherExtras = [];
+      const rawNoteBlocks = [];
+
+      ordered.forEach(p => {
+        const extras = Array.isArray(p.extraInfos) ? p.extraInfos : [];
+
+        const tryAddPhone = (lbl, val) => {
+          const clean = cleanMergeWhitespace(val);
+          if (!clean) return;
+          const pk = canonicalPhoneKey(clean);
+          if (!pk) return;
+          if (!seenPhones.has(pk)) {
+            seenPhones.add(pk);
+            mergedPhones.push({ label: lbl || "Telefon", value: clean });
+          } else {
+            removedDuplicatesCount++;
+          }
+        };
+        if (p.phone) tryAddPhone("Telefon", p.phone);
+        extras.filter(x => isPhoneLike(x.value)).forEach(x => tryAddPhone(x.label, x.value));
+
+        const tryAddEmail = (lbl, val) => {
+          const clean = String(val || "").trim();
+          const ek = canonicalEmailKey(clean);
+          if (!ek) return;
+          if (!seenEmails.has(ek)) {
+            seenEmails.add(ek);
+            mergedEmails.push({ label: lbl || "E-Mail", value: clean });
+          } else {
+            removedDuplicatesCount++;
+          }
+        };
+        if (p.email) tryAddEmail("E-Mail", p.email);
+        extras.filter(x => isEmailLike(x.value)).forEach(x => tryAddEmail(x.label, x.value));
+
+        extras.filter(x => !isPhoneLike(x.value) && !isEmailLike(x.value)).forEach(x => {
+          const clean = cleanMergeWhitespace(x.value);
+          const tk = canonicalTextKey(clean);
+          if (!tk) return;
+          if (!seenTexts.has(tk)) {
+            seenTexts.add(tk);
+            mergedOtherExtras.push({ label: (x.label || "Info").trim() || "Info", value: clean });
+          } else {
+            removedDuplicatesCount++;
+          }
+        });
+
+        if (p.notes && p.notes.trim()) rawNoteBlocks.push(p.notes);
+      });
+
+      const rawBirthdays = ordered.map(p => (p.birthdayIso || "").trim()).filter(Boolean);
+      let mergedBirthdayIso = rawBirthdays[0] || "";
+      if (mergedBirthdayIso.startsWith("--")) {
+        const md = mergedBirthdayIso.slice(2);
+        const fullMatch = rawBirthdays.find(b => !b.startsWith("--") && b.endsWith(`-${md}`));
+        if (fullMatch) mergedBirthdayIso = fullMatch;
+      }
+      rawBirthdays.slice(1).forEach(otherB => {
+        const mainMd = mergedBirthdayIso.replace(/^--/, "").slice(-5);
+        const otherMd = otherB.replace(/^--/, "").slice(-5);
+        if (otherB === mergedBirthdayIso || (mainMd && mainMd === otherMd)) {
+          removedDuplicatesCount++;
+        } else {
+          const fmt = formatIsoToDdMmYyyy(otherB);
+          const tk = canonicalTextKey(fmt);
+          if (tk && !seenTexts.has(tk)) {
+            seenTexts.add(tk);
+            mergedOtherExtras.push({ label: "Weiteres Datum", value: fmt });
+          }
+        }
+      });
+
+      const seenNotes = new Set(seenTexts);
+      const noteLines = [];
+      rawNoteBlocks.forEach(block => {
+        String(block).split(/\r?\n/).forEach(rawLine => {
+          const line = cleanMergeWhitespace(rawLine);
+          if (!line) return;
+          if (isEmailLike(line) && seenEmails.has(canonicalEmailKey(line))) { removedDuplicatesCount++; return; }
+          if (isPhoneLike(line) && seenPhones.has(canonicalPhoneKey(line))) { removedDuplicatesCount++; return; }
+          const tk = canonicalTextKey(line);
+          if (tk) {
+            if (!seenNotes.has(tk)) {
+              seenNotes.add(tk);
+              noteLines.push(line);
+            } else {
+              removedDuplicatesCount++;
+            }
+          }
+        });
+      });
+
+      const deduplicatedExtraInfos = [];
+      mergedPhones.slice(1).forEach((item, idx) => {
+        const lbl = (!item.label || item.label === "Telefon" || item.label === "2. Telefon") ? `${idx + 2}. Telefon` : item.label;
+        deduplicatedExtraInfos.push({ label: lbl, value: item.value });
+      });
+      mergedEmails.slice(1).forEach((item, idx) => {
+        const lbl = (!item.label || item.label === "E-Mail") ? `${idx + 2}. E-Mail` : item.label;
+        deduplicatedExtraInfos.push({ label: lbl, value: item.value });
+      });
+      mergedOtherExtras.forEach(item => deduplicatedExtraInfos.push(item));
+
+      const timerSource = primary.timerEnabled ? primary : (ordered.find(x => x.timerEnabled) || primary);
+      const latestContact = ordered.map(x => x.lastContactedIso || "").filter(Boolean).sort().pop() || "";
+      const primaryPhone = mergedPhones[0] ? mergedPhones[0].value : "";
+      const primaryEmail = mergedEmails[0] ? mergedEmails[0].value : "";
+
+      return {
+        primaryPerson: primary,
+        finalName: String(customName || "").trim() || primary.name,
+        birthdayIso: mergedBirthdayIso,
+        primaryPhone,
+        primaryEmail,
+        hasNoOwnPhone: !primaryPhone && ordered.every(x => x.hasNoOwnPhone),
+        timerEnabled: ordered.some(x => x.timerEnabled),
+        timerInterval: timerSource.timerInterval || 14,
+        timerUnit: timerSource.timerUnit || "DAYS",
+        lastContactedIso: latestContact,
+        photoBase64: primary.photoBase64 || (ordered.find(x => x.photoBase64) || {}).photoBase64 || "",
+        notes: noteLines.join("\n"),
+        deduplicatedExtraInfos,
+        removedDuplicatesCount
+      };
+    }
+
+    function openMergeContactsModal(preselectedIds = []) {
+      const groups = findDuplicateSuggestionGroups(state.persons);
+      const initIds = Array.isArray(preselectedIds) ? [...preselectedIds] : [];
+      const primId = initIds[0] || -1;
+      const primObj = state.persons.find(p => p.id === primId);
+      mergeContactsModalState = {
+        tab: (initIds.length === 0 && groups.length > 0) ? "suggestions" : "manual",
+        selectedIds: initIds,
+        primaryId: primId,
+        customName: primObj ? primObj.name : "",
+        mergeInDeviceContacts: true,
+        notice: ""
+      };
+      detailPersonId = null;
+      showOptionsDialog = false;
+      renderModals();
+    }
+
+    function toggleMergeSelectedPerson(personId) {
+      if (!mergeContactsModalState) return;
+      const set = new Set(mergeContactsModalState.selectedIds || []);
+      if (set.has(personId)) set.delete(personId);
+      else set.add(personId);
+      mergeContactsModalState.selectedIds = [...set];
+      if (!set.has(mergeContactsModalState.primaryId)) {
+        const firstId = mergeContactsModalState.selectedIds[0] || -1;
+        mergeContactsModalState.primaryId = firstId;
+        const p = state.persons.find(x => x.id === firstId);
+        mergeContactsModalState.customName = p ? p.name : "";
+      }
+      renderModals();
+    }
+
+    function setMergePrimaryPerson(personId) {
+      if (!mergeContactsModalState) return;
+      mergeContactsModalState.primaryId = personId;
+      const p = state.persons.find(x => x.id === personId);
+      if (p) mergeContactsModalState.customName = p.name;
+      renderModals();
+    }
+
+    function selectDuplicateSuggestionGroup(groupKey) {
+      if (!mergeContactsModalState) return;
+      const grp = findDuplicateSuggestionGroups(state.persons).find(g => g.key === groupKey);
+      if (!grp) return;
+      mergeContactsModalState.selectedIds = grp.members.map(m => m.id);
+      mergeContactsModalState.primaryId = grp.members[0].id;
+      mergeContactsModalState.customName = grp.members[0].name;
+      mergeContactsModalState.tab = "manual";
+      renderModals();
+    }
+
+    function executeMergeContactsModal() {
+      if (!mergeContactsModalState) return;
+      const selected = sortPersonsByLastName(
+        state.persons.filter(p => (mergeContactsModalState.selectedIds || []).includes(p.id))
+      );
+      if (selected.length < 2) return;
+      const preview = buildMergedContactPreview(
+        selected,
+        mergeContactsModalState.primaryId,
+        mergeContactsModalState.customName
+      );
+      if (!preview) return;
+      const target = preview.primaryPerson;
+      const secondaryIds = new Set(selected.filter(p => p.id !== target.id).map(p => p.id));
+      const allHidden = selected.every(p => p.isHidden);
+
+      target.name = preview.finalName;
+      target.birthdayIso = preview.birthdayIso;
+      target.hasNoOwnPhone = preview.hasNoOwnPhone;
+      target.phone = preview.primaryPhone;
+      target.email = preview.primaryEmail;
+      target.notes = preview.notes;
+      target.extraInfos = preview.deduplicatedExtraInfos;
+      target.timerEnabled = preview.timerEnabled;
+      target.timerInterval = preview.timerInterval;
+      target.timerUnit = preview.timerUnit;
+      target.lastContactedIso = preview.lastContactedIso;
+      target.photoBase64 = preview.photoBase64;
+      target.isHidden = allHidden;
+
+      // Beziehungen dedupliziert umhängen
+      const seenRelKeys = new Set();
+      const nextRels = [];
+      (state.relations || []).forEach(r => {
+        const nf = secondaryIds.has(r.fromPersonId) ? target.id : r.fromPersonId;
+        const nt = secondaryIds.has(r.toPersonId) ? target.id : r.toPersonId;
+        if (nf === nt) return;
+        const rk = `${nf}:${nt}:${String(r.relationLabel || "").trim().toLowerCase()}`;
+        if (!seenRelKeys.has(rk)) {
+          seenRelKeys.add(rk);
+          nextRels.push({ ...r, fromPersonId: nf, toPersonId: nt });
+        }
+      });
+      state.relations = nextRels;
+
+      // Erinnerungen dedupliziert umhängen
+      const seenEvKeys = new Set();
+      const nextEvs = [];
+      (state.specialEvents || []).forEach(ev => {
+        const np = secondaryIds.has(ev.personId) ? target.id : ev.personId;
+        const ek = `${np}:${String(ev.title || "").trim().toLowerCase()}:${String(ev.dateIso || "").trim()}`;
+        if (!seenEvKeys.has(ek)) {
+          seenEvKeys.add(ek);
+          nextEvs.push({ ...ev, personId: np });
+        }
+      });
+      state.specialEvents = nextEvs;
+
+      // Direktnachrichten & Wichteln umhängen
+      (state.directMessages || []).forEach(dm => {
+        if (secondaryIds.has(dm.personId)) dm.personId = target.id;
+      });
+      (state.wichtelGroups || []).forEach(g => {
+        const seenPid = new Set();
+        g.participants = (g.participants || []).filter(part => {
+          if (part.personId && secondaryIds.has(part.personId)) {
+            part.personId = target.id;
+            part.name = target.name;
+            if (!part.phone) part.phone = target.phone;
+          }
+          if (!g.isDrawn && part.personId) {
+            if (seenPid.has(part.personId)) return false;
+            seenPid.add(part.personId);
+          }
+          return true;
+        });
+      });
+
+      state.persons = state.persons.filter(p => !secondaryIds.has(p.id));
+      if (selectedTreeRootId && secondaryIds.has(selectedTreeRootId)) {
+        selectedTreeRootId = target.id;
+      }
+
+      addLog(`🔗 ${selected.length} Kontakte intelligent zu "${target.name}" zusammengeführt (${preview.removedDuplicatesCount} doppelte Nummern/Mails/Einträge bereinigt).`);
+      const remainingGroups = findDuplicateSuggestionGroups(state.persons);
+      if (remainingGroups.length > 0) {
+        mergeContactsModalState.selectedIds = [];
+        mergeContactsModalState.primaryId = -1;
+        mergeContactsModalState.tab = "suggestions";
+        mergeContactsModalState.notice = `✓ ${selected.length} Kontakte erfolgreich zu „${target.name}“ zusammengeführt!`;
+      } else {
+        mergeContactsModalState = null;
+      }
+      saveState();
+    }
 
     function togglePersonHidden(personId) {
       const p = state.persons.find(x => x.id === personId);
@@ -2453,12 +2871,18 @@
         </div>
       ` : "";
 
+      const dupGroupsCount = findDuplicateSuggestionGroups(visibleList).length;
       const headerBar = `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-            <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
-              ${getSortModeButtonLabel()}
-            </button>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+            <div class="btn-row">
+              <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
+                ${getSortModeButtonLabel()}
+              </button>
+              <button class="compact-btn ${dupGroupsCount > 0 ? 'primary' : ''}" onclick="openMergeContactsModal()" title="Doppelte oder mehrere Kontakte ohne doppelte Nummern/Mails/Adressen zusammenführen">
+                🔗 Zusammenführen${dupGroupsCount > 0 ? ` (${dupGroupsCount})` : ""}
+              </button>
+            </div>
             <div class="btn-row">
               <button class="compact-btn ${allContactsFilter === 'all' ? 'primary' : ''}" onclick="allContactsFilter='all'; renderPhoneApp();">
                 Alle (${visibleCount})
@@ -3798,6 +4222,181 @@
         return;
       }
 
+      if (mergeContactsModalState !== null) {
+        const ms = mergeContactsModalState;
+        const groups = findDuplicateSuggestionGroups(state.persons);
+        const sortedCandidates = sortPersonsByLastName(state.persons);
+        const selectedPersons = sortPersonsByLastName(state.persons.filter(p => (ms.selectedIds || []).includes(p.id)));
+        const preview = selectedPersons.length >= 2
+          ? buildMergedContactPreview(selectedPersons, ms.primaryId, ms.customName)
+          : null;
+
+        const multiPickerHtml = renderContactSearchDropdownHtml({
+          key: "merge_contacts_picker",
+          persons: sortedCandidates,
+          selectedPersonId: null,
+          placeholder: "🔎 Kontakte per Suche / ABCD ankreuzen",
+          confirmLabel: "✓ Auswahl übernehmen",
+          onSelectPersonJs: (pid) => `toggleMergeSelectedPerson(${pid})`,
+          showInlineAlphabet: true,
+          inModal: true,
+          checkedIds: ms.selectedIds || []
+        });
+
+        let bodyHtml = "";
+        if (ms.tab === "suggestions") {
+          if (groups.length === 0) {
+            bodyHtml = `
+              <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+                <div style="font-size:13px; font-weight:700; color:var(--text-primary);">Keine automatischen Duplikate gefunden 🎉</div>
+                <div style="font-size:11.5px; color:var(--text-secondary);">Über „☑️ Manuell & Vorschau“ kannst du jederzeit beliebige 2 oder mehr Kontakte auswählen und ohne doppelte Nummern, E-Mails oder Adressen in einem Kontakt zusammenfassen.</div>
+                <div>
+                  <button class="compact-btn primary" onclick="mergeContactsModalState.tab='manual'; renderModals();">☑️ Beliebige Kontakte manuell auswählen</button>
+                </div>
+              </div>
+            `;
+          } else {
+            bodyHtml = `
+              <div style="font-size:11.5px; color:var(--text-secondary);">Tippe bei einer Gruppe auf „Prüfen →“, um die bereinigte Vorschau zu öffnen:</div>
+              <div style="display:flex; flex-direction:column; gap:7px; max-height:48vh; overflow-y:auto;">
+                ${groups.map(grp => `
+                  <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:9px; padding:9px 10px; display:flex; flex-direction:column; gap:5px; cursor:pointer;"
+                       onclick="selectDuplicateSuggestionGroup('${escapeHtml(grp.key)}')">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                      <span style="font-size:11.5px; font-weight:700; color:var(--accent-steel);">${escapeHtml(grp.reasonBadge)} • ${grp.members.length} Kontakte</span>
+                      <button class="compact-btn primary" style="padding:3px 8px; font-size:11px;" onclick="event.stopPropagation(); selectDuplicateSuggestionGroup('${escapeHtml(grp.key)}')">Prüfen →</button>
+                    </div>
+                    ${grp.members.map(m => {
+                      const sub = [
+                        m.birthdayIso ? `🎂 ${formatIsoToDdMmYyyy(m.birthdayIso)}` : "",
+                        m.phone ? `📞 ${m.phone}` : "",
+                        m.email ? `✉️ ${m.email}` : ""
+                      ].filter(Boolean).join(" • ");
+                      return `
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          ${renderPersonAvatarHtml(m.name, m.photoBase64 || "", 26)}
+                          <div style="flex:1; min-width:0;">
+                            <div style="font-size:13px; font-weight:600; color:var(--text-primary); word-break:break-word;">${escapeHtml(formatLastNameFirst(m.name))}</div>
+                            ${sub ? `<div style="font-size:10.5px; color:var(--text-secondary); word-break:break-word;">${escapeHtml(sub)}</div>` : ""}
+                          </div>
+                        </div>
+                      `;
+                    }).join("")}
+                  </div>
+                `).join("")}
+              </div>
+            `;
+          }
+        } else {
+          bodyHtml = `
+            <div style="font-size:11.5px; font-weight:600; color:var(--text-secondary);">1. Kontakte zum Zusammenführen wählen (mind. 2):</div>
+            ${multiPickerHtml}
+            ${selectedPersons.length > 0 ? `
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-top:2px;">
+                <span style="font-size:11.5px; font-weight:600; color:var(--text-secondary);">2. Ausgewählt (${selectedPersons.length}) – Hauptkontakt bestimmen:</span>
+                <button class="compact-btn" style="padding:2px 7px; font-size:10.5px;" onclick="mergeContactsModalState.selectedIds=[]; mergeContactsModalState.primaryId=-1; renderModals();">Auswahl leeren</button>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:5px;">
+                ${selectedPersons.map(sp => {
+                  const isMain = sp.id === ms.primaryId;
+                  const sub = [
+                    sp.birthdayIso ? `🎂 ${formatIsoToDdMmYyyy(sp.birthdayIso)}` : "",
+                    sp.phone ? `📞 ${sp.phone}` : "",
+                    sp.email ? `✉️ ${sp.email}` : ""
+                  ].filter(Boolean).join(" • ");
+                  return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; background:${isMain ? 'rgba(59,130,196,0.13)' : 'var(--bg-slate)'}; border:1px solid ${isMain ? 'var(--accent-steel)' : 'var(--border-slate)'}; border-radius:8px; padding:6px 9px; cursor:pointer;"
+                         onclick="setMergePrimaryPerson(${sp.id})">
+                      <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+                        ${renderPersonAvatarHtml(sp.name, sp.photoBase64 || "", 28)}
+                        <div style="flex:1; min-width:0;">
+                          <div style="font-size:13px; font-weight:600; color:var(--text-primary); word-break:break-word;">${escapeHtml(formatLastNameFirst(sp.name))}</div>
+                          ${sub ? `<div style="font-size:10.5px; color:var(--text-secondary); word-break:break-word;">${escapeHtml(sub)}</div>` : ""}
+                        </div>
+                      </div>
+                      <div class="btn-row" style="flex-shrink:0;">
+                        <button class="compact-btn ${isMain ? 'primary' : ''}" style="padding:3px 7px; font-size:10.5px;" onclick="event.stopPropagation(); setMergePrimaryPerson(${sp.id})">${isMain ? "⭐ Haupt" : "Als Haupt"}</button>
+                        <span style="color:var(--warn-amber); font-weight:700; padding:0 4px;" onclick="event.stopPropagation(); toggleMergeSelectedPerson(${sp.id})">✕</span>
+                      </div>
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+            ` : ""}
+            ${selectedPersons.length < 2 ? `
+              <div style="font-size:11.5px; color:var(--text-secondary); background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:9px 10px;">
+                ${selectedPersons.length === 1
+                  ? `Noch mindestens 1 weiteren Kontakt auswählen, um ihn mit „${escapeHtml(formatLastNameFirst(selectedPersons[0].name))}“ zusammenzuführen.`
+                  : `Wähle mindestens 2 Kontakte aus. Doppelte Nummern (auch mit unterschiedlichen Leerzeichen, Bindestrichen oder +49), E-Mail-Adressen, Postadressen und Notizen werden automatisch nur je 1× übernommen.`}
+              </div>
+            ` : ""}
+            ${preview ? `
+              <div style="border-top:1px solid var(--border-slate); padding-top:8px; display:flex; flex-direction:column; gap:6px;">
+                <div style="font-size:12px; font-weight:700; color:var(--accent-steel);">3. Bereinigte Vorschau des zusammengeführten Kontakts:</div>
+                ${preview.removedDuplicatesCount > 0 ? `
+                  <div style="font-size:11.5px; font-weight:600; color:var(--tree-green); background:rgba(16,185,129,0.12); border:1px solid var(--tree-green); border-radius:7px; padding:6px 9px;">
+                    ✨ ${preview.removedDuplicatesCount} doppelte Einträge (Nummern/Mails/Adressen/Notizen) erkannt & auf je 1 Eintrag bereinigt!
+                  </div>
+                ` : ""}
+                <div class="field-group">
+                  <label class="field-label">Ziel-Name des zusammengeführten Kontakts</label>
+                  <input class="field-input" value="${escapeHtml(ms.customName)}" oninput="mergeContactsModalState.customName=this.value" />
+                </div>
+                <div style="background:var(--bg-slate); border:1px solid var(--accent-steel); border-radius:9px; padding:9px 10px; display:flex; flex-direction:column; gap:4px;">
+                  <div style="display:flex; align-items:center; gap:9px;">
+                    ${renderPersonAvatarHtml(preview.finalName, preview.photoBase64 || "", 36)}
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-size:14px; font-weight:700; color:var(--text-primary); word-break:break-word;">${escapeHtml(formatLastNameFirst(preview.finalName))}</div>
+                      ${preview.birthdayIso ? `<div style="font-size:11.5px; color:var(--text-secondary);">🎂 Geburtstag: ${escapeHtml(formatIsoToDdMmYyyy(preview.birthdayIso))}</div>` : ""}
+                    </div>
+                  </div>
+                  ${preview.primaryPhone ? `<div style="font-size:12px; color:var(--text-primary);">📞 Hauptnummer: <b>${escapeHtml(preview.primaryPhone)}</b></div>` : ""}
+                  ${preview.primaryEmail ? `<div style="font-size:12px; color:var(--text-primary);">✉️ Haupt-E-Mail: <b>${escapeHtml(preview.primaryEmail)}</b></div>` : ""}
+                  ${preview.deduplicatedExtraInfos.map(info => {
+                    const ic = isPhoneLike(info.value) ? "📞" : (isEmailLike(info.value) ? "✉️" : (isAddressLabel(info.label) ? "🏠" : "ℹ️"));
+                    return `<div style="font-size:11.5px; color:var(--text-secondary); word-break:break-word;">${ic} ${escapeHtml(info.label)}: ${escapeHtml(info.value)}</div>`;
+                  }).join("")}
+                  ${preview.notes ? `<div style="font-size:11.5px; color:var(--text-secondary); word-break:break-word;">📝 Notiz: ${escapeHtml(preview.notes)}</div>` : ""}
+                </div>
+              </div>
+            ` : ""}
+          `;
+        }
+
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" style="max-width:385px;" onclick="event.stopPropagation()">
+              <div class="modal-header-sticky">
+                <div class="modal-title" style="flex:1; min-width:0;">🔗 Kontakte zusammenführen</div>
+                <div class="btn-row">
+                  <button class="compact-btn" onclick="mergeContactsModalState=null; renderModals();">✕</button>
+                  ${preview ? `<button class="compact-btn primary" onclick="executeMergeContactsModal()">✓ Zusammenführen</button>` : ""}
+                </div>
+              </div>
+              ${ms.notice ? `
+                <div style="font-size:11.5px; font-weight:600; color:var(--tree-green); background:rgba(16,185,129,0.12); border:1px solid var(--tree-green); border-radius:7px; padding:6px 9px;">
+                  ${escapeHtml(ms.notice)}
+                </div>
+              ` : ""}
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+                <button class="compact-btn ${ms.tab === 'suggestions' ? 'primary' : ''}" onclick="mergeContactsModalState.tab='suggestions'; renderModals();">
+                  🔍 Vorschläge (${groups.length})
+                </button>
+                <button class="compact-btn ${ms.tab === 'manual' ? 'primary' : ''}" onclick="mergeContactsModalState.tab='manual'; renderModals();">
+                  ☑️ Manuell & Vorschau (${(ms.selectedIds || []).length})
+                </button>
+              </div>
+              ${bodyHtml}
+              <div class="modal-footer">
+                <button class="compact-btn" onclick="mergeContactsModalState=null; renderModals();">Schließen</button>
+                ${preview ? `<button class="compact-btn primary" onclick="executeMergeContactsModal()">✓ ${selectedPersons.length} Kontakte zusammenführen</button>` : ""}
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
       if (showOptionsDialog) {
         let currentTheme = state.themeMode || "warm";
         if (currentTheme === "light") currentTheme = "warm";
@@ -3834,6 +4433,14 @@
                   <div style="font-size:10.5px; color:var(--text-secondary);">Zufällige Glückwunschtexte mit {Name}</div>
                 </div>
                 <button class="compact-btn primary" onclick="showOptionsDialog=false; showGreetingsEditorModal=true; renderModals();">✏️ Bearbeiten</button>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-slate);">
+                <div>
+                  <div style="font-size:13px; font-weight:600; color:var(--text-primary);">🔗 Kontakte zusammenführen</div>
+                  <div style="font-size:10.5px; color:var(--text-secondary);">Mehrere Kontakte ohne doppelte Nummern/Mails/Adressen vereinen</div>
+                </div>
+                <button class="compact-btn primary" onclick="openMergeContactsModal()">🔗 Öffnen</button>
               </div>
 
               <div style="display:flex; flex-direction:column; gap:6px; padding:8px 0; border-bottom:1px solid var(--border-slate);">
@@ -4135,6 +4742,11 @@
                   ${detailDraftPhotoBase64 ? `<button class="compact-btn danger" style="padding:4px 7px;" onclick="removeContactPhoto('detail')" title="Foto entfernen">✕</button>` : ""}
                 </div>
               </div>
+              ${state.persons.length >= 2 ? `
+                <div style="display:flex; justify-content:flex-start;">
+                  <button class="compact-btn" onclick="openMergeContactsModal([${dp.id}])">🔗 Mit anderem Kontakt zusammenführen</button>
+                </div>
+              ` : ""}
               <div style="display:flex; gap:6px;">
                 <div class="field-group" style="flex:1.2;">
                   <label class="field-label">Name</label>
@@ -5774,6 +6386,7 @@
         }
         showOptionsDialog = false;
         showGreetingsEditorModal = false;
+        mergeContactsModalState = null;
         showCreateDialog = false;
         timerEntryModalState = null;
         detailPersonId = null;
@@ -6066,7 +6679,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.32",
+        version: "1.0.33",
         createdAt: dateStr,
         state
       };
@@ -6084,7 +6697,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.32",
+        version: "1.0.33",
         createdAt: dateStr,
         state
       };
@@ -6159,7 +6772,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.32 gestartet.");
+    addLog("Remember Me v1.0.33 gestartet.");
     renderAll();
   </script>
 </body>

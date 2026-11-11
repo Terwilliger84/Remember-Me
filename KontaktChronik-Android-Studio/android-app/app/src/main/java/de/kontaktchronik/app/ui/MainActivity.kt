@@ -64,7 +64,9 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import de.kontaktchronik.app.data.AppDatabase
+import de.kontaktchronik.app.data.ContactDeduplicator
 import de.kontaktchronik.app.data.ContactsSyncRepository
+import de.kontaktchronik.app.data.DeviceContactFullDetails
 import de.kontaktchronik.app.messaging.DirectMessagingService
 import de.kontaktchronik.app.model.*
 import de.kontaktchronik.app.reminders.DailyReminderWorker
@@ -1511,6 +1513,373 @@ fun serializeBirthdayGreetingsJson(list: List<String>): String {
     return arr.toString()
 }
 
+data class DuplicateSuggestionGroup(
+    val key: String,
+    val reasonBadge: String,
+    val priority: Int,
+    val members: List<PersonEntity>
+)
+
+data class MergedContactPreview(
+    val primaryPerson: PersonEntity,
+    val finalName: String,
+    val birthdayIso: String?,
+    val primaryPhone: String,
+    val primaryEmail: String,
+    val hasNoOwnPhone: Boolean,
+    val timerEnabled: Boolean,
+    val timerInterval: Int,
+    val timerUnit: String,
+    val lastContactedIso: String?,
+    val photoBase64: String,
+    val notes: String,
+    val deduplicatedExtraInfos: List<Pair<String, String>>,
+    val removedDuplicatesCount: Int
+)
+
+fun parseExtraInfosPref(raw: String?): List<Pair<String, String>> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return raw.lines()
+        .filter { it.isNotBlank() }
+        .mapNotNull { line ->
+            val parts = line.split("\t", limit = 2)
+            val label = parts.getOrNull(0)?.trim().orEmpty().ifBlank { "Info" }
+            val value = parts.getOrNull(1)?.trim().orEmpty()
+            if (value.isBlank()) null else (label to value)
+        }
+}
+
+fun serializeExtraInfosPref(extraInfos: List<Pair<String, String>>): String {
+    return extraInfos
+        .filter { it.second.isNotBlank() }
+        .joinToString("\n") { (label, value) ->
+            "${label.trim().ifBlank { "Info" }.replace("\t", " ")}\t${value.trim().replace("\t", " ")}"
+        }
+}
+
+fun canonicalPersonNameForMerge(fullName: String): String {
+    var clean = stripNameRoleSuffix(fullName).trim()
+    clean = clean.replace(
+        Regex("\\s*\\((mobil|handy|privat|arbeit|festnetz|büro|buero|home|work|tel|telefon|alt|neu)\\)\\s*$", RegexOption.IGNORE_CASE),
+        ""
+    ).trim()
+    val parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }.toMutableList()
+    while (parts.size > 2 && TRAILING_CONTACT_TAGS.contains(parts.last().lowercase())) {
+        parts.removeAt(parts.lastIndex)
+    }
+    val reassembled = if (clean.contains(",")) clean else parts.joinToString(" ")
+    return ContactDeduplicator.canonicalTextKey(formatLastNameFirst(reassembled))
+}
+
+fun findDuplicateSuggestionGroups(persons: List<PersonEntity>): List<DuplicateSuggestionGroup> {
+    if (persons.size < 2) return emptyList()
+    val result = mutableListOf<DuplicateSuggestionGroup>()
+    val seenMemberSets = mutableSetOf<Set<Long>>()
+
+    // 1. Gleicher kanonischer Name (z. B. "Hans Müller", "Müller, Hans", "Hans Müller (Mobil)")
+    persons
+        .groupBy { canonicalPersonNameForMerge(it.name) }
+        .forEach { (nameKey, group) ->
+            if (nameKey.isNotBlank() && group.size >= 2) {
+                val idSet = group.map { it.id }.toSet()
+                if (seenMemberSets.add(idSet)) {
+                    result.add(
+                        DuplicateSuggestionGroup(
+                            key = "name:$nameKey",
+                            reasonBadge = "👤 Gleicher Name",
+                            priority = 1,
+                            members = group.sortedWith(LastNamePersonComparator)
+                        )
+                    )
+                }
+            }
+        }
+
+    // 2. Gleiche E-Mail-Adresse
+    persons
+        .mapNotNull { p ->
+            val ek = ContactDeduplicator.canonicalEmailKey(p.email)
+            if (ek.isBlank()) null else (ek to p)
+        }
+        .groupBy({ it.first }, { it.second })
+        .forEach { (emailKey, group) ->
+            val distinctGroup = group.distinctBy { it.id }
+            if (distinctGroup.size >= 2) {
+                val idSet = distinctGroup.map { it.id }.toSet()
+                if (seenMemberSets.add(idSet)) {
+                    result.add(
+                        DuplicateSuggestionGroup(
+                            key = "mail:$emailKey",
+                            reasonBadge = "✉️ Gleiche E-Mail",
+                            priority = 2,
+                            members = distinctGroup.sortedWith(LastNamePersonComparator)
+                        )
+                    )
+                }
+            }
+        }
+
+    // 3. Gleiche Telefonnummer (trotz Leerzeichen / +49 / Bindestrich)
+    persons
+        .mapNotNull { p ->
+            val pk = ContactDeduplicator.canonicalPhoneKey(p.phone)
+            if (pk.isBlank()) null else (pk to p)
+        }
+        .groupBy({ it.first }, { it.second })
+        .forEach { (phoneKey, group) ->
+            val distinctGroup = group.distinctBy { it.id }
+            if (distinctGroup.size >= 2) {
+                val idSet = distinctGroup.map { it.id }.toSet()
+                if (seenMemberSets.add(idSet)) {
+                    result.add(
+                        DuplicateSuggestionGroup(
+                            key = "phone:$phoneKey",
+                            reasonBadge = "📞 Gleiche Nummer",
+                            priority = 3,
+                            members = distinctGroup.sortedWith(LastNamePersonComparator)
+                        )
+                    )
+                }
+            }
+        }
+
+    return result.sortedWith(
+        compareBy<DuplicateSuggestionGroup> { it.priority }
+            .thenBy { normalizeGermanSortKey(extractLastName(it.members.first().name)) }
+            .thenBy { normalizeGermanSortKey(extractFirstName(it.members.first().name)) }
+    )
+}
+
+fun buildMergedContactPreview(
+    selectedPersons: List<PersonEntity>,
+    primaryId: Long,
+    customName: String,
+    localExtraInfosByPersonId: Map<Long, List<Pair<String, String>>>,
+    deviceDetailsByContactId: Map<String, DeviceContactFullDetails>
+): MergedContactPreview? {
+    if (selectedPersons.isEmpty()) return null
+    val primary = selectedPersons.find { it.id == primaryId } ?: selectedPersons.first()
+    val ordered = listOf(primary) + selectedPersons.filter { it.id != primary.id }
+
+    var removedDuplicatesCount = 0
+
+    val seenPhoneKeys = mutableSetOf<String>()
+    val mergedPhones = mutableListOf<Pair<String, String>>()
+
+    val seenEmailKeys = mutableSetOf<String>()
+    val mergedEmails = mutableListOf<Pair<String, String>>()
+
+    val seenAddressAndInfoKeys = mutableSetOf<String>()
+    val mergedOtherExtras = mutableListOf<Pair<String, String>>()
+
+    val perPersonCleanNotes = mutableListOf<String>()
+
+    ordered.forEach { p ->
+        val dev = p.importedFromDeviceContactId?.let { deviceDetailsByContactId[it] } ?: DeviceContactFullDetails()
+        val localExtras = localExtraInfosByPersonId[p.id].orEmpty()
+
+        // Innerhalb desselben Kontakts zuerst Room + Device + ExtraInfos bündeln, damit ein identisches Feld aus Room & Device nicht doppelt gezählt wird
+        val ownPhoneKeys = mutableSetOf<String>()
+        val ownPhones = mutableListOf<Pair<String, String>>()
+        fun collectOwnPhone(lbl: String, rawVal: String, countInternalDup: Boolean) {
+            val clean = ContactDeduplicator.cleanWhitespace(rawVal)
+            if (clean.isBlank()) return
+            val pk = ContactDeduplicator.canonicalPhoneKey(clean)
+            if (pk.isBlank()) return
+            if (ownPhoneKeys.add(pk)) {
+                ownPhones.add(lbl to clean)
+            } else if (countInternalDup) {
+                removedDuplicatesCount++
+            }
+        }
+        collectOwnPhone("Telefon", p.phone, false)
+        dev.phones.forEach { (lbl, num) -> collectOwnPhone(lbl, num, false) }
+        localExtras.filter { ContactDeduplicator.isPhoneLike(it.second) }
+            .forEach { (lbl, num) -> collectOwnPhone(lbl, num, true) }
+
+        ownPhones.forEach { (lbl, num) ->
+            val pk = ContactDeduplicator.canonicalPhoneKey(num)
+            if (seenPhoneKeys.add(pk)) {
+                mergedPhones.add(lbl to num)
+            } else {
+                removedDuplicatesCount++
+            }
+        }
+
+        // E-Mails
+        val ownEmailKeys = mutableSetOf<String>()
+        val ownEmails = mutableListOf<Pair<String, String>>()
+        fun collectOwnEmail(lbl: String, rawVal: String, countInternalDup: Boolean) {
+            val clean = rawVal.trim()
+            val ek = ContactDeduplicator.canonicalEmailKey(clean)
+            if (ek.isBlank()) return
+            if (ownEmailKeys.add(ek)) {
+                ownEmails.add(lbl to clean)
+            } else if (countInternalDup) {
+                removedDuplicatesCount++
+            }
+        }
+        collectOwnEmail("E-Mail", p.email, false)
+        dev.emails.forEach { (lbl, mail) -> collectOwnEmail(lbl, mail, false) }
+        localExtras.filter { ContactDeduplicator.isEmailLike(it.second) }
+            .forEach { (lbl, mail) -> collectOwnEmail(lbl, mail, true) }
+
+        ownEmails.forEach { (lbl, mail) ->
+            val ek = ContactDeduplicator.canonicalEmailKey(mail)
+            if (seenEmailKeys.add(ek)) {
+                mergedEmails.add(lbl to mail)
+            } else {
+                removedDuplicatesCount++
+            }
+        }
+
+        // Adressen & sonstige Zusatzinfos
+        val ownTextKeys = mutableSetOf<String>()
+        val ownInfos = mutableListOf<Pair<String, String>>()
+        dev.addresses.forEach { (lbl, addr) ->
+            val clean = ContactDeduplicator.cleanWhitespace(addr)
+            val tk = ContactDeduplicator.canonicalTextKey(clean)
+            if (tk.isNotBlank() && ownTextKeys.add(tk)) {
+                ownInfos.add(lbl.ifBlank { "Adresse" } to clean)
+            }
+        }
+        localExtras.filter { !ContactDeduplicator.isPhoneLike(it.second) && !ContactDeduplicator.isEmailLike(it.second) }
+            .forEach { (lbl, value) ->
+                val clean = ContactDeduplicator.cleanWhitespace(value)
+                val tk = ContactDeduplicator.canonicalTextKey(clean)
+                if (tk.isNotBlank()) {
+                    if (ownTextKeys.add(tk)) {
+                        ownInfos.add(lbl.ifBlank { "Info" } to clean)
+                    } else {
+                        removedDuplicatesCount++
+                    }
+                }
+            }
+
+        ownInfos.forEach { (lbl, value) ->
+            val tk = ContactDeduplicator.canonicalTextKey(value)
+            if (seenAddressAndInfoKeys.add(tk)) {
+                mergedOtherExtras.add(lbl to value)
+            } else {
+                removedDuplicatesCount++
+            }
+        }
+
+        // Notizen dieses Kontakts
+        val ownNoteMerged = ContactDeduplicator.deduplicateNotes(listOf(p.notes) + dev.notes)
+        if (ownNoteMerged.isNotBlank()) {
+            perPersonCleanNotes.add(ownNoteMerged)
+        }
+    }
+
+    // Geburtstage intelligent zusammenführen
+    val rawBirthdays = ordered.mapNotNull { it.birthdayIso?.trim()?.takeIf(String::isNotBlank) }
+    var mergedBirthdayIso: String? = rawBirthdays.firstOrNull()
+    if (mergedBirthdayIso != null && mergedBirthdayIso.startsWith("--")) {
+        val monthDay = mergedBirthdayIso.removePrefix("--")
+        val withYear = rawBirthdays.firstOrNull { !it.startsWith("--") && it.endsWith("-$monthDay") }
+        if (withYear != null) {
+            mergedBirthdayIso = withYear
+        }
+    }
+    rawBirthdays.drop(1).forEach { otherBday ->
+        val mainMd = mergedBirthdayIso?.removePrefix("--")?.takeLast(5).orEmpty()
+        val otherMd = otherBday.removePrefix("--").takeLast(5)
+        if (otherBday == mergedBirthdayIso || (mainMd.isNotBlank() && mainMd == otherMd)) {
+            removedDuplicatesCount++
+        } else {
+            val formattedOther = formatIsoToDdMmYyyy(otherBday)
+            val tk = ContactDeduplicator.canonicalTextKey(formattedOther)
+            if (tk.isNotBlank() && seenAddressAndInfoKeys.add(tk)) {
+                mergedOtherExtras.add("Weiteres Datum" to formattedOther)
+            }
+        }
+    }
+
+    // Notizen über alle ausgewählten Kontakte hinweg deduplizieren
+    val seenNoteKeys = mutableSetOf<String>()
+    seenNoteKeys.addAll(seenAddressAndInfoKeys)
+    val finalNoteLines = mutableListOf<String>()
+    perPersonCleanNotes.forEach { block ->
+        block.lines().forEach { rawLine ->
+            val line = ContactDeduplicator.cleanWhitespace(rawLine)
+            if (line.isBlank()) return@forEach
+            if (ContactDeduplicator.isEmailLike(line) && seenEmailKeys.contains(ContactDeduplicator.canonicalEmailKey(line))) {
+                removedDuplicatesCount++
+                return@forEach
+            }
+            if (ContactDeduplicator.isPhoneLike(line) && seenPhoneKeys.contains(ContactDeduplicator.canonicalPhoneKey(line))) {
+                removedDuplicatesCount++
+                return@forEach
+            }
+            val tk = ContactDeduplicator.canonicalTextKey(line)
+            if (tk.isNotBlank()) {
+                if (seenNoteKeys.add(tk)) {
+                    finalNoteLines.add(line)
+                } else {
+                    removedDuplicatesCount++
+                }
+            }
+        }
+    }
+    val finalNotes = finalNoteLines.joinToString("\n")
+
+    val primaryPhone = mergedPhones.firstOrNull()?.second.orEmpty()
+    val primaryEmail = mergedEmails.firstOrNull()?.second.orEmpty()
+
+    val finalExtraInfos = mutableListOf<Pair<String, String>>()
+    mergedPhones.drop(1).forEachIndexed { idx, (lbl, num) ->
+        val niceLabel = if (lbl.isBlank() || lbl.equals("Telefon", ignoreCase = true) || lbl.equals("2. Telefon", ignoreCase = true)) {
+            "${idx + 2}. Telefon"
+        } else {
+            lbl
+        }
+        finalExtraInfos.add(niceLabel to num)
+    }
+    mergedEmails.drop(1).forEachIndexed { idx, (lbl, mail) ->
+        val niceLabel = if (lbl.isBlank() || lbl.equals("E-Mail", ignoreCase = true)) {
+            "${idx + 2}. E-Mail"
+        } else {
+            lbl
+        }
+        finalExtraInfos.add(niceLabel to mail)
+    }
+    finalExtraInfos.addAll(mergedOtherExtras)
+
+    // Echtes Kontaktfoto bevorzugen, falls vorhanden
+    val primaryRealPhoto = primary.importedFromDeviceContactId?.let { deviceDetailsByContactId[it]?.realPhotoBase64 }.orEmpty()
+    val anyRealPhoto = ordered.firstNotNullOfOrNull { p ->
+        p.importedFromDeviceContactId?.let { deviceDetailsByContactId[it]?.realPhotoBase64 }?.takeIf { it.isNotBlank() }
+    }.orEmpty()
+    val finalPhoto = when {
+        primaryRealPhoto.isNotBlank() -> primaryRealPhoto
+        anyRealPhoto.isNotBlank() -> anyRealPhoto
+        primary.photoBase64.isNotBlank() -> primary.photoBase64
+        else -> ordered.firstNotNullOfOrNull { it.photoBase64.takeIf(String::isNotBlank) }.orEmpty()
+    }
+
+    val timerSource = if (primary.timerEnabled) primary else (ordered.firstOrNull { it.timerEnabled } ?: primary)
+    val mergedTimerEnabled = ordered.any { it.timerEnabled }
+    val latestContactIso = ordered.mapNotNull { it.lastContactedIso?.takeIf(String::isNotBlank) }.maxOrNull()
+
+    return MergedContactPreview(
+        primaryPerson = primary,
+        finalName = customName.trim().ifBlank { primary.name },
+        birthdayIso = mergedBirthdayIso,
+        primaryPhone = primaryPhone,
+        primaryEmail = primaryEmail,
+        hasNoOwnPhone = primaryPhone.isBlank() && ordered.all { it.hasNoOwnPhone },
+        timerEnabled = mergedTimerEnabled,
+        timerInterval = timerSource.timerInterval,
+        timerUnit = timerSource.timerUnit,
+        lastContactedIso = latestContactIso,
+        photoBase64 = finalPhoto,
+        notes = finalNotes,
+        deduplicatedExtraInfos = finalExtraInfos,
+        removedDuplicatesCount = removedDuplicatesCount
+    )
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1620,10 +1989,29 @@ fun KontaktChronikApp(
     var showTimerEntryDialog by remember { mutableStateOf(false) }
     var editingTimerPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var detailPerson by remember { mutableStateOf<PersonEntity?>(null) }
+    var showMergeContactsDialog by remember { mutableStateOf(false) }
+    var mergeInitialPersonIds by remember { mutableStateOf<List<Long>>(emptyList()) }
+    var mergedAwayDeviceCids by remember {
+        mutableStateOf(appPrefs.getStringSet("merged_away_device_cids", emptySet()).orEmpty())
+    }
+    val duplicateSuggestionGroups = remember(visiblePersons) {
+        findDuplicateSuggestionGroups(visiblePersons)
+    }
     var syncStatus by remember { mutableStateOf("") }
     var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
     var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val clipboardManager = LocalClipboardManager.current
+
+    suspend fun syncContactsRespectingMerged(forcePhotoRefresh: Boolean = false): Int {
+        val currentIgnored = appPrefs.getStringSet("merged_away_device_cids", emptySet()).orEmpty()
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            syncRepo.syncDeviceContactsWithBirthdays(
+                contentResolver = context.contentResolver,
+                forcePhotoRefresh = forcePhotoRefresh,
+                ignoredDeviceContactIds = currentIgnored
+            )
+        }
+    }
 
     fun setPersonHidden(personId: Long, hidden: Boolean) {
         if (hidden && detailPerson?.id == personId) {
@@ -1656,7 +2044,7 @@ fun KontaktChronikApp(
         ) == PackageManager.PERMISSION_GRANTED
         if (hasRead) {
             initialPhotoSyncDone = true
-            syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver, forcePhotoRefresh = false)
+            syncContactsRespectingMerged(forcePhotoRefresh = false)
         }
     }
 
@@ -1722,7 +2110,7 @@ fun KontaktChronikApp(
                 Manifest.permission.READ_CONTACTS
             ) == PackageManager.PERMISSION_GRANTED
             if (hasRead) {
-                syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver)
+                syncContactsRespectingMerged()
             } else {
                 syncRepo.ensureDefaultPhotosForAllPersons()
             }
@@ -1734,7 +2122,7 @@ fun KontaktChronikApp(
     ) { perms ->
         if (perms[Manifest.permission.READ_CONTACTS] == true) {
             scope.launch {
-                val count = syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver)
+                val count = syncContactsRespectingMerged()
                 syncStatus = "$count Kontakte synchronisiert"
             }
         } else {
@@ -1789,7 +2177,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.32", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.33", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1805,10 +2193,7 @@ fun KontaktChronikApp(
                     ) == PackageManager.PERMISSION_GRANTED
                     if (hasRead && hasWrite) {
                         scope.launch {
-                            val count = syncRepo.syncDeviceContactsWithBirthdays(
-                                context.contentResolver,
-                                forcePhotoRefresh = true
-                            )
+                            val count = syncContactsRespectingMerged(forcePhotoRefresh = true)
                             syncStatus = "$count neue Kontakte synchronisiert"
                         }
                     } else {
@@ -1901,7 +2286,7 @@ fun KontaktChronikApp(
                             ) == PackageManager.PERMISSION_GRANTED
                             if (hasRead && hasWrite) {
                                 scope.launch {
-                                    val count = syncRepo.syncDeviceContactsWithBirthdays(context.contentResolver)
+                                    val count = syncContactsRespectingMerged()
                                     syncStatus = "$count Kontakte synchronisiert"
                                 }
                             } else {
@@ -1970,23 +2355,29 @@ fun KontaktChronikApp(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
                             .padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CompactButton(sortBtnLabel) {
                             contactSortMode = if (contactSortMode == "lastname") "birthday" else "lastname"
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            CompactButton(if (allContactsFilter == "all") "✓ Alle (${visiblePersons.size})" else "Alle (${visiblePersons.size})") {
-                                allContactsFilter = "all"
-                            }
-                            CompactButton(
-                                if (allContactsFilter == "hidden") "✓ Ausgeblendet ($hiddenCount)"
-                                else "Ausgeblendet ($hiddenCount)"
-                            ) {
-                                allContactsFilter = "hidden"
-                            }
+                        CompactButton(
+                            if (duplicateSuggestionGroups.isNotEmpty()) "🔗 Zusammenführen (${duplicateSuggestionGroups.size})"
+                            else "🔗 Zusammenführen"
+                        ) {
+                            mergeInitialPersonIds = emptyList()
+                            showMergeContactsDialog = true
+                        }
+                        CompactButton(if (allContactsFilter == "all") "✓ Alle (${visiblePersons.size})" else "Alle (${visiblePersons.size})") {
+                            allContactsFilter = "all"
+                        }
+                        CompactButton(
+                            if (allContactsFilter == "hidden") "✓ Ausgeblendet ($hiddenCount)"
+                            else "Ausgeblendet ($hiddenCount)"
+                        ) {
+                            allContactsFilter = "hidden"
                         }
                     }
 
@@ -2731,7 +3122,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.32")
+                put("version", "1.0.33")
                 put("createdAt", dateStr)
                 put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
@@ -2872,6 +3263,34 @@ fun KontaktChronikApp(
                     CompactButton("✏️ Bearbeiten") {
                         showOptionsDialog = false
                         showGreetingsEditorDialog = true
+                    }
+                }
+
+                HorizontalDivider(color = BorderSlate)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            if (duplicateSuggestionGroups.isNotEmpty()) "🔗 Kontakte zusammenführen (${duplicateSuggestionGroups.size} Vorschläge)"
+                            else "🔗 Kontakte zusammenführen",
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "Mehrere Kontakte ohne doppelte Nummern/Mails/Adressen vereinen",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    CompactButton("🔗 Öffnen") {
+                        showOptionsDialog = false
+                        mergeInitialPersonIds = emptyList()
+                        showMergeContactsDialog = true
                     }
                 }
 
@@ -4159,6 +4578,18 @@ fun KontaktChronikApp(
                             }
                         }
                     }
+                    if (persons.size >= 2) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            CompactButton("🔗 Mit anderem Kontakt zusammenführen") {
+                                mergeInitialPersonIds = listOf(dp.id)
+                                detailPerson = null
+                                showMergeContactsDialog = true
+                            }
+                        }
+                    }
                     OutlinedTextField(value = nameVal, onValueChange = { nameVal = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
                     DateInputWithCalendar(value = bdayVal, onValueChange = { bdayVal = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
                     OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
@@ -4750,6 +5181,804 @@ fun KontaktChronikApp(
                         }
                     }
                     CompactButton("Schließen") { popupPerson = null }
+                }
+            }
+        }
+    }
+
+    // Dialog: Doppelte oder mehrere Kontakte intelligent zusammenführen (ohne doppelte Nummern / Mails / Adressen)
+    if (showMergeContactsDialog) {
+        val allCandidates = remember(persons) { persons.sortedWith(LastNamePersonComparator) }
+        val allDuplicateGroups = remember(persons) { findDuplicateSuggestionGroups(persons) }
+        var selectedIds by remember(mergeInitialPersonIds) { mutableStateOf(mergeInitialPersonIds.toSet()) }
+        var primaryId by remember(mergeInitialPersonIds) { mutableStateOf(mergeInitialPersonIds.firstOrNull() ?: -1L) }
+        var activeMergeTab by remember(mergeInitialPersonIds) {
+            mutableStateOf(
+                if (mergeInitialPersonIds.isEmpty() && allDuplicateGroups.isNotEmpty()) "suggestions" else "manual"
+            )
+        }
+        val selectedPersons = remember(persons, selectedIds) {
+            persons.filter { selectedIds.contains(it.id) }.sortedWith(LastNamePersonComparator)
+        }
+        LaunchedEffect(selectedIds, selectedPersons) {
+            if (selectedPersons.isNotEmpty() && selectedPersons.none { it.id == primaryId }) {
+                primaryId = selectedPersons.first().id
+            } else if (selectedPersons.isEmpty()) {
+                primaryId = -1L
+            }
+        }
+        var customTargetName by remember { mutableStateOf("") }
+        LaunchedEffect(primaryId) {
+            val prim = persons.find { it.id == primaryId }
+            if (prim != null) {
+                customTargetName = prim.name
+            }
+        }
+        var mergeInDeviceContacts by remember { mutableStateOf(true) }
+        var isMerging by remember { mutableStateOf(false) }
+        var lastMergedNotice by remember { mutableStateOf("") }
+        var deviceDetailsMap by remember { mutableStateOf<Map<String, DeviceContactFullDetails>>(emptyMap()) }
+
+        LaunchedEffect(selectedPersons) {
+            val hasRead = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (hasRead && selectedPersons.isNotEmpty()) {
+                val missingCids = selectedPersons
+                    .mapNotNull { it.importedFromDeviceContactId?.takeIf(String::isNotBlank) }
+                    .filter { !deviceDetailsMap.containsKey(it) }
+                if (missingCids.isNotEmpty()) {
+                    val loaded = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        missingCids.associateWith { cid ->
+                            syncRepo.readDeviceContactFullDetails(context.contentResolver, cid)
+                        }
+                    }
+                    deviceDetailsMap = deviceDetailsMap + loaded
+                }
+            }
+        }
+
+        val localExtrasMap = remember(selectedPersons) {
+            selectedPersons.associate { p ->
+                p.id to parseExtraInfosPref(appPrefs.getString("extra_infos_${p.id}", null))
+            }
+        }
+        val preview = remember(selectedPersons, primaryId, customTargetName, localExtrasMap, deviceDetailsMap) {
+            if (selectedPersons.size >= 2) {
+                buildMergedContactPreview(
+                    selectedPersons = selectedPersons,
+                    primaryId = primaryId,
+                    customName = customTargetName,
+                    localExtraInfosByPersonId = localExtrasMap,
+                    deviceDetailsByContactId = deviceDetailsMap
+                )
+            } else {
+                null
+            }
+        }
+
+        val combinedRelationsCount = remember(relations, selectedIds, primaryId) {
+            if (selectedIds.size < 2) 0
+            else {
+                val targetId = if (primaryId > 0) primaryId else selectedIds.first()
+                relations
+                    .mapNotNull { rel ->
+                        val nf = if (selectedIds.contains(rel.fromPersonId)) targetId else rel.fromPersonId
+                        val nt = if (selectedIds.contains(rel.toPersonId)) targetId else rel.toPersonId
+                        if (nf == nt) null
+                        else if (nf == targetId || nt == targetId) "$nf:$nt:${rel.relationLabel.trim().lowercase()}"
+                        else null
+                    }
+                    .distinct()
+                    .count { it.startsWith("$targetId:") }
+            }
+        }
+        val combinedRemindersCount = remember(specialEvents, selectedIds) {
+            if (selectedIds.size < 2) 0
+            else {
+                specialEvents
+                    .filter { selectedIds.contains(it.personId) }
+                    .distinctBy { "${it.title.trim().lowercase()}:${it.dateIso.trim()}" }
+                    .size
+            }
+        }
+
+        fun executeMerge() {
+            val currentPreview = preview ?: return
+            if (selectedPersons.size < 2 || isMerging) return
+            isMerging = true
+            scope.launch {
+                try {
+                    val targetPrimary = currentPreview.primaryPerson
+                    val secondaryPersons = selectedPersons.filter { it.id != targetPrimary.id }
+                    val secondaryIds = secondaryPersons.map { it.id }.toSet()
+                    val allWereHidden = selectedPersons.all { it.isHidden || hiddenPersonIds.contains(it.id) }
+
+                    var mergedEntity = targetPrimary.copy(
+                        name = currentPreview.finalName,
+                        birthdayIso = currentPreview.birthdayIso,
+                        hasNoOwnPhone = currentPreview.hasNoOwnPhone,
+                        phone = currentPreview.primaryPhone,
+                        email = currentPreview.primaryEmail,
+                        notes = currentPreview.notes,
+                        timerEnabled = currentPreview.timerEnabled,
+                        timerInterval = currentPreview.timerInterval,
+                        timerUnit = currentPreview.timerUnit,
+                        lastContactedIso = currentPreview.lastContactedIso,
+                        isHidden = allWereHidden,
+                        photoBase64 = currentPreview.photoBase64
+                    )
+
+                    val secondaryDeviceCids = secondaryPersons
+                        .mapNotNull { it.importedFromDeviceContactId?.takeIf(String::isNotBlank) }
+                        .filter { it != targetPrimary.importedFromDeviceContactId }
+                        .toSet()
+
+                    if (secondaryDeviceCids.isNotEmpty()) {
+                        val updatedIgnored = mergedAwayDeviceCids + secondaryDeviceCids
+                        mergedAwayDeviceCids = updatedIgnored
+                        appPrefs.edit().putStringSet("merged_away_device_cids", updatedIgnored).apply()
+                    }
+
+                    if (mergeInDeviceContacts) {
+                        val hasWrite = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.WRITE_CONTACTS
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (hasWrite) {
+                            val updatedCid = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                val savedCid = syncRepo.saveOrUpdateDeviceContact(
+                                    contentResolver = context.contentResolver,
+                                    person = mergedEntity,
+                                    extraInfos = currentPreview.deduplicatedExtraInfos
+                                )
+                                secondaryDeviceCids
+                                    .filter { it != savedCid && it != mergedEntity.importedFromDeviceContactId }
+                                    .forEach { dupCid ->
+                                        syncRepo.deleteDeviceContactById(context.contentResolver, dupCid)
+                                    }
+                                savedCid
+                            }
+                            if (!updatedCid.isNullOrBlank()) {
+                                mergedEntity = mergedEntity.copy(importedFromDeviceContactId = updatedCid)
+                            }
+                        }
+                    }
+
+                    db.updatePerson(mergedEntity)
+
+                    val prefsEditor = appPrefs.edit()
+                    prefsEditor.putString(
+                        "extra_infos_${targetPrimary.id}",
+                        serializeExtraInfosPref(currentPreview.deduplicatedExtraInfos)
+                    )
+                    secondaryIds.forEach { secId ->
+                        prefsEditor.remove("extra_infos_$secId")
+                    }
+                    val nextHiddenIds = (hiddenPersonIds - secondaryIds).let {
+                        if (allWereHidden) it + targetPrimary.id else it - targetPrimary.id
+                    }
+                    hiddenPersonIds = nextHiddenIds
+                    prefsEditor.putStringSet("hidden_person_ids", nextHiddenIds.map { it.toString() }.toSet())
+                    prefsEditor.apply()
+
+                    // Beziehungen auf Zielkontakt umhängen & deduplizieren
+                    val allRels = db.getAllRelationsOnce()
+                    val survivingRelKeys = allRels
+                        .filter { !secondaryIds.contains(it.fromPersonId) && !secondaryIds.contains(it.toPersonId) }
+                        .map { "${it.fromPersonId}:${it.toPersonId}:${it.relationLabel.trim().lowercase()}" }
+                        .toMutableSet()
+
+                    allRels
+                        .filter { secondaryIds.contains(it.fromPersonId) || secondaryIds.contains(it.toPersonId) }
+                        .forEach { oldRel ->
+                            db.deleteRelation(oldRel)
+                            val nf = if (secondaryIds.contains(oldRel.fromPersonId)) targetPrimary.id else oldRel.fromPersonId
+                            val nt = if (secondaryIds.contains(oldRel.toPersonId)) targetPrimary.id else oldRel.toPersonId
+                            if (nf != nt) {
+                                val key = "$nf:$nt:${oldRel.relationLabel.trim().lowercase()}"
+                                if (survivingRelKeys.add(key)) {
+                                    db.insertRelation(
+                                        oldRel.copy(
+                                            id = 0,
+                                            fromPersonId = nf,
+                                            toPersonId = nt
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                    // Erinnerungen / Sondertermine auf Zielkontakt umhängen & deduplizieren
+                    val allEvs = db.getAllSpecialEventsOnce()
+                    val survivingEvKeys = allEvs
+                        .filter { !secondaryIds.contains(it.personId) }
+                        .map { "${it.personId}:${it.title.trim().lowercase()}:${it.dateIso.trim()}" }
+                        .toMutableSet()
+
+                    allEvs
+                        .filter { secondaryIds.contains(it.personId) }
+                        .forEach { oldEv ->
+                            db.deleteSpecialEvent(oldEv)
+                            val key = "${targetPrimary.id}:${oldEv.title.trim().lowercase()}:${oldEv.dateIso.trim()}"
+                            if (survivingEvKeys.add(key)) {
+                                db.insertSpecialEvent(
+                                    oldEv.copy(
+                                        id = 0,
+                                        personId = targetPrimary.id
+                                    )
+                                )
+                            }
+                        }
+
+                    // Direktnachrichten übernehmen
+                    secondaryIds.forEach { secId ->
+                        db.reassignMessagesForPerson(secId, targetPrimary.id)
+                    }
+
+                    // Wichtel-Verknüpfungen aktualisieren
+                    if (wichtelGroups.any { g -> g.participants.any { it.personId != null && secondaryIds.contains(it.personId) } }) {
+                        val updatedGroups = wichtelGroups.map { g ->
+                            val seenPersonIdsInGroup = mutableSetOf<Long>()
+                            val remappedParts = g.participants.mapNotNull { part ->
+                                val newPid = if (part.personId != null && secondaryIds.contains(part.personId)) {
+                                    targetPrimary.id
+                                } else {
+                                    part.personId
+                                }
+                                if (newPid != null && !g.isDrawn && !seenPersonIdsInGroup.add(newPid)) {
+                                    null
+                                } else {
+                                    part.copy(
+                                        personId = newPid,
+                                        name = if (newPid == targetPrimary.id) mergedEntity.name else part.name,
+                                        phone = if (newPid == targetPrimary.id && part.phone.isBlank()) mergedEntity.phone else part.phone
+                                    )
+                                }
+                            }
+                            g.copy(participants = remappedParts)
+                        }
+                        saveWichtelGroups(updatedGroups)
+                    }
+                    if (wichtelHistory.any { h ->
+                            h.pairings.any {
+                                (it.giverPersonId != null && secondaryIds.contains(it.giverPersonId)) ||
+                                    (it.receiverPersonId != null && secondaryIds.contains(it.receiverPersonId))
+                            }
+                        }
+                    ) {
+                        val updatedHistory = wichtelHistory.map { h ->
+                            h.copy(
+                                pairings = h.pairings.map { pair ->
+                                    pair.copy(
+                                        giverPersonId = if (pair.giverPersonId != null && secondaryIds.contains(pair.giverPersonId)) targetPrimary.id else pair.giverPersonId,
+                                        receiverPersonId = if (pair.receiverPersonId != null && secondaryIds.contains(pair.receiverPersonId)) targetPrimary.id else pair.receiverPersonId
+                                    )
+                                }
+                            )
+                        }
+                        saveWichtelHistory(updatedHistory)
+                    }
+
+                    // Überzählige Einzelkontakte aus lokaler Datenbank entfernen
+                    secondaryPersons.forEach { secPerson ->
+                        db.deletePerson(secPerson)
+                    }
+
+                    val currentRoot = selectedTreeRootId
+                    if (currentRoot != null && secondaryIds.contains(currentRoot)) {
+                        selectedTreeRootId = targetPrimary.id
+                    }
+
+                    val mergedCount = selectedPersons.size
+                    syncStatus = "$mergedCount Kontakte zu „${mergedEntity.name}“ zusammengeführt"
+                    lastMergedNotice = "✓ $mergedCount Kontakte erfolgreich zu „${mergedEntity.name}“ zusammengeführt!"
+
+                    val remainingSuggestions = allDuplicateGroups.count { grp ->
+                        grp.members.none { it.id == targetPrimary.id || secondaryIds.contains(it.id) }
+                    }
+                    if (mergeInitialPersonIds.isNotEmpty() || remainingSuggestions == 0) {
+                        showMergeContactsDialog = false
+                    } else {
+                        selectedIds = emptySet()
+                        primaryId = -1L
+                        activeMergeTab = "suggestions"
+                    }
+                } finally {
+                    isMerging = false
+                }
+            }
+        }
+
+        Dialog(
+            onDismissRequest = { if (!isMerging) showMergeContactsDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.92f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CardSlate, RoundedCornerShape(12.dp))
+                        .border(1.dp, BorderSlate, RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Fixierte Kopfzeile oben
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🔗 Kontakte zusammenführen",
+                            color = TextPrimary,
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            CompactButton("✕") {
+                                if (!isMerging) showMergeContactsDialog = false
+                            }
+                            if (preview != null) {
+                                CompactButton(if (isMerging) "⏳..." else "✓ Zusammenführen") {
+                                    executeMerge()
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = BorderSlate)
+
+                    if (lastMergedNotice.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(TreeGreen.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+                                .border(1.dp, TreeGreen, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = lastMergedNotice,
+                                color = TreeGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    // Modus-Umschalter: Automatische Duplikat-Vorschläge vs. Manuelle Mehrfachauswahl
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        CompactButton(
+                            label = if (activeMergeTab == "suggestions") {
+                                "✓ 🔍 Vorschläge (${allDuplicateGroups.size})"
+                            } else {
+                                "🔍 Vorschläge (${allDuplicateGroups.size})"
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            activeMergeTab = "suggestions"
+                        }
+                        CompactButton(
+                            label = if (activeMergeTab == "manual") {
+                                "✓ ☑️ Manuell & Vorschau (${selectedIds.size})"
+                            } else {
+                                "☑️ Manuell & Vorschau (${selectedIds.size})"
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            activeMergeTab = "manual"
+                        }
+                    }
+
+                    if (activeMergeTab == "suggestions") {
+                        if (allDuplicateGroups.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .background(BgSlate, RoundedCornerShape(8.dp))
+                                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                    .padding(14.dp)
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        "Keine automatischen Duplikate gefunden 🎉",
+                                        color = TextPrimary,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "Du kannst jederzeit über „☑️ Manuell & Vorschau“ beliebige 2 oder mehr Kontakte auswählen und deren Nummern, E-Mails, Adressen, Termine und Beziehungen ohne doppelte Einträge in einem Kontakt bündeln.",
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                    CompactButton("☑️ Beliebige Kontakte manuell auswählen") {
+                                        activeMergeTab = "manual"
+                                    }
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "Tippe bei einer erkannten Gruppe auf „Prüfen →“, um die bereinigte Vorschau zu sehen und sie zusammenzuführen:",
+                                color = TextSecondary,
+                                fontSize = 11.5.sp
+                            )
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(allDuplicateGroups, key = { it.key }) { grp ->
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(BgSlate, RoundedCornerShape(10.dp))
+                                            .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                            .clickable {
+                                                selectedIds = grp.members.map { it.id }.toSet()
+                                                primaryId = grp.members.first().id
+                                                activeMergeTab = "manual"
+                                            }
+                                            .padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "${grp.reasonBadge} • ${grp.members.size} Kontakte",
+                                                color = AccentSteel,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            CompactButton("Prüfen →") {
+                                                selectedIds = grp.members.map { it.id }.toSet()
+                                                primaryId = grp.members.first().id
+                                                activeMergeTab = "manual"
+                                            }
+                                        }
+                                        grp.members.forEach { m ->
+                                            val subParts = buildList {
+                                                if (!m.birthdayIso.isNullOrBlank()) add("🎂 ${formatIsoToDdMmYyyy(m.birthdayIso)}")
+                                                if (m.phone.isNotBlank()) add("📞 ${m.phone}")
+                                                if (m.email.isNotBlank()) add("✉️ ${m.email}")
+                                            }
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                PersonAvatar(name = m.name, photoBase64 = m.photoBase64, sizeDp = 28)
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = formatLastNameFirst(m.name),
+                                                        color = TextPrimary,
+                                                        fontSize = 13.5.sp,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    if (subParts.isNotEmpty()) {
+                                                        Text(
+                                                            text = subParts.joinToString("  •  "),
+                                                            color = TextSecondary,
+                                                            fontSize = 11.sp
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "1. Kontakte zum Zusammenführen wählen (mind. 2):",
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            ContactSearchDropdown(
+                                persons = allCandidates,
+                                onSelectPerson = { p ->
+                                    val next = if (selectedIds.contains(p.id)) selectedIds - p.id else selectedIds + p.id
+                                    selectedIds = next
+                                    if (primaryId <= 0L && next.isNotEmpty()) primaryId = p.id
+                                },
+                                placeholderText = if (selectedIds.isEmpty()) {
+                                    "🔎 Kontakte per Suche / ABCD ankreuzen"
+                                } else {
+                                    "☑️ ${selectedIds.size} Kontakte ausgewählt – weitere hinzufügen"
+                                },
+                                confirmButtonLabel = "✓ Auswahl übernehmen",
+                                showInlineAlphabet = true,
+                                checkedPersonIds = selectedIds,
+                                onToggleCheckedPerson = { p ->
+                                    val next = if (selectedIds.contains(p.id)) selectedIds - p.id else selectedIds + p.id
+                                    selectedIds = next
+                                    if (primaryId <= 0L && next.isNotEmpty()) primaryId = p.id
+                                }
+                            )
+
+                            if (selectedPersons.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "2. Ausgewählte Kontakte (${selectedPersons.size}) – Hauptkontakt bestimmen:",
+                                        color = TextSecondary,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    CompactButton("Auswahl leeren") {
+                                        selectedIds = emptySet()
+                                        primaryId = -1L
+                                    }
+                                }
+
+                                selectedPersons.forEach { sp ->
+                                    val isMain = sp.id == primaryId
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                if (isMain) AccentSteel.copy(alpha = 0.12f) else BgSlate,
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (isMain) AccentSteel else BorderSlate,
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { primaryId = sp.id }
+                                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            PersonAvatar(name = sp.name, photoBase64 = sp.photoBase64, sizeDp = 30)
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = formatLastNameFirst(sp.name),
+                                                    color = TextPrimary,
+                                                    fontSize = 13.5.sp,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                val detailsLine = buildList {
+                                                    if (!sp.birthdayIso.isNullOrBlank()) add("🎂 ${formatIsoToDdMmYyyy(sp.birthdayIso)}")
+                                                    if (sp.phone.isNotBlank()) add("📞 ${sp.phone}")
+                                                    if (sp.email.isNotBlank()) add("✉️ ${sp.email}")
+                                                }.joinToString(" • ")
+                                                if (detailsLine.isNotBlank()) {
+                                                    Text(
+                                                        text = detailsLine,
+                                                        color = TextSecondary,
+                                                        fontSize = 11.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            CompactButton(if (isMain) "⭐ Haupt" else "Als Haupt") {
+                                                primaryId = sp.id
+                                            }
+                                            Text(
+                                                text = "✕",
+                                                color = WarnAmber,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .clickable {
+                                                        selectedIds = selectedIds - sp.id
+                                                    }
+                                                    .padding(horizontal = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (selectedPersons.size < 2) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(BgSlate, RoundedCornerShape(8.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Text(
+                                        text = if (selectedPersons.size == 1) {
+                                            "Noch mindestens 1 weiteren Kontakt auswählen, um die Informationen mit „${formatLastNameFirst(selectedPersons.first().name)}“ zusammenzuführen."
+                                        } else {
+                                            "Wähle oben mindestens 2 Kontakte aus. Doppelte Telefonnummern (auch mit unterschiedlichen Leerzeichen, Bindestrichen oder +49), E-Mail-Adressen, Postadressen und Notizen werden automatisch erkannt und jeweils nur ein einziges Mal übernommen."
+                                        },
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+
+                            preview?.let { pv ->
+                                HorizontalDivider(color = BorderSlate)
+                                Text(
+                                    text = "3. Bereinigte Vorschau des zusammengeführten Kontakts:",
+                                    color = AccentSteel,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                if (pv.removedDuplicatesCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(TreeGreen.copy(alpha = 0.13f), RoundedCornerShape(8.dp))
+                                            .border(1.dp, TreeGreen, RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = "✨ ${pv.removedDuplicatesCount} doppelte Einträge (Nummern/Mails/Adressen/Notizen) erkannt & automatisch auf je 1 Eintrag bereinigt!",
+                                            color = TreeGreen,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+
+                                OutlinedTextField(
+                                    value = customTargetName,
+                                    onValueChange = { customTargetName = it },
+                                    label = { Text("Ziel-Name des zusammengeführten Kontakts") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(BgSlate, RoundedCornerShape(10.dp))
+                                        .border(1.dp, AccentSteel, RoundedCornerShape(10.dp))
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        PersonAvatar(name = pv.finalName, photoBase64 = pv.photoBase64, sizeDp = 40)
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = formatLastNameFirst(pv.finalName),
+                                                color = TextPrimary,
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            if (!pv.birthdayIso.isNullOrBlank()) {
+                                                Text(
+                                                    text = "🎂 Geburtstag: ${formatIsoToDdMmYyyy(pv.birthdayIso)}",
+                                                    color = TextSecondary,
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (pv.primaryPhone.isNotBlank()) {
+                                        Text(
+                                            text = "📞 Hauptnummer: ${pv.primaryPhone}",
+                                            color = TextPrimary,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    if (pv.primaryEmail.isNotBlank()) {
+                                        Text(
+                                            text = "✉️ Haupt-E-Mail: ${pv.primaryEmail}",
+                                            color = TextPrimary,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    pv.deduplicatedExtraInfos.forEach { (lbl, value) ->
+                                        val icon = when {
+                                            ContactDeduplicator.isPhoneLike(value) -> "📞"
+                                            ContactDeduplicator.isEmailLike(value) -> "✉️"
+                                            ContactDeduplicator.isAddressLabel(lbl) -> "🏠"
+                                            else -> "ℹ️"
+                                        }
+                                        Text(
+                                            text = "$icon $lbl: $value",
+                                            color = TextSecondary,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                    if (pv.notes.isNotBlank()) {
+                                        Text(
+                                            text = "📝 Notiz: ${pv.notes}",
+                                            color = TextSecondary,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                    if (combinedRelationsCount > 0 || combinedRemindersCount > 0 || pv.timerEnabled) {
+                                        val metaItems = buildList {
+                                            if (combinedRelationsCount > 0) add("🔗 $combinedRelationsCount Beziehungen")
+                                            if (combinedRemindersCount > 0) add("🔔 $combinedRemindersCount Erinnerungen")
+                                            if (pv.timerEnabled) add("⏳ Melde-Timer aktiv")
+                                        }
+                                        Text(
+                                            text = metaItems.joinToString("  •  "),
+                                            color = AccentSteel,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable { mergeInDeviceContacts = !mergeInDeviceContacts }
+                                ) {
+                                    Checkbox(
+                                        checked = mergeInDeviceContacts,
+                                        onCheckedChange = { mergeInDeviceContacts = it }
+                                    )
+                                    Text(
+                                        text = "Auch in Handykontakten zusammenführen (Zielkontakt aktualisieren & Duplikate entfernen)",
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = BorderSlate)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CompactButton("Schließen") {
+                            if (!isMerging) showMergeContactsDialog = false
+                        }
+                        if (preview != null) {
+                            CompactButton(
+                                if (isMerging) "⏳ Wird zusammengeführt..."
+                                else "✓ ${selectedPersons.size} Kontakte jetzt zusammenführen"
+                            ) {
+                                executeMerge()
+                            }
+                        }
+                    }
                 }
             }
         }

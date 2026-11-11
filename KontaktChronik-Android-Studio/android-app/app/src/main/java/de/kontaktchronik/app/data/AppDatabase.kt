@@ -15,6 +15,7 @@ import android.graphics.Shader
 import android.provider.ContactsContract
 import android.util.Base64
 import java.io.ByteArrayOutputStream
+import java.text.Normalizer
 import kotlin.math.abs
 import androidx.room.Dao
 import androidx.room.Database
@@ -86,6 +87,9 @@ interface KontaktChronikDao {
 
     @Query("UPDATE direct_messages SET isRead = 1 WHERE personId = :personId")
     suspend fun markMessagesReadForPerson(personId: Long)
+
+    @Query("UPDATE direct_messages SET personId = :targetPersonId WHERE personId = :oldPersonId")
+    suspend fun reassignMessagesForPerson(oldPersonId: Long, targetPersonId: Long)
 }
 
 @Database(
@@ -393,7 +397,8 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
 
     suspend fun syncDeviceContactsWithBirthdays(
         contentResolver: ContentResolver,
-        forcePhotoRefresh: Boolean = false
+        forcePhotoRefresh: Boolean = false,
+        ignoredDeviceContactIds: Set<String> = emptySet()
     ): Int {
         val allPersonsInDb = dao.getAllPersonsOnce()
         val existingByCid = allPersonsInDb
@@ -580,6 +585,9 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
 
         var importedCount = 0
         for (cid in allContactIds) {
+            if (ignoredDeviceContactIds.contains(cid) && !existingByCid.containsKey(cid)) {
+                continue
+            }
             val bday = birthdaysByContactId[cid]
             val phone = phonesByContactId[cid].orEmpty()
             val email = emailsByContactId[cid].orEmpty()
@@ -658,8 +666,158 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
     }
 
     /**
+     * Liest alle Telefonnummern, E-Mail-Adressen, Postadressen, Notizen und das echte Gerätekontaktfoto
+     * eines Android-Kontakts aus, damit beim Zusammenführen keinerlei Zweitnummern oder Adressen verloren gehen.
+     */
+    fun readDeviceContactFullDetails(
+        contentResolver: ContentResolver,
+        contactId: String
+    ): DeviceContactFullDetails {
+        if (contactId.isBlank()) return DeviceContactFullDetails()
+        val phones = mutableListOf<Pair<String, String>>()
+        val emails = mutableListOf<Pair<String, String>>()
+        val addresses = mutableListOf<Pair<String, String>>()
+        val notes = mutableListOf<String>()
+
+        runCatching {
+            contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.NUMBER,
+                    ContactsContract.CommonDataKinds.Phone.TYPE,
+                    ContactsContract.CommonDataKinds.Phone.LABEL
+                ),
+                "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+                arrayOf(contactId),
+                null
+            )?.use { cursor ->
+                val numIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val typeIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.TYPE)
+                val lblIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LABEL)
+                while (cursor.moveToNext()) {
+                    val num = cursor.getString(numIdx)?.trim().orEmpty()
+                    if (num.isNotBlank()) {
+                        val t = cursor.getInt(typeIdx)
+                        val customLbl = cursor.getString(lblIdx)?.trim().orEmpty()
+                        val label = when {
+                            customLbl.isNotBlank() -> customLbl
+                            t == ContactsContract.CommonDataKinds.Phone.TYPE_HOME -> "Festnetz"
+                            t == ContactsContract.CommonDataKinds.Phone.TYPE_WORK -> "Telefon Arbeit"
+                            else -> "Telefon"
+                        }
+                        phones.add(label to num)
+                    }
+                }
+            }
+        }
+
+        runCatching {
+            contentResolver.query(
+                ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Email.ADDRESS,
+                    ContactsContract.CommonDataKinds.Email.TYPE,
+                    ContactsContract.CommonDataKinds.Email.LABEL
+                ),
+                "${ContactsContract.CommonDataKinds.Email.CONTACT_ID} = ?",
+                arrayOf(contactId),
+                null
+            )?.use { cursor ->
+                val addrIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.ADDRESS)
+                val lblIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.LABEL)
+                while (cursor.moveToNext()) {
+                    val mail = cursor.getString(addrIdx)?.trim().orEmpty()
+                    if (mail.isNotBlank()) {
+                        val customLbl = cursor.getString(lblIdx)?.trim().orEmpty()
+                        emails.add(customLbl.ifBlank { "E-Mail" } to mail)
+                    }
+                }
+            }
+        }
+
+        runCatching {
+            contentResolver.query(
+                ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS,
+                    ContactsContract.CommonDataKinds.StructuredPostal.TYPE,
+                    ContactsContract.CommonDataKinds.StructuredPostal.LABEL
+                ),
+                "${ContactsContract.CommonDataKinds.StructuredPostal.CONTACT_ID} = ?",
+                arrayOf(contactId),
+                null
+            )?.use { cursor ->
+                val fmtIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS)
+                val typeIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.StructuredPostal.TYPE)
+                val lblIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.StructuredPostal.LABEL)
+                while (cursor.moveToNext()) {
+                    val addr = cursor.getString(fmtIdx)?.trim().orEmpty()
+                    if (addr.isNotBlank()) {
+                        val t = cursor.getInt(typeIdx)
+                        val customLbl = cursor.getString(lblIdx)?.trim().orEmpty()
+                        val label = when {
+                            customLbl.isNotBlank() -> customLbl
+                            t == ContactsContract.CommonDataKinds.StructuredPostal.TYPE_WORK -> "Adresse Arbeit"
+                            else -> "Adresse"
+                        }
+                        addresses.add(label to addr)
+                    }
+                }
+            }
+        }
+
+        runCatching {
+            contentResolver.query(
+                ContactsContract.Data.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Note.NOTE),
+                "${ContactsContract.Data.CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} = ?",
+                arrayOf(contactId, ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE),
+                null
+            )?.use { cursor ->
+                val noteIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Note.NOTE)
+                while (cursor.moveToNext()) {
+                    val n = cursor.getString(noteIdx)?.trim().orEmpty()
+                    if (n.isNotBlank()) {
+                        notes.add(n)
+                    }
+                }
+            }
+        }
+
+        val realPhoto = readContactPhotoAsBase64(contentResolver, contactId)
+        return DeviceContactFullDetails(
+            phones = phones,
+            emails = emails,
+            addresses = addresses,
+            notes = notes,
+            realPhotoBase64 = realPhoto
+        )
+    }
+
+    /**
+     * Entfernt einen zusammengeführten Duplikat-Kontakt aus den Android-Handykontakten.
+     */
+    fun deleteDeviceContactById(
+        contentResolver: ContentResolver,
+        contactId: String
+    ): Boolean {
+        if (contactId.isBlank()) return false
+        return try {
+            val deleted = contentResolver.delete(
+                ContactsContract.RawContacts.CONTENT_URI,
+                "${ContactsContract.RawContacts.CONTACT_ID} = ?",
+                arrayOf(contactId)
+            )
+            deleted > 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
      * Legt einen Kontakt direkt in den Android-Handykontakten an oder aktualisiert
-     * einen bereits verknüpften Handykontakt (Name, Telefon, E-Mail, Geburtstag, Notiz, Zusatznummern).
+     * einen bereits verknüpften Handykontakt (Name, Telefon, E-Mail, Adresse, Geburtstag, Notiz, Zusatznummern)
+     * – strikt dedupliziert, sodass keine Nummer, E-Mail oder Adresse doppelt eingetragen wird.
      * Gibt die Android CONTACT_ID zurück.
      */
     fun saveOrUpdateDeviceContact(
@@ -685,6 +843,70 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                 }
             }
 
+            // Alle Nummern, E-Mails und Adressen kanonisch deduplizieren
+            val seenPhoneKeys = mutableSetOf<String>()
+            val uniquePhones = mutableListOf<Pair<String?, String>>() // label (null = primary mobile), number
+            if (person.phone.isNotBlank()) {
+                val pk = ContactDeduplicator.canonicalPhoneKey(person.phone)
+                if (pk.isNotBlank() && seenPhoneKeys.add(pk)) {
+                    uniquePhones.add(null to ContactDeduplicator.cleanWhitespace(person.phone))
+                }
+            }
+
+            val seenEmailKeys = mutableSetOf<String>()
+            val uniqueEmails = mutableListOf<Pair<String?, String>>()
+            if (person.email.isNotBlank()) {
+                val ek = ContactDeduplicator.canonicalEmailKey(person.email)
+                if (ek.isNotBlank() && seenEmailKeys.add(ek)) {
+                    uniqueEmails.add(null to person.email.trim())
+                }
+            }
+
+            val seenAddressKeys = mutableSetOf<String>()
+            val uniqueAddresses = mutableListOf<Pair<String, String>>()
+            val extraNoteLines = mutableListOf<String>()
+
+            extraInfos.forEach { (rawLabel, rawValue) ->
+                val label = rawLabel.trim()
+                val value = rawValue.trim()
+                if (value.isBlank()) return@forEach
+                when {
+                    ContactDeduplicator.isEmailLike(value) -> {
+                        val ek = ContactDeduplicator.canonicalEmailKey(value)
+                        if (ek.isNotBlank() && seenEmailKeys.add(ek)) {
+                            uniqueEmails.add(label.ifBlank { "E-Mail" } to value)
+                        }
+                    }
+                    ContactDeduplicator.isPhoneLike(value) -> {
+                        val pk = ContactDeduplicator.canonicalPhoneKey(value)
+                        if (pk.isNotBlank() && seenPhoneKeys.add(pk)) {
+                            uniquePhones.add(label.ifBlank { "2. Telefon" } to ContactDeduplicator.cleanWhitespace(value))
+                        }
+                    }
+                    ContactDeduplicator.isAddressLabel(label) -> {
+                        val ak = ContactDeduplicator.canonicalTextKey(value)
+                        if (ak.isNotBlank() && seenAddressKeys.add(ak)) {
+                            uniqueAddresses.add(label.ifBlank { "Adresse" } to value)
+                        }
+                    }
+                    else -> {
+                        val line = if (label.isNotBlank() && !label.equals("Info", ignoreCase = true)) {
+                            "$label: $value"
+                        } else {
+                            value
+                        }
+                        extraNoteLines.add(line)
+                    }
+                }
+            }
+
+            val combinedNotes = ContactDeduplicator.deduplicateNotes(
+                rawNotes = listOf(person.notes) + extraNoteLines,
+                seenPhoneKeys = seenPhoneKeys,
+                seenEmailKeys = seenEmailKeys,
+                seenAddressKeys = seenAddressKeys
+            )
+
             val ops = ArrayList<ContentProviderOperation>()
             val photoBytes = decodePhotoBase64ToBytes(person.photoBase64)
             val hasComma = person.name.contains(",")
@@ -697,20 +919,23 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             }
 
             if (rawContactId != null) {
-                // Bestehende Datenzeilen dieses RawContacts aktualisieren (löschen & neu eintragen)
+                val deleteMimes = mutableListOf(
+                    ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE,
+                    ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE,
+                    ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE,
+                    ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE,
+                    ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE,
+                    ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE
+                )
+                if (uniqueAddresses.isNotEmpty()) {
+                    deleteMimes.add(ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
+                }
+                val placeholders = deleteMimes.joinToString(", ") { "?" }
                 ops.add(
                     ContentProviderOperation.newDelete(ContactsContract.Data.CONTENT_URI)
                         .withSelection(
-                            "${ContactsContract.Data.RAW_CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} IN (?, ?, ?, ?, ?, ?)",
-                            arrayOf(
-                                rawContactId.toString(),
-                                ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE,
-                                ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE,
-                                ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE,
-                                ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE,
-                                ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE,
-                                ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE
-                            )
+                            "${ContactsContract.Data.RAW_CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} IN ($placeholders)",
+                            (listOf(rawContactId.toString()) + deleteMimes).toTypedArray()
                         )
                         .build()
                 )
@@ -726,6 +951,7 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                     nameOp.withValue(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, parsedGiven)
                 }
                 ops.add(nameOp.build())
+
                 if (photoBytes != null && photoBytes.isNotEmpty()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
@@ -735,36 +961,40 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                             .build()
                     )
                 }
-                if (person.phone.isNotBlank()) {
-                    ops.add(
-                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
-                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, person.phone)
-                            .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
-                            .build()
-                    )
-                }
-                extraInfos.forEach { (label, value) ->
-                    if (value.isNotBlank()) {
-                        ops.add(
-                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                                .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
-                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
-                                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, value)
-                                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
-                                .withValue(ContactsContract.CommonDataKinds.Phone.LABEL, label.ifBlank { "Info" })
-                                .build()
-                        )
+                uniquePhones.forEach { (lbl, number) ->
+                    val pOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, number)
+                    if (lbl == null) {
+                        pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                    } else {
+                        pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
+                            .withValue(ContactsContract.CommonDataKinds.Phone.LABEL, lbl)
                     }
+                    ops.add(pOp.build())
                 }
-                if (person.email.isNotBlank()) {
+                uniqueEmails.forEach { (lbl, mail) ->
+                    val eOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, mail)
+                    if (lbl == null) {
+                        eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                    } else {
+                        eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_CUSTOM)
+                            .withValue(ContactsContract.CommonDataKinds.Email.LABEL, lbl)
+                    }
+                    ops.add(eOp.build())
+                }
+                uniqueAddresses.forEach { (lbl, addr) ->
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                             .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
-                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, person.email)
-                            .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS, addr)
+                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_CUSTOM)
+                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.LABEL, lbl)
                             .build()
                     )
                 }
@@ -778,12 +1008,12 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                             .build()
                     )
                 }
-                if (person.notes.isNotBlank()) {
+                if (combinedNotes.isNotBlank()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                             .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
                             .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.Note.NOTE, person.notes)
+                            .withValue(ContactsContract.CommonDataKinds.Note.NOTE, combinedNotes)
                             .build()
                     )
                 }
@@ -817,36 +1047,40 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                             .build()
                     )
                 }
-                if (person.phone.isNotBlank()) {
-                    ops.add(
-                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
-                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, person.phone)
-                            .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
-                            .build()
-                    )
-                }
-                extraInfos.forEach { (label, value) ->
-                    if (value.isNotBlank()) {
-                        ops.add(
-                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
-                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
-                                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, value)
-                                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
-                                .withValue(ContactsContract.CommonDataKinds.Phone.LABEL, label.ifBlank { "Info" })
-                                .build()
-                        )
+                uniquePhones.forEach { (lbl, number) ->
+                    val pOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, number)
+                    if (lbl == null) {
+                        pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                    } else {
+                        pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
+                            .withValue(ContactsContract.CommonDataKinds.Phone.LABEL, lbl)
                     }
+                    ops.add(pOp.build())
                 }
-                if (person.email.isNotBlank()) {
+                uniqueEmails.forEach { (lbl, mail) ->
+                    val eOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, mail)
+                    if (lbl == null) {
+                        eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                    } else {
+                        eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_CUSTOM)
+                            .withValue(ContactsContract.CommonDataKinds.Email.LABEL, lbl)
+                    }
+                    ops.add(eOp.build())
+                }
+                uniqueAddresses.forEach { (lbl, addr) ->
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                             .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
-                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, person.email)
-                            .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS, addr)
+                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_CUSTOM)
+                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.LABEL, lbl)
                             .build()
                     )
                 }
@@ -860,12 +1094,12 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                             .build()
                     )
                 }
-                if (person.notes.isNotBlank()) {
+                if (combinedNotes.isNotBlank()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                             .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
                             .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.Note.NOTE, person.notes)
+                            .withValue(ContactsContract.CommonDataKinds.Note.NOTE, combinedNotes)
                             .build()
                     )
                 }
@@ -890,5 +1124,141 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
         } catch (e: Exception) {
             null
         }
+    }
+}
+
+data class DeviceContactFullDetails(
+    val phones: List<Pair<String, String>> = emptyList(),
+    val emails: List<Pair<String, String>> = emptyList(),
+    val addresses: List<Pair<String, String>> = emptyList(),
+    val notes: List<String> = emptyList(),
+    val realPhotoBase64: String = ""
+)
+
+object ContactDeduplicator {
+    fun cleanWhitespace(raw: String): String =
+        raw.trim().replace(Regex("\\s+"), " ")
+
+    /**
+     * Kanonisiert Telefonnummern unabhängig von Leerzeichen, Bindestrichen, Schrägstrichen,
+     * Klammern sowie +49 / 0049 / führender 0, damit jede Nummer garantiert nur ein einziges Mal gespeichert wird.
+     */
+    fun canonicalPhoneKey(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return ""
+        val cleaned = buildString {
+            trimmed.forEachIndexed { idx, ch ->
+                if (ch in '0'..'9') {
+                    append(ch)
+                } else if (ch == '+' && isEmpty() && idx == 0) {
+                    append('+')
+                }
+            }
+        }
+        val digitsOnly = cleaned.filter { it.isDigit() }
+        if (digitsOnly.length < 3) return ""
+
+        val intlNormalized = if (cleaned.startsWith("00") && digitsOnly.length >= 5) {
+            "+" + cleaned.drop(2)
+        } else {
+            cleaned
+        }
+
+        return when {
+            intlNormalized.startsWith("+49") -> {
+                val subscriber = intlNormalized.removePrefix("+49").trimStart('0')
+                if (subscriber.isNotBlank()) "DE:$subscriber" else "DE:0"
+            }
+            intlNormalized.startsWith("+43") -> {
+                val subscriber = intlNormalized.removePrefix("+43").trimStart('0')
+                "AT:$subscriber"
+            }
+            intlNormalized.startsWith("+41") -> {
+                val subscriber = intlNormalized.removePrefix("+41").trimStart('0')
+                "CH:$subscriber"
+            }
+            intlNormalized.startsWith("+") -> intlNormalized
+            intlNormalized.startsWith("0") -> {
+                val subscriber = intlNormalized.trimStart('0')
+                if (subscriber.isNotBlank()) "DE:$subscriber" else "RAW:$digitsOnly"
+            }
+            else -> "RAW:$digitsOnly"
+        }
+    }
+
+    fun isPhoneLike(raw: String): Boolean {
+        val t = raw.trim()
+        if (t.isBlank() || t.contains('@')) return false
+        if (t.any { it.isLetter() }) return false
+        if (Regex("^\\d{1,2}\\.\\d{1,2}\\.(\\d{2,4})?$").matches(t)) return false
+        if (Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(t)) return false
+        val digitCount = t.count { it.isDigit() }
+        return digitCount >= 4
+    }
+
+    fun canonicalEmailKey(raw: String): String {
+        val cleaned = raw.trim()
+            .removePrefix("mailto:")
+            .trim()
+            .removeSurrounding("<", ">")
+            .replace(Regex("\\s+"), "")
+            .lowercase()
+        return if (cleaned.contains('@') && cleaned.substringAfter('@').contains('.')) cleaned else ""
+    }
+
+    fun isEmailLike(raw: String): Boolean =
+        canonicalEmailKey(raw).isNotBlank()
+
+    fun isAddressLabel(label: String): Boolean {
+        val l = label.trim().lowercase()
+        return l.contains("adresse") ||
+            l.contains("anschrift") ||
+            l.contains("wohnort") ||
+            l.contains("straße") ||
+            l.contains("strasse") ||
+            l.contains("post")
+    }
+
+    fun canonicalTextKey(raw: String): String {
+        val pre = raw.trim().lowercase()
+            .replace("straße", "str ")
+            .replace("strasse", "str ")
+            .replace("str.", "str ")
+            .replace("ä", "ae")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
+            .replace("ß", "ss")
+            .replace("ł", "l")
+            .replace("đ", "d")
+            .replace("ø", "o")
+        val noMarks = Normalizer.normalize(pre, Normalizer.Form.NFD)
+            .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+        return noMarks
+            .replace(Regex("[\\s,.;:/\\-–_•|]+"), " ")
+            .trim()
+    }
+
+    fun deduplicateNotes(
+        rawNotes: List<String>,
+        seenPhoneKeys: Set<String> = emptySet(),
+        seenEmailKeys: Set<String> = emptySet(),
+        seenAddressKeys: Set<String> = emptySet()
+    ): String {
+        val seenNoteKeys = mutableSetOf<String>()
+        seenNoteKeys.addAll(seenAddressKeys)
+        val resultLines = mutableListOf<String>()
+        rawNotes.forEach { block ->
+            block.lines().forEach { rawLine ->
+                val line = cleanWhitespace(rawLine)
+                if (line.isBlank()) return@forEach
+                if (isEmailLike(line) && seenEmailKeys.contains(canonicalEmailKey(line))) return@forEach
+                if (isPhoneLike(line) && seenPhoneKeys.contains(canonicalPhoneKey(line))) return@forEach
+                val tk = canonicalTextKey(line)
+                if (tk.isNotBlank() && seenNoteKeys.add(tk)) {
+                    resultLines.add(line)
+                }
+            }
+        }
+        return resultLines.joinToString("\n")
     }
 }
