@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.30 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.31 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1519,7 +1519,7 @@
           phone: "+4930123456",
           email: "",
           appPeerId: "",
-          notes: "Hausarzt (ohne Datum)",
+          notes: "Hausarzt",
           photoBase64: makeIllustratedPortraitDataUrl("Praxis Dr. Klein"),
           timerEnabled: false,
           timerInterval: 30,
@@ -1891,7 +1891,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.30</div>
+            <div class="app-title">Remember Me v1.0.31</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2305,10 +2305,10 @@
         <div style="margin-top:4px; background:var(--card-slate); border:1.5px solid var(--accent-steel); border-radius:9px; box-shadow:0 12px 28px rgba(0,0,0,0.35); overflow:hidden; z-index:40;">
           <div style="background:var(--bg-slate); padding:7px 9px; border-bottom:1px solid var(--border-slate); display:flex; flex-direction:column; gap:5px;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-              <span style="font-size:11.5px; font-weight:700; color:var(--accent-steel); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              <span style="font-size:11.5px; font-weight:700; color:var(--accent-steel); word-break:break-word;">
                 ✓ ${escapeHtml(selectedPerson ? formatLastNameFirst(selectedPerson.name) : `${filtered.length} Kontakte (Nachname)`)}
               </span>
-              <button type="button" class="compact-btn primary" style="padding:3px 8px; font-size:11px;" onclick="${confirmClickJs}">${escapeHtml(confirmLabel)}</button>
+              <button type="button" class="compact-btn primary" style="padding:3px 8px; font-size:11px; flex-shrink:0;" onclick="${confirmClickJs}">${escapeHtml(confirmLabel)}</button>
             </div>
             <div style="display:flex; gap:5px; align-items:center;">
               <input class="field-input" style="flex:1; font-size:11.5px; padding:4px 7px;" placeholder="🔎 Nachname / Vorname tippen..." value="${escapeHtml(q)}" oninput="setContactDropdownQuery('${key}', this.value, ${inModal}, ${syncWithTab})" />
@@ -2339,7 +2339,7 @@
               return `
                 <div style="padding:6px 10px; font-size:12.5px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:6px; border-bottom:1px solid var(--border-slate); background:${isSel ? 'rgba(59,130,196,0.12)' : 'transparent'}; color:${isSel ? 'var(--accent-steel)' : 'var(--text-primary)'}; font-weight:${isSel ? '700' : '500'};"
                      onclick="${clickJs}">
-                  <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  <span style="word-break:break-word;">
                     ${checkedSet ? (isSel ? "☑️ " : "⬜ ") : "👤 "}${escapeHtml(formatLastNameFirst(p.name))}
                   </span>
                   ${p.birthdayIso ? `<span style="font-size:10.5px; color:var(--text-muted); flex-shrink:0;">${escapeHtml(formatIsoToDdMmYyyy(p.birthdayIso))}</span>` : ""}
@@ -2354,7 +2354,7 @@
         <div style="display:flex; flex-direction:column; gap:5px; width:100%;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:7px; padding:7px 10px; cursor:pointer;"
                onclick="toggleContactDropdown('${key}', ${inModal})">
-            <span style="font-size:12.5px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+            <span style="font-size:12.5px; font-weight:600; color:var(--text-primary); word-break:break-word;">
               ${escapeHtml(triggerText)}
             </span>
             <span style="font-size:11px; color:var(--accent-steel); font-weight:700; flex-shrink:0;">${st.open ? "▲" : "▼"}</span>
@@ -2483,7 +2483,7 @@
 
       const listHtml = sorted.map(person => {
         const bdayLine = formatCompactBirthdayLine(person.birthdayIso);
-        const subText = bdayLine || (person.phone ? `Ohne Datum • ${person.phone}` : "Ohne Datumsangabe");
+        const subText = bdayLine || (person.phone ? person.phone : "");
         const pillHtml = renderBirthdayCountdownPill(person.birthdayIso, false);
         return `
           <div class="card" style="padding: 10px 12px; opacity:${person.isHidden ? '0.68' : '1'};">
@@ -2492,13 +2492,12 @@
                 ${renderPersonAvatarHtml(person.name)}
               </div>
               <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
-                <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0;">
-                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(formatLastNameFirst(person.name))}</span>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;">
+                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); word-break:break-word;">${escapeHtml(formatLastNameFirst(person.name))}</span>
                   ${pillHtml}
                   ${person.isHidden ? `<span class="badge-nophone">Ausgeblendet</span>` : ""}
-                  ${!person.birthdayIso ? `<span class="badge-app">Ohne Datum</span>` : ""}
                 </div>
-                <div class="person-sub" style="margin-top:2px; color:var(--text-secondary);">${escapeHtml(subText)}</div>
+                ${subText ? `<div class="person-sub" style="margin-top:2px; color:var(--text-secondary);">${escapeHtml(subText)}</div>` : ""}
               </div>
               <div class="btn-row">
                 <button class="compact-btn ${person.isHidden ? 'primary' : ''}" onclick="togglePersonHidden(${person.id})">
@@ -2563,7 +2562,6 @@
         const bdayLine = showPastDates
           ? formatPassedBirthdayLine(person.birthdayIso)
           : formatCompactBirthdayLine(person.birthdayIso);
-        const fallbackLine = !bdayLine ? "Ohne Datumsangabe" : "";
         const pillHtml = renderBirthdayCountdownPill(person.birthdayIso, showPastDates);
 
         return `
@@ -2573,11 +2571,11 @@
                 ${renderPersonAvatarHtml(person.name)}
               </div>
               <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
-                <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0;">
-                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(formatLastNameFirst(person.name))}</span>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;">
+                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); word-break:break-word;">${escapeHtml(formatLastNameFirst(person.name))}</span>
                   ${pillHtml}
                 </div>
-                ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : `<div class="person-sub" style="margin-top:2px; color:var(--text-muted);">${escapeHtml(fallbackLine)}</div>`}
+                ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : ""}
                 ${personEvents.length > 0 ? `
                   <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:5px;">
                     ${personEvents.map(e => {
@@ -2585,7 +2583,7 @@
                       const isWeekly = isWeeklyDateSpec(e.dateIso) || isRepeatDateSpec(e.dateIso);
                       const badgeBg = isDueToday ? "var(--warn-bg)" : (isWeekly ? "rgba(46, 125, 91, 0.14)" : "var(--btn-bg)");
                       const badgeColor = isDueToday ? "var(--warn-amber)" : (isWeekly ? "var(--tree-green)" : "var(--accent-steel)");
-                      return `<span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; background:${badgeBg}; color:${badgeColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; display:inline-block;">${escapeHtml(formatEventBadgeText(e, today))}</span>`;
+                      return `<span style="font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; background:${badgeBg}; color:${badgeColor}; word-break:break-word; max-width:100%; display:inline-block;">${escapeHtml(formatEventBadgeText(e, today))}</span>`;
                     }).join("")}
                   </div>
                 ` : ""}
@@ -4076,7 +4074,7 @@
           <div class="modal-backdrop" onclick="closeModals(event)">
             <div class="modal" onclick="event.stopPropagation()">
               <div class="modal-header-sticky">
-                <div class="modal-title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Details: ${escapeHtml(dp.name)}</div>
+                <div class="modal-title" style="flex:1; min-width:0; word-break:break-word;">Details: ${escapeHtml(dp.name)}</div>
                 <div class="btn-row">
                   ${treeActive ? `<button class="compact-btn" style="flex-shrink:0;" onclick="selectedTreeRootId=${dp.id}; detailPersonId=null; setTab('Stammbaum'); renderModals();" title="Im Stammbaum öffnen">🌳</button>` : ""}
                   <button class="compact-btn" onclick="detailPersonId=null; renderModals();">✕</button>
@@ -4446,15 +4444,15 @@
                     <span>💑 Ehe-/Lebenspartner (Paar-Sperre)</span>
                     <span>🔒 Ziehen sich nicht gegenseitig!</span>
                   </div>
-                  <label class="checkbox-row" style="padding:3px 4px; background:var(--bg-slate); border-radius:5px; color:var(--text-primary); font-weight:600;">
+                  <label class="checkbox-row" style="padding:3px 4px; background:var(--bg-slate); border-radius:5px; color:var(--text-primary); font-weight:600; flex-wrap:wrap;">
                     <input type="checkbox" ${c1 ? 'checked' : ''} onchange="toggleWichtelChecklistPerson(${p1.id}, this.checked)" />
-                    <span style="flex:1;">${escapeHtml(formatLastNameFirst(p1.name))}</span>
-                    <span style="font-size:10px; color:var(--partner-rose);">💑 Paar mit ${escapeHtml(extractFirstName(p2.name))}</span>
+                    <span style="flex:1; word-break:break-word;">${escapeHtml(formatLastNameFirst(p1.name))}</span>
+                    <span style="font-size:10px; color:var(--partner-rose);">💑 Paar mit ${escapeHtml(formatLastNameFirst(p2.name))}</span>
                   </label>
-                  <label class="checkbox-row" style="padding:3px 4px; background:var(--bg-slate); border-radius:5px; color:var(--text-primary); font-weight:600;">
+                  <label class="checkbox-row" style="padding:3px 4px; background:var(--bg-slate); border-radius:5px; color:var(--text-primary); font-weight:600; flex-wrap:wrap;">
                     <input type="checkbox" ${c2 ? 'checked' : ''} onchange="toggleWichtelChecklistPerson(${p2.id}, this.checked)" />
-                    <span style="flex:1;">${escapeHtml(formatLastNameFirst(p2.name))}</span>
-                    <span style="font-size:10px; color:var(--partner-rose);">💑 Paar mit ${escapeHtml(extractFirstName(p1.name))}</span>
+                    <span style="flex:1; word-break:break-word;">${escapeHtml(formatLastNameFirst(p2.name))}</span>
+                    <span style="font-size:10px; color:var(--partner-rose);">💑 Paar mit ${escapeHtml(formatLastNameFirst(p1.name))}</span>
                   </label>
                 </div>
               `;
@@ -4515,7 +4513,7 @@
           <div class="modal-backdrop" onclick="closeModals(event)">
             <div class="modal" onclick="event.stopPropagation()">
               <div class="modal-header-sticky">
-                <div class="modal-title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🎁 Wunschliste: ${escapeHtml(wp.name)}</div>
+                <div class="modal-title" style="flex:1; min-width:0; word-break:break-word;">🎁 Wunschliste: ${escapeHtml(wp.name)}</div>
                 <div class="btn-row">
                   <button class="compact-btn" onclick="wichtelParticipantModalState=null; renderModals();">✕</button>
                   <button class="compact-btn primary" onclick="saveWichtelParticipantModal()">✓ Speichern</button>
@@ -6025,7 +6023,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.30",
+        version: "1.0.31",
         createdAt: dateStr,
         state
       };
@@ -6043,7 +6041,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.30",
+        version: "1.0.31",
         createdAt: dateStr,
         state
       };
@@ -6118,7 +6116,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.30 gestartet.");
+    addLog("Remember Me v1.0.31 gestartet.");
     renderAll();
   </script>
 </body>
