@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.37 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.38 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1892,7 +1892,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.37</div>
+            <div class="app-title">Remember Me v1.0.38</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2134,6 +2134,48 @@
       const first = parts.slice(0, -1).join(" ");
       const extraTagSuffix = trailingTags.length > 0 ? ` (${trailingTags.join(" ")})` : "";
       return `${last}, ${first}${extraTagSuffix}${roleSuffix}`;
+    }
+
+    function splitFullNameIntoFirstAndLast(fullName) {
+      const raw = String(fullName || "").trim();
+      if (!raw) return { firstName: "", lastName: "" };
+      if (raw.includes(",")) {
+        const idx = raw.indexOf(",");
+        return {
+          firstName: raw.slice(idx + 1).trim(),
+          lastName: raw.slice(0, idx).trim()
+        };
+      }
+      const roleMatch = raw.match(/\([^)]*\)$/);
+      const roleSuffix = roleMatch ? roleMatch[0].trim() : "";
+      const clean = stripNameRoleSuffix(raw);
+      if (isLikelyOrganizationName(clean)) {
+        return { firstName: "", lastName: raw };
+      }
+      const parts = clean.split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return { firstName: "", lastName: "" };
+      if (parts.length === 1) {
+        return { firstName: roleSuffix ? `${parts[0]} ${roleSuffix}` : parts[0], lastName: "" };
+      }
+      const trailingTags = [];
+      while (parts.length > 2 && TRAILING_CONTACT_TAGS.has(parts[parts.length - 1].toLowerCase())) {
+        trailingTags.unshift(parts.pop());
+      }
+      const last = parts[parts.length - 1];
+      const firstBase = parts.slice(0, -1).join(" ");
+      let extra = "";
+      if (trailingTags.length > 0) extra += ` (${trailingTags.join(" ")})`;
+      if (roleSuffix) extra += ` ${roleSuffix}`;
+      return { firstName: `${firstBase}${extra}`.trim(), lastName: last };
+    }
+
+    function combineFirstAndLastName(firstName, lastName) {
+      const f = String(firstName || "").replace(/,/g, " ").trim().replace(/\s+/g, " ");
+      const l = String(lastName || "").replace(/,/g, " ").trim().replace(/\s+/g, " ");
+      if (l && f) return `${l}, ${f}`;
+      if (f) return f;
+      if (l) return l;
+      return "";
     }
 
     function normalizeLetterInitial(ch) {
@@ -2775,10 +2817,13 @@
       const initIds = Array.isArray(preselectedIds) ? [...preselectedIds] : [];
       const primId = initIds[0] || -1;
       const primObj = state.persons.find(p => p.id === primId);
+      const splitPrim = splitFullNameIntoFirstAndLast(primObj ? primObj.name : "");
       mergeContactsModalState = {
         tab: (initIds.length === 0 && groups.length > 0) ? "suggestions" : "manual",
         selectedIds: initIds,
         primaryId: primId,
+        customFirstName: splitPrim.firstName,
+        customLastName: splitPrim.lastName,
         customName: primObj ? primObj.name : "",
         mergeInDeviceContacts: true,
         notice: ""
@@ -2798,7 +2843,10 @@
         const firstId = mergeContactsModalState.selectedIds[0] || -1;
         mergeContactsModalState.primaryId = firstId;
         const p = state.persons.find(x => x.id === firstId);
-        mergeContactsModalState.customName = p ? p.name : "";
+        const sp = splitFullNameIntoFirstAndLast(p ? p.name : "");
+        mergeContactsModalState.customFirstName = sp.firstName;
+        mergeContactsModalState.customLastName = sp.lastName;
+        mergeContactsModalState.customName = combineFirstAndLastName(sp.firstName, sp.lastName);
       }
       renderModals();
     }
@@ -2807,7 +2855,12 @@
       if (!mergeContactsModalState) return;
       mergeContactsModalState.primaryId = personId;
       const p = state.persons.find(x => x.id === personId);
-      if (p) mergeContactsModalState.customName = p.name;
+      if (p) {
+        const sp = splitFullNameIntoFirstAndLast(p.name);
+        mergeContactsModalState.customFirstName = sp.firstName;
+        mergeContactsModalState.customLastName = sp.lastName;
+        mergeContactsModalState.customName = combineFirstAndLastName(sp.firstName, sp.lastName);
+      }
       renderModals();
     }
 
@@ -2815,9 +2868,12 @@
       if (!mergeContactsModalState) return;
       const grp = findDuplicateSuggestionGroups(state.persons).find(g => g.key === groupKey);
       if (!grp) return;
+      const sp = splitFullNameIntoFirstAndLast(grp.members[0].name);
       mergeContactsModalState.selectedIds = grp.members.map(m => m.id);
       mergeContactsModalState.primaryId = grp.members[0].id;
-      mergeContactsModalState.customName = grp.members[0].name;
+      mergeContactsModalState.customFirstName = sp.firstName;
+      mergeContactsModalState.customLastName = sp.lastName;
+      mergeContactsModalState.customName = combineFirstAndLastName(sp.firstName, sp.lastName);
       mergeContactsModalState.tab = "manual";
       renderModals();
     }
@@ -3840,7 +3896,8 @@
         isEditing: !!personId && !!target,
         personId: target ? target.id : -1,
         createNewContact: !personId && visible.length === 0,
-        newName: "",
+        newFirstName: "",
+        newLastName: "",
         newPhone: "",
         interval: String((target && target.timerInterval > 0) ? target.timerInterval : 14),
         unit: (target && target.timerUnit) ? target.timerUnit : "DAYS",
@@ -3870,7 +3927,7 @@
       const cleanStartIso = normalizeDateInputToIso(t.startDate) || todayIso();
 
       if (t.createNewContact) {
-        const cleanName = (t.newName || "").trim();
+        const cleanName = combineFirstAndLastName(t.newFirstName || "", t.newLastName || "");
         if (!cleanName) return;
         const newId = state.nextId++;
         state.persons.push({
@@ -4721,9 +4778,15 @@
                     ✨ ${preview.removedDuplicatesCount} doppelte Einträge (Nummern/Mails/Adressen/Notizen) erkannt & auf je 1 Eintrag bereinigt!
                   </div>
                 ` : ""}
-                <div class="field-group">
-                  <label class="field-label">Ziel-Name des zusammengeführten Kontakts</label>
-                  <input class="field-input" value="${escapeHtml(ms.customName)}" oninput="mergeContactsModalState.customName=this.value" />
+                <div style="display:flex; gap:6px;">
+                  <div class="field-group" style="flex:1;">
+                    <label class="field-label">Vorname</label>
+                    <input class="field-input" value="${escapeHtml(ms.customFirstName || '')}" oninput="mergeContactsModalState.customFirstName=this.value; mergeContactsModalState.customName=combineFirstAndLastName(mergeContactsModalState.customFirstName, mergeContactsModalState.customLastName);" />
+                  </div>
+                  <div class="field-group" style="flex:1;">
+                    <label class="field-label">Nachname</label>
+                    <input class="field-input" value="${escapeHtml(ms.customLastName || '')}" oninput="mergeContactsModalState.customLastName=this.value; mergeContactsModalState.customName=combineFirstAndLastName(mergeContactsModalState.customFirstName, mergeContactsModalState.customLastName);" />
+                  </div>
                 </div>
                 <div style="background:var(--bg-slate); border:1px solid var(--accent-steel); border-radius:9px; padding:9px 10px; display:flex; flex-direction:column; gap:4px;">
                   <div style="display:flex; align-items:center; gap:9px;">
@@ -5025,9 +5088,15 @@
               ` : ""}
 
               ${(t.createNewContact || visibleCandidates.length === 0) ? `
-                <div class="field-group">
-                  <label class="field-label">Name des neuen Kontakts</label>
-                  <input class="field-input" placeholder="Nachname, Vorname oder Vorname Nachname" value="${escapeHtml(t.newName || '')}" oninput="timerEntryModalState.newName=this.value" />
+                <div style="display:flex; gap:6px;">
+                  <div class="field-group" style="flex:1;">
+                    <label class="field-label">Vorname</label>
+                    <input class="field-input" placeholder="Vorname" value="${escapeHtml(t.newFirstName || '')}" oninput="timerEntryModalState.newFirstName=this.value" />
+                  </div>
+                  <div class="field-group" style="flex:1;">
+                    <label class="field-label">Nachname</label>
+                    <input class="field-input" placeholder="Nachname" value="${escapeHtml(t.newLastName || '')}" oninput="timerEntryModalState.newLastName=this.value" />
+                  </div>
                 </div>
                 <div class="field-group">
                   <label class="field-label">Telefon (optional)</label>
@@ -5117,7 +5186,7 @@
                 </div>
               </div>
               <div style="display:flex; align-items:center; gap:10px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:10px; padding:8px 10px;">
-                ${renderPersonAvatarHtml(createDraft.name || "?", createDraft.photoBase64 || "", 46)}
+                ${renderPersonAvatarHtml(combineFirstAndLastName(createDraft.firstName, createDraft.lastName) || "?", createDraft.photoBase64 || "", 46)}
                 <div style="flex:1; min-width:0;">
                   <div style="font-size:12px; font-weight:700; color:var(--text-primary);">Kontaktfoto</div>
                   <div style="font-size:10.5px; color:var(--text-muted);">Wird auch bei Kontakt-Sync übernommen</div>
@@ -5127,9 +5196,15 @@
                   ${createDraft.photoBase64 ? `<button class="compact-btn danger" style="padding:4px 7px;" onclick="removeContactPhoto('create')" title="Foto entfernen">✕</button>` : ""}
                 </div>
               </div>
-              <div class="field-group">
-                <label class="field-label">Name</label>
-                <input id="c-name" class="field-input" placeholder="Name" value="${escapeHtml(createDraft.name)}" oninput="createDraft.name=this.value" />
+              <div style="display:flex; gap:6px;">
+                <div class="field-group" style="flex:1;">
+                  <label class="field-label">Vorname</label>
+                  <input id="c-firstname" class="field-input" placeholder="Vorname" value="${escapeHtml(createDraft.firstName || '')}" oninput="createDraft.firstName=this.value" />
+                </div>
+                <div class="field-group" style="flex:1;">
+                  <label class="field-label">Nachname</label>
+                  <input id="c-lastname" class="field-input" placeholder="Nachname" value="${escapeHtml(createDraft.lastName || '')}" oninput="createDraft.lastName=this.value" />
+                </div>
               </div>
               <div class="field-group">
                 <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
@@ -5251,14 +5326,18 @@
                 </div>
               ` : ""}
               <div style="display:flex; gap:6px;">
-                <div class="field-group" style="flex:1.2;">
-                  <label class="field-label">Name</label>
-                  <input id="d-name" class="field-input" value="${escapeHtml(dp.name)}" />
+                <div class="field-group" style="flex:1;">
+                  <label class="field-label">Vorname</label>
+                  <input id="d-firstname" class="field-input" placeholder="Vorname" value="${escapeHtml(splitFullNameIntoFirstAndLast(dp.name).firstName)}" />
                 </div>
                 <div class="field-group" style="flex:1;">
-                  <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
-                  <input id="d-bday" class="field-input" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(formatIsoToDdMmYyyy(dp.birthdayIso || ''))}" onclick="openCalendarPicker('d-bday')" onfocus="openCalendarPicker('d-bday')" />
+                  <label class="field-label">Nachname</label>
+                  <input id="d-lastname" class="field-input" placeholder="Nachname" value="${escapeHtml(splitFullNameIntoFirstAndLast(dp.name).lastName)}" />
                 </div>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
+                <input id="d-bday" class="field-input" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(formatIsoToDdMmYyyy(dp.birthdayIso || ''))}" onclick="openCalendarPicker('d-bday')" onfocus="openCalendarPicker('d-bday')" />
               </div>
               <div style="display:flex; gap:6px;">
                 <div class="field-group" style="flex:1;">
@@ -5650,10 +5729,11 @@
                 </div>
                 <div style="border-top:1px solid var(--border-slate); padding-top:8px; margin-top:2px;">
                   <div class="field-label" style="margin-bottom:4px;">Oder weitere Person frei hinzufügen (optional):</div>
-                  <div style="display:flex; gap:5px;">
-                    <input id="wp-custom-name" class="field-input" style="flex:1.1;" placeholder="Name" value="${escapeHtml(wp.customName || '')}" oninput="wichtelParticipantModalState.customName=this.value" />
-                    <input id="wp-custom-phone" class="field-input" style="flex:0.9;" placeholder="Telefon (WhatsApp)" value="${escapeHtml(wp.customPhone || '')}" oninput="wichtelParticipantModalState.customPhone=this.value" />
+                  <div style="display:flex; gap:5px; margin-bottom:5px;">
+                    <input id="wp-custom-firstname" class="field-input" style="flex:1;" placeholder="Vorname" value="${escapeHtml(wp.customFirstName || '')}" oninput="wichtelParticipantModalState.customFirstName=this.value" />
+                    <input id="wp-custom-lastname" class="field-input" style="flex:1;" placeholder="Nachname" value="${escapeHtml(wp.customLastName || '')}" oninput="wichtelParticipantModalState.customLastName=this.value" />
                   </div>
+                  <input id="wp-custom-phone" class="field-input" placeholder="Telefon (WhatsApp)" value="${escapeHtml(wp.customPhone || '')}" oninput="wichtelParticipantModalState.customPhone=this.value" />
                 </div>
                 <div class="modal-footer">
                   <button class="compact-btn" onclick="wichtelParticipantModalState=null; renderModals();">Abbrechen</button>
@@ -5678,14 +5758,18 @@
                 </div>
               </div>
               <div style="display:flex; gap:6px;">
-                <div class="field-group" style="flex:1.1;">
-                  <label class="field-label">Name</label>
-                  <input id="wp-name" class="field-input" value="${escapeHtml(wp.name)}" oninput="wichtelParticipantModalState.name=this.value" />
+                <div class="field-group" style="flex:1;">
+                  <label class="field-label">Vorname</label>
+                  <input id="wp-firstname" class="field-input" value="${escapeHtml(wp.firstName ?? splitFullNameIntoFirstAndLast(wp.name).firstName)}" oninput="wichtelParticipantModalState.firstName=this.value" />
                 </div>
-                <div class="field-group" style="flex:0.9;">
-                  <label class="field-label">Telefon (WhatsApp)</label>
-                  <input id="wp-phone" class="field-input" value="${escapeHtml(wp.phone)}" oninput="wichtelParticipantModalState.phone=this.value" />
+                <div class="field-group" style="flex:1;">
+                  <label class="field-label">Nachname</label>
+                  <input id="wp-lastname" class="field-input" value="${escapeHtml(wp.lastName ?? splitFullNameIntoFirstAndLast(wp.name).lastName)}" oninput="wichtelParticipantModalState.lastName=this.value" />
                 </div>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Telefon (WhatsApp)</label>
+                <input id="wp-phone" class="field-input" value="${escapeHtml(wp.phone)}" oninput="wichtelParticipantModalState.phone=this.value" />
               </div>
               <div class="field-group">
                 <label class="field-label">🎁 Wunschzettel / Geschenk-Ideen</label>
@@ -6289,11 +6373,14 @@
       if (mode === "edit" && participantId) {
         const p = g.participants.find(x => x.id === participantId);
         if (!p) return;
+        const sp = splitFullNameIntoFirstAndLast(p.name || "");
         wichtelParticipantModalState = {
           mode: "edit",
           groupId: g.id,
           participantId: p.id,
           personId: p.personId || -1,
+          firstName: sp.firstName,
+          lastName: sp.lastName,
           name: p.name || "",
           phone: p.phone || "",
           wishText: p.wishText || "",
@@ -6309,6 +6396,8 @@
           groupId: g.id,
           participantId: null,
           checkedPersonIds: [...existingPersonIds],
+          customFirstName: "",
+          customLastName: "",
           customName: "",
           customPhone: ""
         };
@@ -6352,14 +6441,17 @@
       if (!g) return;
 
       if (wichtelParticipantModalState.mode === "edit" && wichtelParticipantModalState.participantId) {
-        const nameEl = document.getElementById("wp-name");
+        const fnEl = document.getElementById("wp-firstname");
+        const lnEl = document.getElementById("wp-lastname");
         const phoneEl = document.getElementById("wp-phone");
         const wishEl = document.getElementById("wp-wish");
         const noGosEl = document.getElementById("wp-nogos");
         const addrEl = document.getElementById("wp-address");
         const urlEl = document.getElementById("wp-url");
 
-        const name = (nameEl ? nameEl.value : wichtelParticipantModalState.name).trim();
+        const fn = fnEl ? fnEl.value : (wichtelParticipantModalState.firstName || "");
+        const ln = lnEl ? lnEl.value : (wichtelParticipantModalState.lastName || "");
+        const name = combineFirstAndLastName(fn, ln);
         if (!name) return;
         const part = g.participants.find(x => x.id === wichtelParticipantModalState.participantId);
         if (part) {
@@ -6405,9 +6497,13 @@
           }
         }
 
-        const customNameEl = document.getElementById("wp-custom-name");
+        const customFnEl = document.getElementById("wp-custom-firstname");
+        const customLnEl = document.getElementById("wp-custom-lastname");
         const customPhoneEl = document.getElementById("wp-custom-phone");
-        const cName = (customNameEl ? customNameEl.value : (wichtelParticipantModalState.customName || "")).trim();
+        const cName = combineFirstAndLastName(
+          customFnEl ? customFnEl.value : (wichtelParticipantModalState.customFirstName || ""),
+          customLnEl ? customLnEl.value : (wichtelParticipantModalState.customLastName || "")
+        );
         const cPhone = (customPhoneEl ? customPhoneEl.value : (wichtelParticipantModalState.customPhone || "")).trim();
         if (cName) {
           updatedParticipants.push({
@@ -6938,6 +7034,8 @@
       createRelationsExpanded = false;
       createExtraInfos = [];
       createDraft = {
+        firstName: "",
+        lastName: "",
         name: "",
         bday: formatIsoToDdMmYyyy(todayIso()),
         noPhone: false,
@@ -6984,12 +7082,16 @@
       if (detailPersonId === null) return;
       const dp = state.persons.find(p => p.id === detailPersonId);
       if (!dp) return;
-      const nEl = document.getElementById("d-name");
+      const fnEl = document.getElementById("d-firstname");
+      const lnEl = document.getElementById("d-lastname");
       const bEl = document.getElementById("d-bday");
       const pEl = document.getElementById("d-phone");
       const eEl = document.getElementById("d-email");
       const noEl = document.getElementById("d-notes");
-      if (nEl) dp.name = nEl.value;
+      if (fnEl || lnEl) {
+        const combined = combineFirstAndLastName(fnEl ? fnEl.value : "", lnEl ? lnEl.value : "");
+        if (combined) dp.name = combined;
+      }
       if (bEl) dp.birthdayIso = normalizeDateInputToIso(bEl.value);
       if (pEl) dp.phone = pEl.value;
       if (eEl) dp.email = eEl.value;
@@ -7102,7 +7204,9 @@
     }
 
     function saveNewPerson() {
-      const name = document.getElementById("c-name").value.trim();
+      const fnEl = document.getElementById("c-firstname");
+      const lnEl = document.getElementById("c-lastname");
+      const name = combineFirstAndLastName(fnEl ? fnEl.value : "", lnEl ? lnEl.value : "");
       if (!name) return;
       const bday = normalizeDateInputToIso(document.getElementById("c-bday").value.trim());
       const noPhone = document.getElementById("c-nophone").checked;
@@ -7164,7 +7268,10 @@
     function saveDetailPerson(id) {
       const dp = state.persons.find(p => p.id === id);
       if (!dp) return;
-      dp.name = document.getElementById("d-name").value.trim() || dp.name;
+      const fnEl = document.getElementById("d-firstname");
+      const lnEl = document.getElementById("d-lastname");
+      const combinedName = combineFirstAndLastName(fnEl ? fnEl.value : "", lnEl ? lnEl.value : "");
+      dp.name = combinedName || dp.name;
       dp.birthdayIso = normalizeDateInputToIso(document.getElementById("d-bday").value.trim());
       dp.phone = document.getElementById("d-phone").value.trim();
       dp.email = document.getElementById("d-email").value.trim();
@@ -7354,7 +7461,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.37",
+        version: "1.0.38",
         createdAt: dateStr,
         state
       };
@@ -7372,7 +7479,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.37",
+        version: "1.0.38",
         createdAt: dateStr,
         state
       };
@@ -7447,7 +7554,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.37 gestartet.");
+    addLog("Remember Me v1.0.38 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

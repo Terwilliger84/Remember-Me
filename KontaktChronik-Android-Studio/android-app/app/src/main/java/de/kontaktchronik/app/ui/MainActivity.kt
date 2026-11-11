@@ -644,6 +644,82 @@ fun formatLastNameFirst(fullName: String): String {
     return "$last, $first$extraTagSuffix$roleSuffix"
 }
 
+fun splitFullNameIntoFirstAndLast(fullName: String): Pair<String, String> {
+    val trimmed = fullName.trim()
+    if (trimmed.isBlank()) return "" to ""
+    if (trimmed.contains(",")) {
+        val last = trimmed.substringBefore(",").trim()
+        val first = trimmed.substringAfter(",").trim()
+        return first to last
+    }
+    val roleMatch = Regex("(\\s*\\([^)]*\\))$").find(trimmed)
+    val roleSuffix = roleMatch?.value?.trim().orEmpty()
+    val clean = stripNameRoleSuffix(trimmed)
+    if (isLikelyOrganizationName(clean)) {
+        return "" to trimmed
+    }
+    var parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (parts.isEmpty()) return "" to ""
+    if (parts.size == 1) {
+        val single = if (roleSuffix.isNotBlank()) "${parts[0]} $roleSuffix" else parts[0]
+        return single to ""
+    }
+    val trailingTags = mutableListOf<String>()
+    while (parts.size > 2 && TRAILING_CONTACT_TAGS.contains(parts.last().lowercase())) {
+        trailingTags.add(0, parts.last())
+        parts = parts.dropLast(1)
+    }
+    val last = parts.last()
+    val firstBase = parts.dropLast(1).joinToString(" ")
+    val extraSuffix = buildString {
+        if (trailingTags.isNotEmpty()) append(" (${trailingTags.joinToString(" ")})")
+        if (roleSuffix.isNotBlank()) append(" $roleSuffix")
+    }
+    return (firstBase + extraSuffix).trim() to last
+}
+
+fun combineFirstAndLastName(firstName: String, lastName: String): String {
+    val f = firstName.replace(",", " ").trim().replace(Regex("\\s+"), " ")
+    val l = lastName.replace(",", " ").trim().replace(Regex("\\s+"), " ")
+    return when {
+        l.isNotBlank() && f.isNotBlank() -> "$l, $f"
+        f.isNotBlank() -> f
+        l.isNotBlank() -> l
+        else -> ""
+    }
+}
+
+@Composable
+fun FirstAndLastNameFields(
+    firstName: String,
+    onFirstNameChange: (String) -> Unit,
+    lastName: String,
+    onLastNameChange: (String) -> Unit,
+    firstLabel: String = "Vorname",
+    lastLabel: String = "Nachname"
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = firstName,
+            onValueChange = onFirstNameChange,
+            label = { Text(firstLabel) },
+            modifier = Modifier.weight(1f),
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = lastName,
+            onValueChange = onLastNameChange,
+            label = { Text(lastLabel) },
+            modifier = Modifier.weight(1f),
+            singleLine = true
+        )
+    }
+}
+
 fun normalizeLatinLetter(ch: Char): String {
     val upper = ch.uppercaseChar()
     when (upper) {
@@ -2653,7 +2729,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.37", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.38", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -3583,7 +3659,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.37")
+                put("version", "1.0.38")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
@@ -4325,7 +4401,9 @@ fun KontaktChronikApp(
         var createNewContactMode by remember(editingTimerPerson, sortedCandidates.isEmpty()) {
             mutableStateOf(editingTimerPerson == null && sortedCandidates.isEmpty())
         }
-        var newContactName by remember { mutableStateOf("") }
+        var newContactFirstName by remember { mutableStateOf("") }
+        var newContactLastName by remember { mutableStateOf("") }
+        val newContactName = combineFirstAndLastName(newContactFirstName, newContactLastName)
         var newContactPhone by remember { mutableStateOf("") }
         var intervalText by remember(editingTimerPerson) {
             mutableStateOf((initialTarget?.timerInterval?.takeIf { it > 0 } ?: 14).toString())
@@ -4466,12 +4544,11 @@ fun KontaktChronikApp(
                     }
 
                     if (createNewContactMode || sortedCandidates.isEmpty()) {
-                        OutlinedTextField(
-                            value = newContactName,
-                            onValueChange = { newContactName = it },
-                            label = { Text("Name des neuen Kontakts") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                        FirstAndLastNameFields(
+                            firstName = newContactFirstName,
+                            onFirstNameChange = { newContactFirstName = it },
+                            lastName = newContactLastName,
+                            onLastNameChange = { newContactLastName = it }
                         )
                         OutlinedTextField(
                             value = newContactPhone,
@@ -4660,7 +4737,9 @@ fun KontaktChronikApp(
     // Dialog: Neuen Kontakt anlegen (inkl. Beziehungen für den Stammbaum & Kontaktfoto)
     if (showCreateDialog) {
         val prefs = remember { context.getSharedPreferences("remember_me_prefs", android.content.Context.MODE_PRIVATE) }
-        var name by remember { mutableStateOf("") }
+        var firstName by remember { mutableStateOf("") }
+        var lastName by remember { mutableStateOf("") }
+        val name = combineFirstAndLastName(firstName, lastName)
         var bday by remember { mutableStateOf(formatIsoToDdMmYyyy(LocalDate.now().toString())) }
         var noPhone by remember { mutableStateOf(false) }
         var saveInDeviceContacts by remember { mutableStateOf(true) }
@@ -4722,9 +4801,13 @@ fun KontaktChronikApp(
                                 )
                             )
                             runCatching {
+                                val displayNameForIntent = listOf(firstName.trim(), lastName.trim())
+                                    .filter { it.isNotBlank() }
+                                    .joinToString(" ")
+                                    .ifBlank { basePerson.name }
                                 val insertIntent = Intent(Intent.ACTION_INSERT).apply {
                                     type = android.provider.ContactsContract.Contacts.CONTENT_TYPE
-                                    putExtra(android.provider.ContactsContract.Intents.Insert.NAME, basePerson.name)
+                                    putExtra(android.provider.ContactsContract.Intents.Insert.NAME, displayNameForIntent)
                                     putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, basePerson.phone)
                                     putExtra(android.provider.ContactsContract.Intents.Insert.EMAIL, basePerson.email)
                                     putExtra(android.provider.ContactsContract.Intents.Insert.NOTES, basePerson.notes)
@@ -4811,7 +4894,12 @@ fun KontaktChronikApp(
                             }
                         }
                     }
-                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                    FirstAndLastNameFields(
+                        firstName = firstName,
+                        onFirstNameChange = { firstName = it },
+                        lastName = lastName,
+                        onLastNameChange = { lastName = it }
+                    )
                     DateInputWithCalendar(value = bday, onValueChange = { bday = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -5009,7 +5097,10 @@ fun KontaktChronikApp(
     // Dialog: Kontakt-Details (wird geöffnet durch Antippen des Namens in der Übersicht)
     detailPerson?.let { dp ->
         val prefs = remember { context.getSharedPreferences("remember_me_prefs", android.content.Context.MODE_PRIVATE) }
-        var nameVal by remember(dp) { mutableStateOf(dp.name) }
+        val initialSplitName = remember(dp) { splitFullNameIntoFirstAndLast(dp.name) }
+        var firstNameVal by remember(dp) { mutableStateOf(initialSplitName.first) }
+        var lastNameVal by remember(dp) { mutableStateOf(initialSplitName.second) }
+        val nameVal = combineFirstAndLastName(firstNameVal, lastNameVal)
         var bdayVal by remember(dp) { mutableStateOf(formatIsoToDdMmYyyy(dp.birthdayIso)) }
         var phoneVal by remember(dp) { mutableStateOf(dp.phone) }
         var noPhoneVal by remember(dp) { mutableStateOf(dp.hasNoOwnPhone) }
@@ -5206,7 +5297,12 @@ fun KontaktChronikApp(
                             }
                         }
                     }
-                    OutlinedTextField(value = nameVal, onValueChange = { nameVal = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                    FirstAndLastNameFields(
+                        firstName = firstNameVal,
+                        onFirstNameChange = { firstNameVal = it },
+                        lastName = lastNameVal,
+                        onLastNameChange = { lastNameVal = it }
+                    )
                     DateInputWithCalendar(value = bdayVal, onValueChange = { bdayVal = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
                     OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -5825,11 +5921,15 @@ fun KontaktChronikApp(
                 primaryId = -1L
             }
         }
-        var customTargetName by remember { mutableStateOf("") }
+        var customFirstName by remember { mutableStateOf("") }
+        var customLastName by remember { mutableStateOf("") }
+        val customTargetName = combineFirstAndLastName(customFirstName, customLastName)
         LaunchedEffect(primaryId) {
             val prim = persons.find { it.id == primaryId }
             if (prim != null) {
-                customTargetName = prim.name
+                val (fn, ln) = splitFullNameIntoFirstAndLast(prim.name)
+                customFirstName = fn
+                customLastName = ln
             }
         }
         var mergeInDeviceContacts by remember { mutableStateOf(true) }
@@ -6539,11 +6639,11 @@ fun KontaktChronikApp(
                                     }
                                 }
 
-                                OutlinedTextField(
-                                    value = customTargetName,
-                                    onValueChange = { customTargetName = it },
-                                    label = { Text("Ziel-Name des zusammengeführten Kontakts") },
-                                    modifier = Modifier.fillMaxWidth()
+                                FirstAndLastNameFields(
+                                    firstName = customFirstName,
+                                    onFirstNameChange = { customFirstName = it },
+                                    lastName = customLastName,
+                                    onLastNameChange = { customLastName = it }
                                 )
 
                                 Column(
@@ -8469,7 +8569,9 @@ fun WichtelScreen(
         }
         var checklistSearchQuery by remember(cg) { mutableStateOf("") }
         var checklistSelectedLetter by remember(cg) { mutableStateOf("") }
-        var customName by remember(cg) { mutableStateOf("") }
+        var customFirstName by remember(cg) { mutableStateOf("") }
+        var customLastName by remember(cg) { mutableStateOf("") }
+        val customName = combineFirstAndLastName(customFirstName, customLastName)
         var customPhone by remember(cg) { mutableStateOf("") }
 
         val sortedWichtelPersons = remember(persons) { persons.sortedByLastName() }
@@ -8674,7 +8776,12 @@ fun WichtelScreen(
 
                     HorizontalDivider(color = BorderSlate)
                     Text("Oder weitere Person frei hinzufügen (optional):", color = TextSecondary, fontSize = 11.5.sp)
-                    OutlinedTextField(value = customName, onValueChange = { customName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                    FirstAndLastNameFields(
+                        firstName = customFirstName,
+                        onFirstNameChange = { customFirstName = it },
+                        lastName = customLastName,
+                        onLastNameChange = { customLastName = it }
+                    )
                     OutlinedTextField(value = customPhone, onValueChange = { customPhone = it }, label = { Text("Telefon (WhatsApp)") }, modifier = Modifier.fillMaxWidth())
                 }
 
@@ -8695,7 +8802,10 @@ fun WichtelScreen(
     val pGroup = editingParticipantGroup
     val pItem = editingParticipant
     if (pGroup != null && pItem != null) {
-        var pName by remember(pItem) { mutableStateOf(pItem.name) }
+        val initialPSplit = remember(pItem) { splitFullNameIntoFirstAndLast(pItem.name) }
+        var pFirstName by remember(pItem) { mutableStateOf(initialPSplit.first) }
+        var pLastName by remember(pItem) { mutableStateOf(initialPSplit.second) }
+        val pName = combineFirstAndLastName(pFirstName, pLastName)
         var pPhone by remember(pItem) { mutableStateOf(pItem.phone) }
         var pWish by remember(pItem) { mutableStateOf(pItem.wishText) }
         var pNoGos by remember(pItem) { mutableStateOf(pItem.noGos) }
@@ -8765,7 +8875,12 @@ fun WichtelScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(value = pName, onValueChange = { pName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                    FirstAndLastNameFields(
+                        firstName = pFirstName,
+                        onFirstNameChange = { pFirstName = it },
+                        lastName = pLastName,
+                        onLastNameChange = { pLastName = it }
+                    )
                     OutlinedTextField(value = pPhone, onValueChange = { pPhone = it }, label = { Text("Telefon (für WhatsApp-Los)") }, modifier = Modifier.fillMaxWidth())
                     Row(
                         modifier = Modifier.fillMaxWidth(),
