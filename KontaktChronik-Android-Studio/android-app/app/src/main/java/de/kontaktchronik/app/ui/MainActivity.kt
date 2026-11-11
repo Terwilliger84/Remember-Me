@@ -576,13 +576,428 @@ fun stripNameRoleSuffix(fullName: String): String =
 
 fun extractFirstName(fullName: String): String {
     val clean = stripNameRoleSuffix(fullName)
+    if (clean.contains(",")) {
+        val after = clean.substringAfter(",").trim()
+        if (after.isNotBlank()) {
+            return after.split(Regex("\\s+")).firstOrNull()?.ifBlank { after } ?: after
+        }
+    }
     return clean.split(Regex("\\s+")).firstOrNull()?.ifBlank { clean } ?: clean
 }
 
 fun extractLastName(fullName: String): String {
     val clean = stripNameRoleSuffix(fullName)
+    if (clean.contains(",")) {
+        val before = clean.substringBefore(",").trim()
+        if (before.isNotBlank()) return before
+    }
     val parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
     return if (parts.size > 1) parts.last() else (parts.firstOrNull() ?: clean)
+}
+
+fun formatLastNameFirst(fullName: String): String {
+    val trimmed = fullName.trim()
+    if (trimmed.isBlank() || trimmed.contains(",")) return trimmed
+    val roleMatch = Regex("(\\s*\\([^)]*\\))$").find(trimmed)
+    val roleSuffix = roleMatch?.value.orEmpty()
+    val clean = stripNameRoleSuffix(trimmed)
+    val parts = clean.split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (parts.size <= 1) return trimmed
+    val last = parts.last()
+    val first = parts.dropLast(1).joinToString(" ")
+    return "$last, $first$roleSuffix"
+}
+
+fun normalizeGermanSortKey(raw: String): String =
+    raw.trim().lowercase()
+        .replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+
+val LastNamePersonComparator: Comparator<PersonEntity> =
+    compareBy<PersonEntity> { normalizeGermanSortKey(extractLastName(it.name)) }
+        .thenBy { normalizeGermanSortKey(extractFirstName(it.name)) }
+        .thenBy { it.name.lowercase() }
+
+fun List<PersonEntity>.sortedByLastName(): List<PersonEntity> =
+    this.sortedWith(LastNamePersonComparator)
+
+fun extractLastNameInitial(fullName: String): String {
+    val last = extractLastName(fullName).trim()
+    val ch = last.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: return "#"
+    return when (ch) {
+        'Ä' -> "A"
+        'Ö' -> "O"
+        'Ü' -> "U"
+        in 'A'..'Z' -> ch.toString()
+        else -> "#"
+    }
+}
+
+fun extractTextInitial(text: String): String {
+    val ch = text.trim().firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: return "#"
+    return when (ch) {
+        'Ä' -> "A"
+        'Ö' -> "O"
+        'Ü' -> "U"
+        in 'A'..'Z' -> ch.toString()
+        else -> "#"
+    }
+}
+
+fun matchesPersonSearchAndLetter(person: PersonEntity, query: String, letter: String): Boolean {
+    if (letter.isNotBlank() && letter != "Alle") {
+        if (extractLastNameInitial(person.name) != letter) return false
+    }
+    val q = query.trim().lowercase()
+    if (q.isBlank()) return true
+    val fullLower = person.name.lowercase()
+    val lastFirstLower = formatLastNameFirst(person.name).lowercase()
+    val phoneLower = person.phone.lowercase()
+    return fullLower.contains(q) || lastFirstLower.contains(q) || phoneLower.contains(q)
+}
+
+val ALPHABET_ROW_1 = listOf("Alle", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M")
+val ALPHABET_ROW_2 = listOf("N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z")
+
+@Composable
+fun AlphabetQuickBar(
+    selectedLetter: String,
+    onSelectLetter: (String) -> Unit,
+    availableLetters: Set<String>? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BgSlate, RoundedCornerShape(6.dp))
+            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        listOf(ALPHABET_ROW_1, ALPHABET_ROW_2).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                rowItems.forEach { item ->
+                    val isAll = item == "Alle"
+                    val isActive = (isAll && (selectedLetter.isBlank() || selectedLetter == "Alle")) ||
+                        (!isAll && selectedLetter == item)
+                    val hasEntries = isAll || availableLetters == null || availableLetters.contains(item)
+                    Box(
+                        modifier = Modifier
+                            .weight(if (isAll) 1.55f else 1f)
+                            .background(
+                                if (isActive) AccentSteel else CardSlate,
+                                RoundedCornerShape(4.dp)
+                            )
+                            .border(
+                                1.dp,
+                                if (isActive) AccentSteel else BorderSlate,
+                                RoundedCornerShape(4.dp)
+                            )
+                            .clickable {
+                                if (isAll || selectedLetter == item) {
+                                    onSelectLetter("Alle")
+                                } else {
+                                    onSelectLetter(item)
+                                }
+                            }
+                            .padding(vertical = 3.5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = item,
+                            color = when {
+                                isActive -> BgSlate
+                                hasEntries -> TextPrimary
+                                else -> TextMuted.copy(alpha = 0.4f)
+                            },
+                            fontSize = if (isAll) 8.5.sp else 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            style = CenteredPillTextStyle,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ContactSearchDropdown(
+    persons: List<PersonEntity>,
+    selectedPersonId: Long? = null,
+    onSelectPerson: (PersonEntity) -> Unit,
+    placeholderText: String = "🔎 Kontakt suchen / Dropdown (A–Z)...",
+    confirmButtonLabel: String = "✓ Bestätigen",
+    onConfirmAction: (() -> Unit)? = null,
+    allowNone: Boolean = false,
+    noneLabel: String = "-- Keine Verknüpfung --",
+    onSelectNone: (() -> Unit)? = null,
+    externalSearchQuery: String? = null,
+    onExternalSearchQueryChange: ((String) -> Unit)? = null,
+    externalSelectedLetter: String? = null,
+    onExternalSelectedLetterChange: ((String) -> Unit)? = null,
+    showInlineAlphabet: Boolean = false,
+    checkedPersonIds: Set<Long>? = null,
+    onToggleCheckedPerson: ((PersonEntity) -> Unit)? = null
+) {
+    var internalExpanded by remember { mutableStateOf(false) }
+    var internalQuery by remember { mutableStateOf("") }
+    var internalLetter by remember { mutableStateOf("Alle") }
+
+    val query = externalSearchQuery ?: internalQuery
+    val setQuery: (String) -> Unit = onExternalSearchQueryChange ?: { internalQuery = it }
+    val letter = externalSelectedLetter ?: internalLetter
+    val setLetter: (String) -> Unit = onExternalSelectedLetterChange ?: { internalLetter = it }
+
+    val availableLetters = remember(persons) {
+        persons.map { extractLastNameInitial(it.name) }.toSet()
+    }
+    val sortedFiltered = remember(persons, query, letter) {
+        persons
+            .filter { matchesPersonSearchAndLetter(it, query, letter) }
+            .sortedWith(LastNamePersonComparator)
+    }
+    val selectedPerson = remember(persons, selectedPersonId) {
+        persons.find { it.id == selectedPersonId }
+    }
+    val displayTitle = when {
+        selectedPerson != null -> formatLastNameFirst(selectedPerson.name)
+        allowNone && selectedPersonId == -1L -> noneLabel
+        query.isNotBlank() || (letter.isNotBlank() && letter != "Alle") -> {
+            val filterInfo = buildList {
+                if (letter.isNotBlank() && letter != "Alle") add("[$letter]")
+                if (query.isNotBlank()) add("„$query“")
+            }.joinToString(" ")
+            "🔎 Filter $filterInfo (${sortedFiltered.size} Treffer)"
+        }
+        else -> "$placeholderText (${persons.size})"
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(8.dp))
+                    .border(
+                        1.dp,
+                        if (internalExpanded || query.isNotBlank() || (letter.isNotBlank() && letter != "Alle")) AccentSteel else BorderSlate,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { internalExpanded = true }
+                    .padding(horizontal = 10.dp, vertical = 9.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = displayTitle,
+                    color = if (selectedPerson != null || query.isNotBlank() || (letter.isNotBlank() && letter != "Alle")) TextPrimary else TextSecondary,
+                    fontSize = 12.5.sp,
+                    fontWeight = if (selectedPerson != null) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (query.isNotBlank() || (letter.isNotBlank() && letter != "Alle")) {
+                        Text(
+                            text = "✕",
+                            color = WarnAmber,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clickable {
+                                    setQuery("")
+                                    setLetter("Alle")
+                                }
+                                .padding(horizontal = 4.dp)
+                        )
+                    }
+                    Text(
+                        text = "▼ (${sortedFiltered.size})",
+                        color = AccentSteel,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+
+            DropdownMenu(
+                expanded = internalExpanded,
+                onDismissRequest = { internalExpanded = false },
+                modifier = Modifier.background(CardSlate)
+            ) {
+                Column(modifier = Modifier.width(300.dp)) {
+                    // Oben fixierte Leiste: Bestätigen + Suche + ABCD-Schnellwahl
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BgSlate)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (selectedPerson != null) {
+                                    "✓ ${formatLastNameFirst(selectedPerson.name)}"
+                                } else {
+                                    "📋 ${sortedFiltered.size} Kontakte (Nachname A–Z)"
+                                },
+                                color = AccentSteel,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CompactButton(confirmButtonLabel) {
+                                onConfirmAction?.invoke()
+                                internalExpanded = false
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { setQuery(it) },
+                            label = { Text("🔎 Nachname / Vorname suchen...", fontSize = 10.5.sp) },
+                            trailingIcon = {
+                                if (query.isNotBlank()) {
+                                    Text(
+                                        "✕",
+                                        color = WarnAmber,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .clickable { setQuery("") }
+                                            .padding(6.dp)
+                                    )
+                                }
+                            },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        AlphabetQuickBar(
+                            selectedLetter = letter,
+                            onSelectLetter = { setLetter(it) },
+                            availableLetters = availableLetters
+                        )
+                    }
+
+                    HorizontalDivider(color = BorderSlate)
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 190.dp)
+                    ) {
+                        if (allowNone) {
+                            item(key = "none_option") {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            noneLabel,
+                                            color = if (selectedPersonId == -1L) AccentSteel else TextSecondary,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = if (selectedPersonId == -1L) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    onClick = {
+                                        onSelectNone?.invoke()
+                                        internalExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                        if (sortedFiltered.isEmpty()) {
+                            item(key = "empty_option") {
+                                Box(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        "Keine Kontakte für diesen Filter gefunden.",
+                                        color = TextMuted,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            items(sortedFiltered, key = { it.id }) { p ->
+                                val isSelected = p.id == selectedPersonId
+                                val isChecked = checkedPersonIds?.contains(p.id) == true
+                                val formattedName = formatLastNameFirst(p.name)
+                                val bdayShort = formatIsoToDdMmYyyy(p.birthdayIso)
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = when {
+                                                    checkedPersonIds != null -> "${if (isChecked) "☑️" else "⬜"} $formattedName"
+                                                    isSelected -> "✓ $formattedName"
+                                                    else -> formattedName
+                                                },
+                                                color = if (isSelected || isChecked) AccentSteel else TextPrimary,
+                                                fontSize = 12.5.sp,
+                                                fontWeight = if (isSelected || isChecked) FontWeight.Bold else FontWeight.Normal,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            if (bdayShort.isNotBlank()) {
+                                                Text(
+                                                    text = bdayShort,
+                                                    color = TextMuted,
+                                                    fontSize = 10.5.sp,
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    modifier = Modifier.padding(start = 6.dp)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        if (onToggleCheckedPerson != null) {
+                                            onToggleCheckedPerson(p)
+                                        } else {
+                                            onSelectPerson(p)
+                                            internalExpanded = false
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showInlineAlphabet) {
+            AlphabetQuickBar(
+                selectedLetter = letter,
+                onSelectLetter = { setLetter(it) },
+                availableLetters = availableLetters
+            )
+        }
+    }
 }
 
 fun formatIsoToDdMmYyyy(iso: String?): String {
@@ -1071,8 +1486,10 @@ fun KontaktChronikApp(
         appPrefs.edit().putString("wichtel_history_json", serializeWichtelHistoryJson(updated)).apply()
     }
     var showPastDates by remember { mutableStateOf(false) }
-    var contactSortMode by remember { mutableStateOf("birthday") } // "birthday" | "firstname" | "lastname"
+    var contactSortMode by remember { mutableStateOf("lastname") } // "lastname" | "birthday"
     var allContactsFilter by remember { mutableStateOf("all") } // "all" | "hidden"
+    var tabSearchQuery by remember { mutableStateOf("") }
+    var tabSelectedLetter by remember { mutableStateOf("Alle") }
     var hiddenPersonIds by remember {
         val rawSet = appPrefs.getStringSet("hidden_person_ids", emptySet()).orEmpty()
         mutableStateOf(rawSet.mapNotNull { it.toLongOrNull() }.toSet())
@@ -1249,7 +1666,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.24", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.25", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1391,30 +1808,35 @@ fun KontaktChronikApp(
                         visiblePersons
                     }
                 }
-                val sortedAll = remember(baseList, contactSortMode) {
+                val filteredBase = remember(baseList, tabSearchQuery, tabSelectedLetter) {
+                    baseList.filter { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
+                }
+                val sortedAll = remember(filteredBase, contactSortMode) {
                     when (contactSortMode) {
-                        "firstname" -> baseList.sortedWith(
-                            compareBy<PersonEntity> { extractFirstName(it.name).lowercase() }
-                                .thenBy { extractLastName(it.name).lowercase() }
-                        )
-                        "lastname" -> baseList.sortedWith(
-                            compareBy<PersonEntity> { extractLastName(it.name).lowercase() }
-                                .thenBy { extractFirstName(it.name).lowercase() }
-                        )
-                        else -> baseList.sortedWith(
+                        "birthday" -> filteredBase.sortedWith(
                             compareBy<PersonEntity> {
                                 ContactResolver.daysUntilNextBirthday(it.birthdayIso) ?: Long.MAX_VALUE
-                            }.thenBy { it.name.lowercase() }
+                            }.then(LastNamePersonComparator)
                         )
+                        else -> filteredBase.sortedWith(LastNamePersonComparator)
                     }
                 }
-                val sortBtnLabel = when (contactSortMode) {
-                    "firstname" -> "⇅ Vorname"
-                    "lastname" -> "⇅ Name"
-                    else -> "⇅ Geburtstag"
-                }
+                val sortBtnLabel = if (contactSortMode == "birthday") "⇅ Geburtstag" else "⇅ Nachname"
 
                 Column(modifier = Modifier.fillMaxSize()) {
+                    ContactSearchDropdown(
+                        persons = baseList,
+                        onSelectPerson = { detailPerson = it },
+                        placeholderText = "🔎 Kontakt suchen / Dropdown-Liste",
+                        confirmButtonLabel = "✓ Bestätigen",
+                        externalSearchQuery = tabSearchQuery,
+                        onExternalSearchQueryChange = { tabSearchQuery = it },
+                        externalSelectedLetter = tabSelectedLetter,
+                        onExternalSelectedLetterChange = { tabSelectedLetter = it },
+                        showInlineAlphabet = true
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1423,11 +1845,7 @@ fun KontaktChronikApp(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CompactButton(sortBtnLabel) {
-                            contactSortMode = when (contactSortMode) {
-                                "birthday" -> "firstname"
-                                "firstname" -> "lastname"
-                                else -> "birthday"
-                            }
+                            contactSortMode = if (contactSortMode == "lastname") "birthday" else "lastname"
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             CompactButton(if (allContactsFilter == "all") "✓ Alle (${visiblePersons.size})" else "Alle (${visiblePersons.size})") {
@@ -1478,7 +1896,7 @@ fun KontaktChronikApp(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = person.name,
+                                                text = formatLastNameFirst(person.name),
                                                 color = if (isHidden) TextMuted else TextPrimary,
                                                 fontSize = 15.sp,
                                                 fontWeight = FontWeight.SemiBold,
@@ -1528,7 +1946,7 @@ fun KontaktChronikApp(
                 FamilyTreeScreen(
                     persons = visiblePersons,
                     relations = relations,
-                    selectedRootId = selectedTreeRootId?.takeIf { id -> visiblePersons.any { it.id == id } } ?: visiblePersons.firstOrNull()?.id,
+                    selectedRootId = selectedTreeRootId?.takeIf { id -> visiblePersons.any { it.id == id } } ?: visiblePersons.sortedByLastName().firstOrNull()?.id,
                     onSelectRoot = { selectedTreeRootId = it },
                     onOpenDetails = { detailPerson = it },
                     onOpenMessage = { p ->
@@ -1537,66 +1955,85 @@ fun KontaktChronikApp(
                             .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                         val resolved = ContactResolver.resolveTarget(p, relPairs)
                         popupReason = "Nachricht"
-                        quickMessageText = pickRandomBirthdayGreeting(resolved.targetPersonName.substringBefore(" "), false)
+                        quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
                         popupPerson = p
                     }
                 )
             }
 
             "Timer" -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val timerPersons = visiblePersons.filter { it.timerEnabled }
-                    items(timerPersons, key = { it.id }) { p ->
-                        val nextTimer = ContactResolver.nextTimerDate(p)
-                        val diff = nextTimer?.let { ChronoUnit.DAYS.between(LocalDate.now(), it) } ?: 0L
-                        val nextTimerStr = formatIsoToDdMmYyyy(nextTimer?.toString())
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(CardSlate, RoundedCornerShape(10.dp))
-                                .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                                .padding(10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            PersonAvatar(name = p.name, photoBase64 = p.photoBase64)
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(
+                val allTimerPersons = remember(visiblePersons) {
+                    visiblePersons.filter { it.timerEnabled }.sortedWith(LastNamePersonComparator)
+                }
+                val timerPersons = remember(allTimerPersons, tabSearchQuery, tabSelectedLetter) {
+                    allTimerPersons.filter { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
+                }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    ContactSearchDropdown(
+                        persons = allTimerPersons,
+                        onSelectPerson = { detailPerson = it },
+                        placeholderText = "🔎 Timer-Kontakt per Dropdown / ABCD suchen",
+                        confirmButtonLabel = "✓ Bestätigen",
+                        externalSearchQuery = tabSearchQuery,
+                        onExternalSearchQueryChange = { tabSearchQuery = it },
+                        externalSelectedLetter = tabSelectedLetter,
+                        onExternalSelectedLetterChange = { tabSelectedLetter = it },
+                        showInlineAlphabet = true
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(timerPersons, key = { it.id }) { p ->
+                            val nextTimer = ContactResolver.nextTimerDate(p)
+                            val diff = nextTimer?.let { ChronoUnit.DAYS.between(LocalDate.now(), it) } ?: 0L
+                            val nextTimerStr = formatIsoToDdMmYyyy(nextTimer?.toString())
+                            Row(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { detailPerson = p }
+                                    .fillMaxWidth()
+                                    .background(CardSlate, RoundedCornerShape(10.dp))
+                                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(p.name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                                val unitDe = when (p.timerUnit.uppercase()) {
-                                    "DAYS" -> "Tage"
-                                    "WEEKS" -> "Wochen"
-                                    "MONTHS" -> "Monate"
-                                    "YEARS" -> "Jahre"
-                                    else -> p.timerUnit
+                                PersonAvatar(name = p.name, photoBase64 = p.photoBase64)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { detailPerson = p }
+                                ) {
+                                    Text(formatLastNameFirst(p.name), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                    val unitDe = when (p.timerUnit.uppercase()) {
+                                        "DAYS" -> "Tage"
+                                        "WEEKS" -> "Wochen"
+                                        "MONTHS" -> "Monate"
+                                        "YEARS" -> "Jahre"
+                                        else -> p.timerUnit
+                                    }
+                                    Text(
+                                        "Alle ${p.timerInterval} $unitDe • Nächste: $nextTimerStr",
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        if (diff <= 0L) "Jetzt fällig ($nextTimerStr)" else "Nächste Erinnerung in ${diff}T ($nextTimerStr)",
+                                        color = if (diff <= 0L) WarnAmber else AccentSteel,
+                                        fontSize = 11.sp
+                                    )
                                 }
-                                Text(
-                                    "Alle ${p.timerInterval} $unitDe • Nächste: $nextTimerStr",
-                                    color = TextSecondary,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    if (diff <= 0L) "Jetzt fällig ($nextTimerStr)" else "Nächste Erinnerung in ${diff}T ($nextTimerStr)",
-                                    color = if (diff <= 0L) WarnAmber else AccentSteel,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                CompactButton("Nachricht") {
-                                    val relPairs = relations
-                                        .filter { it.fromPersonId == p.id }
-                                        .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
-                                    val resolved = ContactResolver.resolveTarget(p, relPairs)
-                                    popupReason = "Melde-Timer"
-                                    quickMessageText = pickRandomBirthdayGreeting(resolved.targetPersonName.substringBefore(" "), false)
-                                    popupPerson = p
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    CompactButton("Nachricht") {
+                                        val relPairs = relations
+                                            .filter { it.fromPersonId == p.id }
+                                            .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                                        val resolved = ContactResolver.resolveTarget(p, relPairs)
+                                        popupReason = "Melde-Timer"
+                                        quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
+                                        popupPerson = p
+                                    }
                                 }
                             }
                         }
@@ -1605,119 +2042,138 @@ fun KontaktChronikApp(
             }
 
             "Erinnerung" -> {
-                val visibleEvents = remember(specialEvents, visiblePersons) {
-                    val visIds = visiblePersons.map { it.id }.toSet()
+                val filteredRemPersons = remember(visiblePersons, tabSearchQuery, tabSelectedLetter) {
+                    visiblePersons
+                        .filter { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
+                        .sortedWith(LastNamePersonComparator)
+                }
+                val visibleEvents = remember(specialEvents, filteredRemPersons) {
+                    val visIds = filteredRemPersons.map { it.id }.toSet()
                     specialEvents.filter { visIds.contains(it.personId) }
                 }
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (visibleEvents.isEmpty() && visiblePersons.none { !it.birthdayIso.isNullOrBlank() }) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(CardSlate, RoundedCornerShape(8.dp))
-                                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                                    .padding(14.dp)
-                            ) {
-                                Text(
-                                    "Noch keine Erinnerungen eingetragen. Tippe in der Übersicht auf einen Namen, um eine Erinnerung hinzuzufügen.",
-                                    color = TextSecondary,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
-                    items(visibleEvents, key = { "ev_${it.id}" }) { ev ->
-                        val p = visiblePersons.find { it.id == ev.personId }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(CardSlate, RoundedCornerShape(10.dp))
-                                .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                                .padding(10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            PersonAvatar(name = p?.name ?: "?", photoBase64 = p?.photoBase64.orEmpty())
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { if (p != null) detailPerson = p }
-                            ) {
-                                Text(
-                                    "${ev.title} – ${p?.name ?: "Kontakt"}",
-                                    color = TextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text("Datum: ${formatIsoToDdMmYyyy(ev.dateIso)}", color = AccentSteel, fontSize = 12.sp)
-                                if (ev.note.isNotBlank()) {
-                                    Text(ev.note, color = TextMuted, fontSize = 11.sp)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    ContactSearchDropdown(
+                        persons = visiblePersons,
+                        onSelectPerson = { detailPerson = it },
+                        placeholderText = "🔎 Erinnerung / Kontakt per Dropdown suchen",
+                        confirmButtonLabel = "✓ Bestätigen",
+                        externalSearchQuery = tabSearchQuery,
+                        onExternalSearchQueryChange = { tabSearchQuery = it },
+                        externalSelectedLetter = tabSelectedLetter,
+                        onExternalSelectedLetterChange = { tabSelectedLetter = it },
+                        showInlineAlphabet = true
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (visibleEvents.isEmpty() && filteredRemPersons.none { !it.birthdayIso.isNullOrBlank() }) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(CardSlate, RoundedCornerShape(8.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                        .padding(14.dp)
+                                ) {
+                                    Text(
+                                        "Keine passenden Erinnerungen gefunden. Tippe in der Übersicht auf einen Namen, um eine Erinnerung hinzuzufügen.",
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
                                 }
                             }
-                            if (p != null) {
+                        }
+                        items(visibleEvents, key = { "ev_${it.id}" }) { ev ->
+                            val p = visiblePersons.find { it.id == ev.personId }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(CardSlate, RoundedCornerShape(10.dp))
+                                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                PersonAvatar(name = p?.name ?: "?", photoBase64 = p?.photoBase64.orEmpty())
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { if (p != null) detailPerson = p }
+                                ) {
+                                    Text(
+                                        "${ev.title} – ${if (p != null) formatLastNameFirst(p.name) else "Kontakt"}",
+                                        color = TextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text("Datum: ${formatIsoToDdMmYyyy(ev.dateIso)}", color = AccentSteel, fontSize = 12.sp)
+                                    if (ev.note.isNotBlank()) {
+                                        Text(ev.note, color = TextMuted, fontSize = 11.sp)
+                                    }
+                                }
+                                if (p != null) {
+                                    CompactButton("Nachricht") {
+                                        val relPairs = relations
+                                            .filter { it.fromPersonId == p.id }
+                                            .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                                        val resolved = ContactResolver.resolveTarget(p, relPairs)
+                                        popupReason = "Erinnerung: ${ev.title}"
+                                        quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
+                                        popupPerson = p
+                                    }
+                                }
+                            }
+                        }
+                        items(filteredRemPersons.filter { !it.birthdayIso.isNullOrBlank() }, key = { "bday_${it.id}" }) { p ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(CardSlate, RoundedCornerShape(10.dp))
+                                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                PersonAvatar(name = p.name, photoBase64 = p.photoBase64)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { detailPerson = p }
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "🎂 ${formatLastNameFirst(p.name)}",
+                                            color = TextPrimary,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        BirthdayCountdownPill(birthdayIso = p.birthdayIso, isPastMode = false)
+                                    }
+                                    Text(
+                                        formatCompactBirthdayLine(p.birthdayIso).orEmpty(),
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                }
                                 CompactButton("Nachricht") {
                                     val relPairs = relations
                                         .filter { it.fromPersonId == p.id }
                                         .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
                                     val resolved = ContactResolver.resolveTarget(p, relPairs)
-                                    popupReason = "Erinnerung: ${ev.title}"
-                                    quickMessageText = pickRandomBirthdayGreeting(resolved.targetPersonName.substringBefore(" "), false)
+                                    popupReason = "Geburtstag"
+                                    quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
                                     popupPerson = p
                                 }
-                            }
-                        }
-                    }
-                    items(visiblePersons.filter { !it.birthdayIso.isNullOrBlank() }, key = { "bday_${it.id}" }) { p ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(CardSlate, RoundedCornerShape(10.dp))
-                                .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                                .padding(10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            PersonAvatar(name = p.name, photoBase64 = p.photoBase64)
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { detailPerson = p }
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "🎂 ${p.name}",
-                                        color = TextPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false)
-                                    )
-                                    BirthdayCountdownPill(birthdayIso = p.birthdayIso, isPastMode = false)
-                                }
-                                Text(
-                                    formatCompactBirthdayLine(p.birthdayIso).orEmpty(),
-                                    color = TextSecondary,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            CompactButton("Nachricht") {
-                                val relPairs = relations
-                                    .filter { it.fromPersonId == p.id }
-                                    .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
-                                val resolved = ContactResolver.resolveTarget(p, relPairs)
-                                popupReason = "Geburtstag"
-                                quickMessageText = pickRandomBirthdayGreeting(resolved.targetPersonName.substringBefore(" "), false)
-                                popupPerson = p
                             }
                         }
                     }
@@ -1740,39 +2196,48 @@ fun KontaktChronikApp(
             }
 
             else -> {
-                val sortedPersons = remember(visiblePersons, showPastDates, contactSortMode) {
-                    when (contactSortMode) {
-                        "firstname" -> visiblePersons.sortedWith(
-                            compareBy<PersonEntity> { extractFirstName(it.name).lowercase() }
-                                .thenBy { extractLastName(it.name).lowercase() }
-                        )
-                        "lastname" -> visiblePersons.sortedWith(
-                            compareBy<PersonEntity> { extractLastName(it.name).lowercase() }
-                                .thenBy { extractFirstName(it.name).lowercase() }
-                        )
-                        else -> if (!showPastDates) {
-                            visiblePersons.sortedWith(
+                val filteredOverview = remember(visiblePersons, tabSearchQuery, tabSelectedLetter) {
+                    visiblePersons.filter { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
+                }
+                val isFilteringByLetterOrQuery = tabSearchQuery.isNotBlank() || (tabSelectedLetter.isNotBlank() && tabSelectedLetter != "Alle")
+                val sortedPersons = remember(filteredOverview, showPastDates, contactSortMode, isFilteringByLetterOrQuery) {
+                    when {
+                        isFilteringByLetterOrQuery || contactSortMode == "lastname" -> {
+                            filteredOverview.sortedWith(LastNamePersonComparator)
+                        }
+                        !showPastDates -> {
+                            filteredOverview.sortedWith(
                                 compareBy<PersonEntity> {
                                     ContactResolver.daysUntilNextBirthday(it.birthdayIso) ?: Long.MAX_VALUE
-                                }.thenBy { it.name.lowercase() }
+                                }.then(LastNamePersonComparator)
                             )
-                        } else {
-                            visiblePersons.sortedWith(
+                        }
+                        else -> {
+                            filteredOverview.sortedWith(
                                 compareByDescending<PersonEntity> {
                                     ContactResolver.negativeDaysSinceLastBirthday(it.birthdayIso) ?: Long.MIN_VALUE
-                                }.thenBy { it.name.lowercase() }
+                                }.then(LastNamePersonComparator)
                             )
                         }
                     }
                 }
 
-                val sortBtnLabel = when (contactSortMode) {
-                    "firstname" -> "⇅ Vorname"
-                    "lastname" -> "⇅ Name"
-                    else -> "⇅ Geburtstag"
-                }
+                val sortBtnLabel = if (contactSortMode == "birthday") "⇅ Geburtstag" else "⇅ Nachname"
 
                 Column(modifier = Modifier.fillMaxSize()) {
+                    ContactSearchDropdown(
+                        persons = visiblePersons,
+                        onSelectPerson = { detailPerson = it },
+                        placeholderText = "🔎 Kontakt suchen / Dropdown-Liste",
+                        confirmButtonLabel = "✓ Bestätigen",
+                        externalSearchQuery = tabSearchQuery,
+                        onExternalSearchQueryChange = { tabSearchQuery = it },
+                        externalSelectedLetter = tabSelectedLetter,
+                        onExternalSelectedLetterChange = { tabSelectedLetter = it },
+                        showInlineAlphabet = true
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1781,11 +2246,7 @@ fun KontaktChronikApp(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CompactButton(sortBtnLabel) {
-                            contactSortMode = when (contactSortMode) {
-                                "birthday" -> "firstname"
-                                "firstname" -> "lastname"
-                                else -> "birthday"
-                            }
+                            contactSortMode = if (contactSortMode == "lastname") "birthday" else "lastname"
                         }
                         Box(
                             modifier = Modifier
@@ -1854,7 +2315,7 @@ fun KontaktChronikApp(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = person.name,
+                                                text = formatLastNameFirst(person.name),
                                                 color = TextPrimary,
                                                 fontSize = 15.sp,
                                                 fontWeight = FontWeight.SemiBold,
@@ -1902,7 +2363,7 @@ fun KontaktChronikApp(
                                 CompactButton("Nachricht") {
                                     popupReason = if (showPastDates) "Nachträglich zum Geburtstag" else "Erinnerung"
                                     quickMessageText = pickRandomBirthdayGreeting(
-                                        resolved.targetPersonName.substringBefore(" "),
+                                        extractFirstName(resolved.targetPersonName),
                                         showPastDates
                                     )
                                     popupPerson = person
@@ -1955,7 +2416,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.24")
+                put("version", "1.0.25")
                 put("createdAt", dateStr)
                 put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
@@ -2262,12 +2723,18 @@ fun KontaktChronikApp(
 
     if (showGreetingsEditorDialog) {
         var searchQuery by remember { mutableStateOf("") }
-        val filteredIndices = remember(birthdayGreetings, searchQuery) {
+        var selectedLetter by remember { mutableStateOf("") }
+        var greetingDropdownExpanded by remember { mutableStateOf(false) }
+        val filteredIndices = remember(birthdayGreetings, searchQuery, selectedLetter) {
             val q = searchQuery.trim().lowercase()
             birthdayGreetings.indices.filter { idx ->
-                q.isBlank() ||
-                    birthdayGreetings[idx].lowercase().contains(q) ||
+                val text = birthdayGreetings[idx]
+                val matchesQ = q.isBlank() ||
+                    text.lowercase().contains(q) ||
                     (idx + 1).toString() == q
+                val matchesL = selectedLetter.isBlank() ||
+                    extractTextInitial(text).equals(selectedLetter, ignoreCase = true)
+                matchesQ && matchesL
             }
         }
 
@@ -2321,13 +2788,83 @@ fun KontaktChronikApp(
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
+                    Box {
+                        CompactButton("▼ Liste (${filteredIndices.size})") {
+                            greetingDropdownExpanded = true
+                        }
+                        DropdownMenu(
+                            expanded = greetingDropdownExpanded,
+                            onDismissRequest = { greetingDropdownExpanded = false },
+                            modifier = Modifier.background(CardSlate)
+                        ) {
+                            Column(modifier = Modifier.width(305.dp)) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(BgSlate)
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "✓ ${filteredIndices.size} Sprüche",
+                                            color = AccentSteel,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        CompactButton("✓ Bestätigen") {
+                                            greetingDropdownExpanded = false
+                                        }
+                                    }
+                                    AlphabetQuickBar(
+                                        selectedLetter = selectedLetter,
+                                        onSelectLetter = { selectedLetter = it }
+                                    )
+                                }
+                                HorizontalDivider(color = BorderSlate)
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 190.dp)
+                                ) {
+                                    items(filteredIndices, key = { it }) { gIdx ->
+                                        val gText = birthdayGreetings.getOrNull(gIdx).orEmpty()
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    "#${gIdx + 1}: $gText",
+                                                    color = TextPrimary,
+                                                    fontSize = 12.sp,
+                                                    maxLines = 2,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            onClick = {
+                                                searchQuery = (gIdx + 1).toString()
+                                                greetingDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     CompactButton("+ Neu") {
                         saveBirthdayGreetings(
                             listOf("Alles Liebe und Gute zum Geburtstag, {Name}! 🎂🎉") + birthdayGreetings
                         )
                         searchQuery = ""
+                        selectedLetter = ""
                     }
                 }
+                AlphabetQuickBar(
+                    selectedLetter = selectedLetter,
+                    onSelectLetter = { selectedLetter = it }
+                )
 
                 LazyColumn(
                     modifier = Modifier
@@ -2646,15 +3183,6 @@ fun KontaktChronikApp(
                         }
                         if (createRelExpanded) {
                             var createRelLabelExpanded by remember { mutableStateOf(false) }
-                            var createRelTargetExpanded by remember { mutableStateOf(false) }
-                            var createRelSearch by remember { mutableStateOf("") }
-                            val sortedTargetPersons = remember(persons, createRelSearch) {
-                                val q = createRelSearch.trim().lowercase()
-                                persons.filter { q.isBlank() || it.name.lowercase().contains(q) }
-                                    .sortedBy { it.name.lowercase() }
-                            }
-                            val selectedTargetName = persons
-                                .find { it.id == selectedRelTargetId }?.name ?: "-- Keine Verknüpfung --"
 
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text("Beziehungsart:", color = TextSecondary, fontSize = 11.sp)
@@ -2735,111 +3263,16 @@ fun KontaktChronikApp(
                                     }
                                 }
 
-                                Text("Verknüpfter Kontakt:", color = TextSecondary, fontSize = 11.sp)
-                                Box {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(BgSlate, RoundedCornerShape(6.dp))
-                                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                            .clickable { createRelTargetExpanded = true }
-                                            .padding(horizontal = 10.dp, vertical = 10.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            selectedTargetName,
-                                            color = TextPrimary,
-                                            fontSize = 12.5.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text("▼", color = AccentSteel, fontSize = 11.sp)
-                                    }
-                                    DropdownMenu(
-                                        expanded = createRelTargetExpanded,
-                                        onDismissRequest = { createRelTargetExpanded = false },
-                                        modifier = Modifier.background(CardSlate)
-                                    ) {
-                                        Column(modifier = Modifier.width(270.dp)) {
-                                            // Fixierte Leiste oben im Kontakt-Dropdown
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(BgSlate)
-                                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Row(
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        "✓ $selectedTargetName",
-                                                        color = AccentSteel,
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        modifier = Modifier.weight(1f)
-                                                    )
-                                                    CompactButton("✓ Bestätigen") {
-                                                        createRelTargetExpanded = false
-                                                    }
-                                                }
-                                                if (persons.size > 5) {
-                                                    OutlinedTextField(
-                                                        value = createRelSearch,
-                                                        onValueChange = { createRelSearch = it },
-                                                        label = { Text("🔎 Kontakt suchen...", fontSize = 10.5.sp) },
-                                                        singleLine = true,
-                                                        modifier = Modifier.fillMaxWidth()
-                                                    )
-                                                }
-                                            }
-                                            HorizontalDivider(color = BorderSlate)
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .heightIn(max = 190.dp)
-                                                    .verticalScroll(rememberScrollState())
-                                            ) {
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Text(
-                                                            "-- Keine Verknüpfung --",
-                                                            color = if (selectedRelTargetId == -1L) AccentSteel else TextSecondary,
-                                                            fontSize = 13.sp,
-                                                            fontWeight = if (selectedRelTargetId == -1L) FontWeight.Bold else FontWeight.Normal
-                                                        )
-                                                    },
-                                                    onClick = {
-                                                        selectedRelTargetId = -1L
-                                                        createRelTargetExpanded = false
-                                                    }
-                                                )
-                                                sortedTargetPersons.forEach { targetP ->
-                                                    DropdownMenuItem(
-                                                        text = {
-                                                            Text(
-                                                                targetP.name,
-                                                                color = if (targetP.id == selectedRelTargetId) AccentSteel else TextPrimary,
-                                                                fontSize = 13.sp,
-                                                                fontWeight = if (targetP.id == selectedRelTargetId) FontWeight.Bold else FontWeight.Normal
-                                                            )
-                                                        },
-                                                        onClick = {
-                                                            selectedRelTargetId = targetP.id
-                                                            createRelTargetExpanded = false
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                Text("Verknüpfter Kontakt (Nachname, Vorname):", color = TextSecondary, fontSize = 11.sp)
+                                ContactSearchDropdown(
+                                    persons = persons,
+                                    selectedPersonId = selectedRelTargetId.takeIf { it > 0L },
+                                    onSelectPerson = { p -> selectedRelTargetId = p.id },
+                                    allowNone = true,
+                                    noneLabel = "-- Keine Verknüpfung --",
+                                    onSelectNone = { selectedRelTargetId = -1L },
+                                    showInlineAlphabet = true
+                                )
                             }
                         }
                     }
@@ -2891,7 +3324,7 @@ fun KontaktChronikApp(
         var evUnitDropdownExpanded by remember { mutableStateOf(false) }
 
         // Neue Beziehung hinzufügen
-        val otherPersons = persons.filter { it.id != dp.id }
+        val otherPersons = remember(persons, dp.id) { persons.filter { it.id != dp.id }.sortedByLastName() }
         var newRelLabel by remember { mutableStateOf("Kind von") }
         var newRelTargetId by remember(dp, otherPersons.size) {
             mutableStateOf(otherPersons.firstOrNull()?.id ?: -1L)
@@ -3148,18 +3581,6 @@ fun KontaktChronikApp(
                             // Oben fixierte Auswahl- und Bestätigungsleiste für neue Beziehung
                             if (otherPersons.isNotEmpty()) {
                                 var detailRelLabelExpanded by remember { mutableStateOf(false) }
-                                var detailRelTargetExpanded by remember { mutableStateOf(false) }
-                                var detailRelSearch by remember { mutableStateOf("") }
-                                val sortedOtherPersons = remember(otherPersons, detailRelSearch) {
-                                    val q = detailRelSearch.trim().lowercase()
-                                    otherPersons
-                                        .filter { q.isBlank() || it.name.lowercase().contains(q) }
-                                        .sortedBy { it.name.lowercase() }
-                                }
-                                val selectedOtherName = otherPersons
-                                    .find { it.id == newRelTargetId }?.name
-                                    ?: otherPersons.sortedBy { it.name.lowercase() }.firstOrNull()?.also { newRelTargetId = it.id }?.name
-                                    ?: "Kontakt wählen"
 
                                 Column(
                                     modifier = Modifier
@@ -3188,193 +3609,105 @@ fun KontaktChronikApp(
                                             }
                                         }
                                     }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(modifier = Modifier.weight(1f)) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(CardSlate, RoundedCornerShape(6.dp))
-                                                    .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                                    .clickable { detailRelLabelExpanded = true }
-                                                    .padding(horizontal = 10.dp, vertical = 10.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    newRelLabel,
-                                                    color = TextPrimary,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                                Text("▼", color = AccentSteel, fontSize = 10.sp)
-                                            }
-                                            DropdownMenu(
-                                                expanded = detailRelLabelExpanded,
-                                                onDismissRequest = { detailRelLabelExpanded = false },
-                                                modifier = Modifier.background(CardSlate)
-                                            ) {
-                                                Column(modifier = Modifier.width(260.dp)) {
-                                                    // Fixierte Leiste oben im Dropdown
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .background(BgSlate)
-                                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text(
-                                                            "✓ $newRelLabel",
-                                                            color = AccentSteel,
-                                                            fontSize = 11.5.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis,
-                                                            modifier = Modifier.weight(1f)
-                                                        )
-                                                        CompactButton("✓ Bestätigen") {
-                                                            detailRelLabelExpanded = false
-                                                        }
-                                                    }
-                                                    HorizontalDivider(color = BorderSlate)
-                                                    Column(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .heightIn(max = 200.dp)
-                                                            .verticalScroll(rememberScrollState())
-                                                    ) {
-                                                        RELATION_PRESETS.forEach { preset ->
-                                                            DropdownMenuItem(
-                                                                text = {
-                                                                    Text(
-                                                                        preset,
-                                                                        color = if (preset == newRelLabel) AccentSteel else TextPrimary,
-                                                                        fontSize = 13.sp,
-                                                                        fontWeight = if (preset == newRelLabel) FontWeight.Bold else FontWeight.Normal
-                                                                    )
-                                                                },
-                                                                onClick = {
-                                                                    newRelLabel = preset
-                                                                    detailRelLabelExpanded = false
-                                                                }
-                                                            )
-                                                        }
+                                    Box(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(CardSlate, RoundedCornerShape(6.dp))
+                                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                            .clickable { detailRelLabelExpanded = true }
+                                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "Beziehungsart: $newRelLabel",
+                                                color = TextPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            Text("▼", color = AccentSteel, fontSize = 10.sp)
+                                        }
+                                        DropdownMenu(
+                                            expanded = detailRelLabelExpanded,
+                                            onDismissRequest = { detailRelLabelExpanded = false },
+                                            modifier = Modifier.background(CardSlate)
+                                        ) {
+                                            Column(modifier = Modifier.width(260.dp)) {
+                                                // Fixierte Leiste oben im Dropdown
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(BgSlate)
+                                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        "✓ $newRelLabel",
+                                                        color = AccentSteel,
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    CompactButton("✓ Bestätigen") {
+                                                        detailRelLabelExpanded = false
                                                     }
                                                 }
-                                            }
-                                        }
-
-                                        Box(modifier = Modifier.weight(1f)) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(CardSlate, RoundedCornerShape(6.dp))
-                                                    .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                                    .clickable { detailRelTargetExpanded = true }
-                                                    .padding(horizontal = 10.dp, vertical = 10.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    selectedOtherName,
-                                                    color = TextPrimary,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                                Text("▼", color = AccentSteel, fontSize = 10.sp)
-                                            }
-                                            DropdownMenu(
-                                                expanded = detailRelTargetExpanded,
-                                                onDismissRequest = { detailRelTargetExpanded = false },
-                                                modifier = Modifier.background(CardSlate)
-                                            ) {
-                                                Column(modifier = Modifier.width(270.dp)) {
-                                                    // Fixierte Leiste oben im Kontakt-Dropdown (direktes Bestätigen & Speichern)
-                                                    Column(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .background(BgSlate)
-                                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                                    ) {
-                                                        Row(
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                                            verticalAlignment = Alignment.CenterVertically
-                                                        ) {
-                                                            Text(
-                                                                "✓ $selectedOtherName",
-                                                                color = AccentSteel,
-                                                                fontSize = 11.5.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                maxLines = 1,
-                                                                overflow = TextOverflow.Ellipsis,
-                                                                modifier = Modifier.weight(1f)
-                                                            )
-                                                            CompactButton("✓ + Speichern") {
-                                                                if (newRelTargetId > 0) {
-                                                                    scope.launch {
-                                                                        addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
-                                                                    }
-                                                                }
-                                                                detailRelTargetExpanded = false
+                                                HorizontalDivider(color = BorderSlate)
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .heightIn(max = 200.dp)
+                                                        .verticalScroll(rememberScrollState())
+                                                ) {
+                                                    RELATION_PRESETS.forEach { preset ->
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(
+                                                                    preset,
+                                                                    color = if (preset == newRelLabel) AccentSteel else TextPrimary,
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = if (preset == newRelLabel) FontWeight.Bold else FontWeight.Normal
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                newRelLabel = preset
+                                                                detailRelLabelExpanded = false
                                                             }
-                                                        }
-                                                        if (otherPersons.size > 5) {
-                                                            OutlinedTextField(
-                                                                value = detailRelSearch,
-                                                                onValueChange = { detailRelSearch = it },
-                                                                label = { Text("🔎 Kontakt suchen...", fontSize = 10.5.sp) },
-                                                                singleLine = true,
-                                                                modifier = Modifier.fillMaxWidth()
-                                                            )
-                                                        }
-                                                    }
-                                                    HorizontalDivider(color = BorderSlate)
-                                                    Column(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .heightIn(max = 190.dp)
-                                                            .verticalScroll(rememberScrollState())
-                                                    ) {
-                                                        sortedOtherPersons.forEach { op ->
-                                                            DropdownMenuItem(
-                                                                text = {
-                                                                    Text(
-                                                                        op.name,
-                                                                        color = if (op.id == newRelTargetId) AccentSteel else TextPrimary,
-                                                                        fontSize = 13.sp,
-                                                                        fontWeight = if (op.id == newRelTargetId) FontWeight.Bold else FontWeight.Normal
-                                                                    )
-                                                                },
-                                                                onClick = {
-                                                                    newRelTargetId = op.id
-                                                                    detailRelTargetExpanded = false
-                                                                }
-                                                            )
-                                                        }
+                                                        )
                                                     }
                                                 }
                                             }
                                         }
                                     }
+
+                                    ContactSearchDropdown(
+                                        persons = otherPersons,
+                                        selectedPersonId = newRelTargetId.takeIf { it > 0L },
+                                        onSelectPerson = { op -> newRelTargetId = op.id },
+                                        confirmButtonLabel = "✓ + Speichern",
+                                        onConfirmAction = {
+                                            if (newRelTargetId > 0) {
+                                                scope.launch {
+                                                    addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
+                                                }
+                                            }
+                                        },
+                                        showInlineAlphabet = true
+                                    )
                                 }
                             }
 
                             if (currentRelations.isEmpty()) {
                                 Text("Noch keine Beziehungen verknüpft.", color = TextMuted, fontSize = 11.sp)
                             } else {
-                                currentRelations.forEach { (rel, targetPerson) ->
+                                currentRelations.sortedWith { a, b -> LastNamePersonComparator.compare(a.second, b.second) }.forEach { (rel, targetPerson) ->
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -3385,7 +3718,7 @@ fun KontaktChronikApp(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            "${rel.relationLabel} ${targetPerson.name}",
+                                            "${rel.relationLabel} ${formatLastNameFirst(targetPerson.name)}",
                                             color = TextPrimary,
                                             fontSize = 12.sp,
                                             modifier = Modifier.weight(1f)
@@ -3641,7 +3974,7 @@ fun KontaktChronikApp(
                     )
                     CompactButton("🎲 Anderer Spruch") {
                         quickMessageText = pickRandomBirthdayGreeting(
-                            resolved.targetPersonName.substringBefore(" "),
+                            extractFirstName(resolved.targetPersonName),
                             false
                         )
                     }
@@ -3768,8 +4101,9 @@ fun FamilyTreeScreen(
         return
     }
 
-    val rootPerson = persons.find { it.id == selectedRootId } ?: persons.first()
-    val personMap = remember(persons) { persons.associateBy { it.id } }
+    val sortedPersons = remember(persons) { persons.sortedByLastName() }
+    val rootPerson = sortedPersons.find { it.id == selectedRootId } ?: sortedPersons.first()
+    val personMap = remember(sortedPersons) { sortedPersons.associateBy { it.id } }
 
     // Berechne relative Generationen-Ebenen per Breitensuche (BFS) ab rootPerson
     val generationByPersonId = remember(persons, relations, rootPerson.id) {
@@ -3892,7 +4226,7 @@ fun FamilyTreeScreen(
             when {
                 aIsParent && !bIsParent -> -1
                 !aIsParent && bIsParent -> 1
-                else -> a.name.compareTo(b.name)
+                else -> LastNamePersonComparator.compare(a, b)
             }
         }
         for (m in sortedSeed) {
@@ -3928,7 +4262,7 @@ fun FamilyTreeScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Obere Steuerleiste: Kontakt-Auswahl + Zoom-Funktion für größere Stammbäume
+        // Obere Steuerleiste: Kontakt-Auswahl per Dropdown mit ABCD-Schnellwahl (nach Nachname sortiert) + Zoom-Funktion
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -3937,60 +4271,18 @@ fun FamilyTreeScreen(
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Kontakt:",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Box(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(BgSlate, RoundedCornerShape(6.dp))
-                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                            .clickable { dropdownExpanded = true }
-                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = rootPerson.name,
-                            color = TextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text("▼", color = AccentSteel, fontSize = 11.sp)
-                    }
-                    DropdownMenu(
-                        expanded = dropdownExpanded,
-                        onDismissRequest = { dropdownExpanded = false },
-                        modifier = Modifier.background(CardSlate)
-                    ) {
-                        persons.forEach { p ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = p.name,
-                                        color = if (p.id == rootPerson.id) AccentSteel else TextPrimary,
-                                        fontSize = 13.sp,
-                                        fontWeight = if (p.id == rootPerson.id) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                onClick = {
-                                    onSelectRoot(p.id)
-                                    dropdownExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
+            Text(
+                text = "Fokus-Kontakt im Stammbaum (Nachname, Vorname):",
+                color = TextSecondary,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            ContactSearchDropdown(
+                persons = sortedPersons,
+                selectedPersonId = rootPerson.id,
+                onSelectPerson = { p -> onSelectRoot(p.id) },
+                showInlineAlphabet = true
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -4192,8 +4484,10 @@ fun FamilyTreeScreen(
             }
         }
 
-        // Nicht verbundene Kontakte anzeigen, falls vorhanden
-        val unconnected = persons.filter { !generationByPersonId.containsKey(it.id) }
+        // Nicht verbundene Kontakte anzeigen, falls vorhanden (nach Nachname sortiert + Dropdown mit ABCD)
+        val unconnected = remember(sortedPersons, generationByPersonId) {
+            sortedPersons.filter { !generationByPersonId.containsKey(it.id) }
+        }
         if (unconnected.isNotEmpty()) {
             Column(
                 modifier = Modifier
@@ -4204,15 +4498,22 @@ fun FamilyTreeScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
-                    "Weitere Kontakte (noch nicht mit ${rootPerson.name} verknüpft):",
+                    "Weitere Kontakte (${unconnected.size}, noch nicht mit ${formatLastNameFirst(rootPerson.name)} verknüpft):",
                     color = TextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Tippe auf einen Namen, um in den Details eine Beziehung (z.B. 'Kind von', 'Ehe-Partner von', 'Bruder von') hinzuzufügen.",
+                    "Wähle per Dropdown-Liste (ABCD) oder tippe auf einen Namen, um eine Beziehung hinzuzufügen:",
                     color = TextMuted,
                     fontSize = 11.sp
+                )
+                ContactSearchDropdown(
+                    persons = unconnected,
+                    selectedPersonId = null,
+                    onSelectPerson = { up -> onOpenDetails(up) },
+                    placeholderText = "🔎 Nicht verknüpften Kontakt auswählen",
+                    showInlineAlphabet = true
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(unconnected, key = { it.id }) { up ->
@@ -4225,7 +4526,7 @@ fun FamilyTreeScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                up.name,
+                                formatLastNameFirst(up.name),
                                 color = AccentSteel,
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center,
@@ -5499,6 +5800,15 @@ fun WichtelScreen(
                     }
                     OutlinedTextField(value = gName, onValueChange = { gName = it }, label = { Text("Name der Wichtelrunde") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = gAdmin, onValueChange = { gAdmin = it }, label = { Text("👑 Gruppenadmin (Ersteller)") }, modifier = Modifier.fillMaxWidth())
+                    if (persons.isNotEmpty()) {
+                        Text("Oder Gruppenadmin per Dropdown-Liste (ABCD, Nachname) wählen:", color = TextSecondary, fontSize = 11.sp)
+                        ContactSearchDropdown(
+                            persons = persons,
+                            selectedPersonId = persons.find { it.name.equals(gAdmin.trim(), ignoreCase = true) }?.id,
+                            onSelectPerson = { p -> gAdmin = p.name },
+                            placeholderText = "🔎 Gruppenadmin aus Kontakten wählen"
+                        )
+                    }
                     Text("🎭 Wichtel-Modus / Motto:", color = TextSecondary, fontSize = 11.sp)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(mottos) { m ->
@@ -5542,17 +5852,25 @@ fun WichtelScreen(
         var checkedIds by remember(cg) {
             mutableStateOf(cg.participants.mapNotNull { it.personId }.toSet())
         }
+        var checklistSearchQuery by remember(cg) { mutableStateOf("") }
+        var checklistSelectedLetter by remember(cg) { mutableStateOf("") }
         var customName by remember(cg) { mutableStateOf("") }
         var customPhone by remember(cg) { mutableStateOf("") }
 
-        // Gruppiere Paare zusammen für besondere visuelle Darstellung
-        val groupedContacts = remember(persons, relations) {
+        val sortedWichtelPersons = remember(persons) { persons.sortedByLastName() }
+
+        // Gruppiere Paare zusammen für besondere visuelle Darstellung (nach Nachname sortiert)
+        val groupedContacts = remember(sortedWichtelPersons, relations, checklistSearchQuery, checklistSelectedLetter) {
+            val filtered = sortedWichtelPersons.filter {
+                matchesPersonSearchAndLetter(it, checklistSearchQuery, checklistSelectedLetter)
+            }
+            val filteredIds = filtered.map { it.id }.toSet()
             val result = mutableListOf<List<PersonEntity>>()
             val visited = mutableSetOf<Long>()
-            for (p in persons) {
+            for (p in filtered) {
                 if (visited.contains(p.id)) continue
                 val partner = getCouplePartnerForPerson(p.id)
-                if (partner != null && !visited.contains(partner.id)) {
+                if (partner != null && !visited.contains(partner.id) && filteredIds.contains(partner.id)) {
                     visited.add(p.id)
                     visited.add(partner.id)
                     result.add(listOf(p, partner))
@@ -5569,23 +5887,20 @@ fun WichtelScreen(
             val nextParticipants = mutableListOf<WichtelParticipant>()
             nextParticipants.addAll(keptCustom)
 
-            checkedIds.forEach { pid ->
-                val existing = cg.participants.find { it.personId == pid }
+            sortedWichtelPersons.filter { checkedIds.contains(it.id) }.forEach { contact ->
+                val existing = cg.participants.find { it.personId == contact.id }
                 if (existing != null) {
                     nextParticipants.add(existing)
                 } else {
-                    val contact = persons.find { it.id == pid }
-                    if (contact != null) {
-                        nextParticipants.add(
-                            WichtelParticipant(
-                                id = System.currentTimeMillis() + pid,
-                                personId = contact.id,
-                                name = contact.name,
-                                phone = contact.phone,
-                                wishText = contact.notes
-                            )
+                    nextParticipants.add(
+                        WichtelParticipant(
+                            id = System.currentTimeMillis() + contact.id,
+                            personId = contact.id,
+                            name = contact.name,
+                            phone = contact.phone,
+                            wishText = contact.notes
                         )
-                    }
+                    )
                 }
             }
 
@@ -5642,12 +5957,31 @@ fun WichtelScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Kontakte zum Mitwichteln ankreuzen:", color = TextSecondary, fontSize = 11.5.sp)
+                    Text("Nachname, Vorname (ABCD-Schnellwahl):", color = TextSecondary, fontSize = 11.5.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         CompactButton("Alle") { checkedIds = persons.map { it.id }.toSet() }
                         CompactButton("Keine") { checkedIds = emptySet() }
                     }
                 }
+                ContactSearchDropdown(
+                    persons = sortedWichtelPersons,
+                    selectedPersonId = null,
+                    onSelectPerson = { p ->
+                        checkedIds = if (checkedIds.contains(p.id)) checkedIds - p.id else checkedIds + p.id
+                    },
+                    placeholderText = "🔎 Teilnehmer per Dropdown-Liste (ABCD) an-/abwählen",
+                    confirmButtonLabel = "✓ Übernehmen",
+                    onConfirmAction = { confirmChecklistParticipants() },
+                    showInlineAlphabet = true,
+                    externalSearchQuery = checklistSearchQuery,
+                    onExternalSearchQueryChange = { checklistSearchQuery = it },
+                    externalSelectedLetter = checklistSelectedLetter,
+                    onExternalSelectedLetterChange = { checklistSelectedLetter = it },
+                    checkedPersonIds = checkedIds,
+                    onToggleCheckedPerson = { p ->
+                        checkedIds = if (checkedIds.contains(p.id)) checkedIds - p.id else checkedIds + p.id
+                    }
+                )
                 HorizontalDivider(color = BorderSlate)
 
                 Column(
@@ -5692,8 +6026,8 @@ fun WichtelScreen(
                                             }
                                         )
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(member.name, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                            Text("💑 Paar mit ${spouse.name.substringBefore(" ")}", color = PartnerRose, fontSize = 10.5.sp)
+                                            Text(formatLastNameFirst(member.name), color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                            Text("💑 Paar mit ${extractFirstName(spouse.name)}", color = PartnerRose, fontSize = 10.5.sp)
                                         }
                                     }
                                 }
@@ -5718,7 +6052,7 @@ fun WichtelScreen(
                                         checkedIds = if (ch) checkedIds + member.id else checkedIds - member.id
                                     }
                                 )
-                                Text(member.name, color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                Text(formatLastNameFirst(member.name), color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
                             }
                         }
                     }

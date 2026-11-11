@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.22 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.25 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -970,6 +970,8 @@
 
     let showGreetingsEditorModal = false;
     let greetingsSearchQuery = "";
+    let greetingsSelectedLetter = "";
+    let greetingsDropdownOpen = false;
 
     function getBirthdayGreetingsList() {
       if (!Array.isArray(state.birthdayGreetings) || state.birthdayGreetings.length === 0) {
@@ -1889,7 +1891,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.24</div>
+            <div class="app-title">Remember Me v1.0.25</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2063,7 +2065,17 @@
     }
 
     let showPastDates = false;
-    let contactSortMode = "birthday"; // "birthday" | "firstname" | "lastname"
+    let contactSortMode = "lastname"; // Standardmäßig immer nach Nachnamen sortieren ("lastname" | "birthday" | "firstname")
+    let tabSearchQuery = "";
+    let tabSelectedLetter = "";
+    const dropdownUiState = {}; // key -> { open, query, letter }
+
+    function getDropdownState(key) {
+      if (!dropdownUiState[key]) {
+        dropdownUiState[key] = { open: false, query: "", letter: "" };
+      }
+      return dropdownUiState[key];
+    }
 
     function stripNameRoleSuffix(fullName) {
       return (fullName || "").replace(/\s*\([^)]*\)\s*/g, " ").trim();
@@ -2071,27 +2083,240 @@
 
     function extractFirstName(fullName) {
       const clean = stripNameRoleSuffix(fullName);
+      if (!clean) return "";
+      if (clean.includes(",")) {
+        const afterComma = clean.split(",").slice(1).join(",").trim();
+        if (afterComma) return afterComma;
+      }
       const parts = clean.split(/\s+/).filter(Boolean);
-      return parts[0] || clean;
+      return parts.length > 1 ? parts.slice(0, -1).join(" ") : (parts[0] || clean);
     }
 
     function extractLastName(fullName) {
       const clean = stripNameRoleSuffix(fullName);
+      if (!clean) return "";
+      if (clean.includes(",")) {
+        const beforeComma = clean.split(",")[0].trim();
+        if (beforeComma) return beforeComma;
+      }
       const parts = clean.split(/\s+/).filter(Boolean);
       return parts.length > 1 ? parts[parts.length - 1] : (parts[0] || clean);
     }
 
+    function formatLastNameFirst(fullName) {
+      const raw = (fullName || "").trim();
+      if (!raw) return "";
+      const roleMatch = raw.match(/\([^)]*\)/);
+      const roleSuffix = roleMatch ? ` ${roleMatch[0]}` : "";
+      const clean = stripNameRoleSuffix(raw);
+      if (clean.includes(",")) return `${clean}${roleSuffix}`;
+      const parts = clean.split(/\s+/).filter(Boolean);
+      if (parts.length <= 1) return raw;
+      const last = parts[parts.length - 1];
+      const first = parts.slice(0, -1).join(" ");
+      return `${last}, ${first}${roleSuffix}`;
+    }
+
+    function normalizeLetterInitial(ch) {
+      const u = String(ch || "").toUpperCase();
+      if (u === "Ä") return "A";
+      if (u === "Ö") return "O";
+      if (u === "Ü") return "U";
+      return /^[A-Z]$/.test(u) ? u : "#";
+    }
+
+    function extractLastNameInitial(fullName) {
+      const last = extractLastName(fullName).trim();
+      const m = last.match(/[A-Za-zÄÖÜäöü]/);
+      return m ? normalizeLetterInitial(m[0]) : "#";
+    }
+
+    function extractTextInitial(text) {
+      const m = String(text || "").trim().match(/[A-Za-zÄÖÜäöü]/);
+      return m ? normalizeLetterInitial(m[0]) : "#";
+    }
+
+    function comparePersonsByLastName(a, b) {
+      const cmp = extractLastName(a.name).localeCompare(extractLastName(b.name), "de", { sensitivity: "base" });
+      if (cmp !== 0) return cmp;
+      return extractFirstName(a.name).localeCompare(extractFirstName(b.name), "de", { sensitivity: "base" });
+    }
+
+    function sortPersonsByLastName(arr) {
+      return [...(arr || [])].sort(comparePersonsByLastName);
+    }
+
+    function matchesPersonSearchAndLetter(person, query, letter) {
+      const q = String(query || "").trim().toLowerCase();
+      const l = String(letter || "").trim().toUpperCase();
+      const formatted = formatLastNameFirst(person.name).toLowerCase();
+      const matchesQ = !q ||
+        (person.name || "").toLowerCase().includes(q) ||
+        formatted.includes(q) ||
+        (person.phone || "").toLowerCase().includes(q);
+      const matchesL = !l || extractLastNameInitial(person.name) === l;
+      return matchesQ && matchesL;
+    }
+
+    const ALPHABET_ROW_1 = ["A","B","C","D","E","F","G","H","I","J","K","L","M"];
+    const ALPHABET_ROW_2 = ["N","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
+
+    function renderAlphabetQuickBarHtml(selectedLetter, onSelectJsExprFn) {
+      const sel = String(selectedLetter || "").toUpperCase();
+      const btnStyle = (active) =>
+        `padding:2px 5px; min-width:20px; font-size:10px; font-weight:700; border-radius:5px; line-height:1.1; justify-content:center; text-align:center;`;
+      const row1Html = [
+        `<button type="button" class="compact-btn ${!sel ? 'primary' : ''}" style="${btnStyle(!sel)}" onclick="${onSelectJsExprFn('')}">Alle</button>`,
+        ...ALPHABET_ROW_1.map(l => {
+          const active = sel === l;
+          return `<button type="button" class="compact-btn ${active ? 'primary' : ''}" style="${btnStyle(active)}" onclick="${onSelectJsExprFn(active ? '' : l)}">${l}</button>`;
+        })
+      ].join("");
+      const row2Html = ALPHABET_ROW_2.map(l => {
+        const active = sel === l;
+        return `<button type="button" class="compact-btn ${active ? 'primary' : ''}" style="${btnStyle(active)}" onclick="${onSelectJsExprFn(active ? '' : l)}">${l}</button>`;
+      }).join("");
+      return `
+        <div style="display:flex; flex-direction:column; gap:3px; width:100%;">
+          <div style="display:flex; flex-wrap:wrap; gap:2px; align-items:center;">${row1Html}</div>
+          <div style="display:flex; flex-wrap:wrap; gap:2px; align-items:center;">${row2Html}</div>
+        </div>
+      `;
+    }
+
+    function toggleContactDropdown(key, rerenderModal = false) {
+      const st = getDropdownState(key);
+      st.open = !st.open;
+      if (rerenderModal) renderModals(); else renderPhoneApp();
+    }
+
+    function setContactDropdownQuery(key, val, rerenderModal = false, syncTab = false) {
+      const st = getDropdownState(key);
+      st.query = val;
+      if (syncTab) tabSearchQuery = val;
+      if (rerenderModal) renderModals(); else renderPhoneApp();
+    }
+
+    function setContactDropdownLetter(key, letter, rerenderModal = false, syncTab = false) {
+      const st = getDropdownState(key);
+      st.letter = letter;
+      if (syncTab) tabSelectedLetter = letter;
+      if (rerenderModal) renderModals(); else renderPhoneApp();
+    }
+
+    function renderContactSearchDropdownHtml(opts) {
+      const {
+        key,
+        persons,
+        selectedPersonId = null,
+        placeholder = "🔎 Kontakt suchen / wählen (Nachname)...",
+        confirmLabel = "✓ Bestätigen",
+        onSelectPersonJs, // function(personId) -> JS string
+        onConfirmJs = null,
+        allowNone = false,
+        noneLabel = "-- Keine Verknüpfung --",
+        onSelectNoneJs = null,
+        showInlineAlphabet = false,
+        inModal = false,
+        syncWithTab = false,
+        checkedIds = null // Set or Array for multi-select
+      } = opts;
+
+      const st = getDropdownState(key);
+      const q = syncWithTab ? tabSearchQuery : st.query;
+      const letter = syncWithTab ? tabSelectedLetter : st.letter;
+      const sorted = sortPersonsByLastName(persons || []);
+      const filtered = sorted.filter(p => matchesPersonSearchAndLetter(p, q, letter));
+      const selectedPerson = sorted.find(p => p.id === selectedPersonId) || null;
+      const checkedSet = checkedIds ? new Set(checkedIds) : null;
+
+      let triggerText = placeholder;
+      if (checkedSet) {
+        triggerText = `${placeholder} (${checkedSet.size} gewählt • ${filtered.length} Treffer)`;
+      } else if (selectedPerson) {
+        triggerText = formatLastNameFirst(selectedPerson.name);
+      } else if (allowNone && selectedPersonId === -1) {
+        triggerText = noneLabel;
+      } else if (q || letter) {
+        triggerText = `Filter: ${letter ? `[${letter}] ` : ""}${q} (${filtered.length} Treffer)`;
+      }
+
+      const confirmClickJs = onConfirmJs
+        ? `${onConfirmJs}; getDropdownState('${key}').open=false; ${inModal ? 'renderModals()' : 'renderPhoneApp()'}`
+        : `getDropdownState('${key}').open=false; ${inModal ? 'renderModals()' : 'renderPhoneApp()'}`;
+
+      const inlineAbcdHtml = showInlineAlphabet
+        ? renderAlphabetQuickBarHtml(letter, (l) => `setContactDropdownLetter('${key}', '${l}', ${inModal}, ${syncWithTab})`)
+        : "";
+
+      const menuHtml = st.open ? `
+        <div style="margin-top:4px; background:var(--card-slate); border:1.5px solid var(--accent-steel); border-radius:9px; box-shadow:0 12px 28px rgba(0,0,0,0.35); overflow:hidden; z-index:40;">
+          <div style="background:var(--bg-slate); padding:7px 9px; border-bottom:1px solid var(--border-slate); display:flex; flex-direction:column; gap:5px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+              <span style="font-size:11.5px; font-weight:700; color:var(--accent-steel); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ✓ ${escapeHtml(selectedPerson ? formatLastNameFirst(selectedPerson.name) : `${filtered.length} Kontakte (Nachname)`)}
+              </span>
+              <button type="button" class="compact-btn primary" style="padding:3px 8px; font-size:11px;" onclick="${confirmClickJs}">${escapeHtml(confirmLabel)}</button>
+            </div>
+            <div style="display:flex; gap:5px; align-items:center;">
+              <input class="field-input" style="flex:1; font-size:11.5px; padding:4px 7px;" placeholder="🔎 Nachname / Vorname tippen..." value="${escapeHtml(q)}" oninput="setContactDropdownQuery('${key}', this.value, ${inModal}, ${syncWithTab})" />
+              ${(q || letter) ? `<button type="button" class="compact-btn" style="padding:3px 7px; font-size:10.5px;" onclick="setContactDropdownQuery('${key}', '', ${inModal}, ${syncWithTab}); setContactDropdownLetter('${key}', '', ${inModal}, ${syncWithTab});">✕ Reset</button>` : ""}
+            </div>
+            ${renderAlphabetQuickBarHtml(letter, (l) => `setContactDropdownLetter('${key}', '${l}', ${inModal}, ${syncWithTab})`)}
+          </div>
+          <div style="max-height:195px; overflow-y:auto; display:flex; flex-direction:column;">
+            ${allowNone ? `
+              <div style="padding:7px 10px; font-size:12px; cursor:pointer; border-bottom:1px solid var(--border-slate); color:${selectedPersonId === -1 ? 'var(--accent-steel)' : 'var(--text-secondary)'}; font-weight:${selectedPersonId === -1 ? '700' : '400'};"
+                   onclick="${onSelectNoneJs || ''}; getDropdownState('${key}').open=false; ${inModal ? 'renderModals()' : 'renderPhoneApp()'}">
+                🚫 ${escapeHtml(noneLabel)}
+              </div>
+            ` : ""}
+            ${filtered.length === 0 ? `<div style="padding:10px; font-size:11.5px; color:var(--text-muted);">Kein Kontakt für diesen Filter gefunden.</div>` : ""}
+            ${filtered.map(p => {
+              const isSel = p.id === selectedPersonId || (checkedSet && checkedSet.has(p.id));
+              const clickJs = checkedSet
+                ? `${onSelectPersonJs(p.id)}`
+                : `${onSelectPersonJs(p.id)}; getDropdownState('${key}').open=false; ${inModal ? 'renderModals()' : 'renderPhoneApp()'}`;
+              return `
+                <div style="padding:6px 10px; font-size:12.5px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:6px; border-bottom:1px solid var(--border-slate); background:${isSel ? 'rgba(59,130,196,0.12)' : 'transparent'}; color:${isSel ? 'var(--accent-steel)' : 'var(--text-primary)'}; font-weight:${isSel ? '700' : '500'};"
+                     onclick="${clickJs}">
+                  <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    ${checkedSet ? (isSel ? "☑️ " : "⬜ ") : "👤 "}${escapeHtml(formatLastNameFirst(p.name))}
+                  </span>
+                  ${p.birthdayIso ? `<span style="font-size:10.5px; color:var(--text-muted); flex-shrink:0;">${escapeHtml(formatIsoToDdMmYyyy(p.birthdayIso))}</span>` : ""}
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      ` : "";
+
+      return `
+        <div style="display:flex; flex-direction:column; gap:5px; width:100%;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:7px; padding:7px 10px; cursor:pointer;"
+               onclick="toggleContactDropdown('${key}', ${inModal})">
+            <span style="font-size:12.5px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              ${escapeHtml(triggerText)}
+            </span>
+            <span style="font-size:11px; color:var(--accent-steel); font-weight:700; flex-shrink:0;">${st.open ? "▲" : "▼"}</span>
+          </div>
+          ${inlineAbcdHtml}
+          ${menuHtml}
+        </div>
+      `;
+    }
+
     function cycleContactSortMode() {
-      if (contactSortMode === "birthday") contactSortMode = "firstname";
-      else if (contactSortMode === "firstname") contactSortMode = "lastname";
-      else contactSortMode = "birthday";
+      if (contactSortMode === "lastname") contactSortMode = "birthday";
+      else if (contactSortMode === "birthday") contactSortMode = "firstname";
+      else contactSortMode = "lastname";
       renderPhoneApp();
     }
 
     function getSortModeButtonLabel() {
       if (contactSortMode === "firstname") return "⇅ Vorname";
-      if (contactSortMode === "lastname") return "⇅ Name";
-      return "⇅ Geburtstag";
+      if (contactSortMode === "birthday") return "⇅ Geburtstag";
+      return "⇅ Nachname";
     }
 
     function formatPassedBirthdayLine(birthdayIso) {
@@ -2119,21 +2344,20 @@
     function sortPersonsArray(arr) {
       return [...arr].sort((a, b) => {
         if (contactSortMode === "firstname") {
-          const cmp = extractFirstName(a.name).localeCompare(extractFirstName(b.name), "de");
-          return cmp !== 0 ? cmp : extractLastName(a.name).localeCompare(extractLastName(b.name), "de");
+          const cmp = extractFirstName(a.name).localeCompare(extractFirstName(b.name), "de", { sensitivity: "base" });
+          return cmp !== 0 ? cmp : comparePersonsByLastName(a, b);
         }
         if (contactSortMode === "lastname") {
-          const cmp = extractLastName(a.name).localeCompare(extractLastName(b.name), "de");
-          return cmp !== 0 ? cmp : extractFirstName(a.name).localeCompare(extractFirstName(b.name), "de");
+          return comparePersonsByLastName(a, b);
         }
         if (!showPastDates) {
           const da = ContactResolver.daysUntilNextBirthday(a.birthdayIso) ?? 999999;
           const db = ContactResolver.daysUntilNextBirthday(b.birthdayIso) ?? 999999;
-          return da !== db ? da - db : a.name.localeCompare(b.name, "de");
+          return da !== db ? da - db : comparePersonsByLastName(a, b);
         } else {
           const na = ContactResolver.negativeDaysSinceLastBirthday(a.birthdayIso) ?? -999999;
           const nb = ContactResolver.negativeDaysSinceLastBirthday(b.birthdayIso) ?? -999999;
-          return na !== nb ? nb - na : a.name.localeCompare(b.name, "de");
+          return na !== nb ? nb - na : comparePersonsByLastName(a, b);
         }
       });
     }
@@ -2144,28 +2368,43 @@
       const baseList = allContactsFilter === "hidden"
         ? state.persons.filter(p => p.isHidden)
         : state.persons.filter(p => !p.isHidden);
-      const sorted = sortPersonsArray(baseList);
+      const filteredBase = baseList.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
+      const sorted = sortPersonsArray(filteredBase);
+
+      const searchDropdownHtml = renderContactSearchDropdownHtml({
+        key: "tab_all_contacts",
+        persons: baseList,
+        selectedPersonId: null,
+        placeholder: `🔎 Kontakt suchen / per Dropdown wählen (${sorted.length}/${baseList.length})...`,
+        onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
+        showInlineAlphabet: true,
+        inModal: false,
+        syncWithTab: true
+      });
 
       const headerBar = `
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px;">
-          <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Geburtstag / Vorname / Name)">
-            ${getSortModeButtonLabel()}
-          </button>
-          <div class="btn-row">
-            <button class="compact-btn ${allContactsFilter === 'all' ? 'primary' : ''}" onclick="allContactsFilter='all'; renderPhoneApp();">
-              Alle (${visibleCount})
+        <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
+              ${getSortModeButtonLabel()}
             </button>
-            <button class="compact-btn ${allContactsFilter === 'hidden' ? 'primary' : ''}" onclick="allContactsFilter='hidden'; renderPhoneApp();">
-              Ausgeblendet (${hiddenCount})
-            </button>
+            <div class="btn-row">
+              <button class="compact-btn ${allContactsFilter === 'all' ? 'primary' : ''}" onclick="allContactsFilter='all'; renderPhoneApp();">
+                Alle (${visibleCount})
+              </button>
+              <button class="compact-btn ${allContactsFilter === 'hidden' ? 'primary' : ''}" onclick="allContactsFilter='hidden'; renderPhoneApp();">
+                Ausgeblendet (${hiddenCount})
+              </button>
+            </div>
           </div>
+          ${searchDropdownHtml}
         </div>
       `;
 
       if (sorted.length === 0) {
         return headerBar + `
           <div class="card">
-            <div style="font-size:12px; color:var(--text-secondary);">Keine Kontakte in dieser Ansicht vorhanden.</div>
+            <div style="font-size:12px; color:var(--text-secondary);">Keine Kontakte für diesen ABCD-/Suchfilter vorhanden.</div>
           </div>
         `;
       }
@@ -2182,7 +2421,7 @@
               </div>
               <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0;">
-                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(person.name)}</span>
+                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(formatLastNameFirst(person.name))}</span>
                   ${pillHtml}
                   ${person.isHidden ? `<span class="badge-nophone">Ausgeblendet</span>` : ""}
                   ${!person.birthdayIso ? `<span class="badge-app">Ohne Datum</span>` : ""}
@@ -2204,16 +2443,31 @@
 
     function renderPersonsList() {
       const visiblePersons = state.persons.filter(p => !p.isHidden);
-      const sorted = sortPersonsArray(visiblePersons);
+      const filteredVisible = visiblePersons.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
+      const sorted = sortPersonsArray(filteredVisible);
+
+      const searchDropdownHtml = renderContactSearchDropdownHtml({
+        key: "tab_overview",
+        persons: visiblePersons,
+        selectedPersonId: null,
+        placeholder: `🔎 Kontakt suchen / per Dropdown wählen (${sorted.length}/${visiblePersons.length})...`,
+        onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
+        showInlineAlphabet: true,
+        inModal: false,
+        syncWithTab: true
+      });
 
       const headerBar = `
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px;">
-          <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Geburtstag / Vorname / Name)">
-            ${getSortModeButtonLabel()}
-          </button>
-          <button class="compact-btn ${showPastDates ? 'primary' : ''}" onclick="showPastDates=!showPastDates; renderPhoneApp();">
-            ${showPastDates ? "Anstehende zeigen" : "Vergangene Termine"}
-          </button>
+        <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
+              ${getSortModeButtonLabel()}
+            </button>
+            <button class="compact-btn ${showPastDates ? 'primary' : ''}" onclick="showPastDates=!showPastDates; renderPhoneApp();">
+              ${showPastDates ? "Anstehende zeigen" : "Vergangene Termine"}
+            </button>
+          </div>
+          ${searchDropdownHtml}
         </div>
       `;
 
@@ -2234,7 +2488,7 @@
               </div>
               <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0;">
-                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(person.name)}</span>
+                  <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(formatLastNameFirst(person.name))}</span>
                   ${pillHtml}
                 </div>
                 ${bdayLine ? `<div class="person-sub" style="margin-top:2px; color:${showPastDates ? 'var(--warn-amber)' : 'var(--text-secondary)'};">${escapeHtml(bdayLine)}</div>` : `<div class="person-sub" style="margin-top:2px; color:var(--text-muted);">${escapeHtml(fallbackLine)}</div>`}
@@ -2362,7 +2616,7 @@
     }
 
     function renderFamilyTreeTab() {
-      const visiblePersons = state.persons.filter(p => !p.isHidden);
+      const visiblePersons = sortPersonsByLastName(state.persons.filter(p => !p.isHidden));
       if (visiblePersons.length === 0) return "";
       const rootPerson = visiblePersons.find(p => p.id === selectedTreeRootId) || visiblePersons[0];
       const personMap = new Map(visiblePersons.map(p => [p.id, p]));
@@ -2474,7 +2728,7 @@
           const bIsParent = bRole === "Eltern" || bRole === "Mutter" || bRole === "Vater";
           if (aIsParent && !bIsParent) return -1;
           if (!aIsParent && bIsParent) return 1;
-          return a.name.localeCompare(b.name);
+          return comparePersonsByLastName(a, b);
         });
 
         for (const m of sortedSeed) {
@@ -2503,11 +2757,40 @@
         if (len > maxRowCount) maxRowCount = len;
       }
 
-      const dropdownOptions = visiblePersons.map(p => `
-        <option value="${p.id}" ${p.id === rootPerson.id ? 'selected' : ''}>
-          ${escapeHtml(p.name)}
-        </option>
-      `).join("");
+      const focusDropdownHtml = renderContactSearchDropdownHtml({
+        key: "tab_family_tree_focus",
+        persons: visiblePersons,
+        selectedPersonId: rootPerson.id,
+        placeholder: "🌳 Fokus-Kontakt (Nachname) wählen...",
+        onSelectPersonJs: (pid) => `selectedTreeRootId=${pid}; renderPhoneApp()`,
+        showInlineAlphabet: true,
+        inModal: false
+      });
+
+      const unconnected = visiblePersons.filter(p => !genMap.has(p.id));
+      const unconnectedHtml = unconnected.length > 0 ? `
+        <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
+          <div style="font-size:12px; font-weight:600; color:var(--text-secondary);">
+            Weitere Kontakte (${unconnected.length}, noch nicht mit ${escapeHtml(formatLastNameFirst(rootPerson.name))} verknüpft):
+          </div>
+          ${renderContactSearchDropdownHtml({
+            key: "tab_family_tree_unconnected",
+            persons: unconnected,
+            selectedPersonId: null,
+            placeholder: `🔎 Nicht verknüpften Kontakt auswählen (${unconnected.length})...`,
+            onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
+            showInlineAlphabet: true,
+            inModal: false
+          })}
+          <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:2px;">
+            ${unconnected.map(up => `
+              <button class="compact-btn" style="padding:4px 8px; font-size:11.5px;" onclick="openDetailModal(${up.id})">
+                ${escapeHtml(formatLastNameFirst(up.name))}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      ` : "";
 
       const z = treeZoom;
       const nodeMinW = Math.round(74 * z);
@@ -2569,12 +2852,8 @@
 
       return `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:7px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <label class="field-label" style="white-space:nowrap; font-size:12px; font-weight:600; color:var(--text-secondary);">🌳 Fokus:</label>
-            <select class="field-select" style="flex:1;" onchange="selectedTreeRootId=parseInt(this.value, 10); renderPhoneApp();">
-              ${dropdownOptions}
-            </select>
-          </div>
+          <div style="font-size:11.5px; font-weight:600; color:var(--text-secondary);">🌳 Fokus-Kontakt im Stammbaum (Nachname, Vorname):</div>
+          ${focusDropdownHtml}
           <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
             <span style="font-size:11px; color:var(--text-muted);">✋ Ziehen & 🔍 Zoomen:</span>
             <div class="btn-row" style="gap:4px;">
@@ -2599,6 +2878,7 @@
             ${levelsHtml}
           </div>
         </div>
+        ${unconnectedHtml}
       `;
     }
 
@@ -2632,8 +2912,25 @@
 
     function renderTimerTab() {
       const today = todayIso();
-      const timerPersons = state.persons.filter(p => !p.isHidden && p.timerEnabled);
-      return timerPersons.map(p => {
+      const allTimerPersons = sortPersonsByLastName(state.persons.filter(p => !p.isHidden && p.timerEnabled));
+      const timerPersons = allTimerPersons.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
+
+      const searchCard = `
+        <div class="card" style="padding:8px 10px;">
+          ${renderContactSearchDropdownHtml({
+            key: "tab_timer",
+            persons: allTimerPersons,
+            selectedPersonId: null,
+            placeholder: `🔎 Timer-Kontakt suchen / per Dropdown wählen (${timerPersons.length}/${allTimerPersons.length})...`,
+            onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
+            showInlineAlphabet: true,
+            inModal: false,
+            syncWithTab: true
+          })}
+        </div>
+      `;
+
+      const listHtml = timerPersons.map(p => {
         const nextDate = ContactResolver.nextTimerDate(p, today);
         const diff = daysBetween(today, nextDate);
         const pillText = diff <= 0 ? "⏳ Fällig!" : `⏳ in ${diff}T`;
@@ -2644,7 +2941,7 @@
             </div>
             <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${p.id})">
               <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                <span class="person-name-link">${escapeHtml(p.name)}</span>
+                <span class="person-name-link">${escapeHtml(formatLastNameFirst(p.name))}</span>
                 <span class="countdown-pill ${diff <= 0 ? 'today' : (diff <= 3 ? 'soon' : '')}">${pillText}</span>
               </div>
               <div class="person-sub">Alle ${p.timerInterval} ${formatTimerUnitDe(p.timerUnit)} • Nächste: ${formatIsoToDdMmYyyy(nextDate)}</div>
@@ -2653,40 +2950,65 @@
           </div>
         `;
       }).join("");
+      return searchCard + listHtml;
     }
 
     function renderEventsTab() {
       const today = todayIso();
+      const visiblePersons = sortPersonsByLastName(state.persons.filter(p => !p.isHidden));
       const rows = [];
       state.specialEvents.forEach(ev => {
-        const person = state.persons.find(p => p.id === ev.personId && !p.isHidden);
+        const person = visiblePersons.find(p => p.id === ev.personId);
         if (!person) return;
+        if (!matchesPersonSearchAndLetter(person, tabSearchQuery, tabSelectedLetter) &&
+            !ev.title.toLowerCase().includes((tabSearchQuery || "").trim().toLowerCase())) {
+          return;
+        }
         const days = daysUntilEventSpec(ev.dateIso, today);
         const isWeekly = isWeeklyDateSpec(ev.dateIso) || isRepeatDateSpec(ev.dateIso);
         rows.push({
           days,
+          person,
           personId: ev.personId,
           personName: person.name,
-          title: `${isWeekly ? "🔁 " : "🔔 "}${ev.title} (${person.name})`,
+          title: `${isWeekly ? "🔁 " : "🔔 "}${ev.title} (${formatLastNameFirst(person.name)})`,
           sub: `${formatIsoToDdMmYyyy(ev.dateIso)}`,
           badge: days === 0 ? "Heute!" : `in ${days}T`
         });
       });
-      state.persons.filter(p => !p.isHidden).forEach(p => {
-        if (p.birthdayIso) {
+      visiblePersons.forEach(p => {
+        if (p.birthdayIso && matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter)) {
           const days = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
           rows.push({
             days: days ?? 999,
+            person: p,
             personId: p.id,
             personName: p.name,
-            title: `🎂 Geburtstag: ${p.name}`,
+            title: `🎂 ${formatLastNameFirst(p.name)}`,
             sub: `${formatIsoToDdMmYyyy(p.birthdayIso)} (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`,
             badge: days === 0 ? "Heute!" : `in ${days}T`
           });
         }
       });
-      rows.sort((a, b) => a.days - b.days);
-      return rows.map(r => `
+      rows.sort((a, b) => {
+        if (contactSortMode === "lastname") return comparePersonsByLastName(a.person, b.person);
+        return a.days - b.days;
+      });
+      const searchCard = `
+        <div class="card" style="padding:8px 10px;">
+          ${renderContactSearchDropdownHtml({
+            key: "tab_events",
+            persons: visiblePersons,
+            selectedPersonId: null,
+            placeholder: `🔎 Erinnerung / Kontakt suchen (${rows.length})...`,
+            onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
+            showInlineAlphabet: true,
+            inModal: false,
+            syncWithTab: true
+          })}
+        </div>
+      `;
+      const listHtml = rows.map(r => `
         <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
           <div style="cursor:pointer;" onclick="openDetailModal(${r.personId})">
             ${renderPersonAvatarHtml(r.personName)}
@@ -2701,6 +3023,7 @@
           <button class="compact-btn primary" onclick="openPopupForPerson(${r.personId}, '${escapeHtml(r.title)}')">💬 Gruß</button>
         </div>
       `).join("");
+      return searchCard + listHtml;
     }
 
     let selectedWichtelGroupId = null;
@@ -3180,9 +3503,14 @@
       if (showGreetingsEditorModal) {
         const list = getBirthdayGreetingsList();
         const q = (greetingsSearchQuery || "").trim().toLowerCase();
+        const selL = (greetingsSelectedLetter || "").trim().toUpperCase();
         const filtered = list
           .map((text, idx) => ({ text, idx }))
-          .filter(item => !q || item.text.toLowerCase().includes(q) || String(item.idx + 1) === q);
+          .filter(item => {
+            const matchesQ = !q || item.text.toLowerCase().includes(q) || String(item.idx + 1) === q;
+            const matchesL = !selL || extractTextInitial(item.text) === selL;
+            return matchesQ && matchesL;
+          });
 
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
@@ -3197,10 +3525,27 @@
               <div style="font-size:11px; color:var(--text-secondary); line-height:1.35;">
                 Beim Öffnen einer Nachricht wählt die App zufällig einen dieser Glückwunschtexte aus. Der Platzhalter <b>{Name}</b> wird automatisch durch den Vornamen ersetzt.
               </div>
-              <div style="display:flex; gap:6px;">
+              <div style="display:flex; gap:5px; align-items:center;">
                 <input class="field-input" style="flex:1;" placeholder="🔎 Spruch suchen (z. B. Glück, Kuchen, Nr.)..." value="${escapeHtml(greetingsSearchQuery)}" oninput="greetingsSearchQuery=this.value; renderModals();" />
+                <button class="compact-btn" onclick="greetingsDropdownOpen=!greetingsDropdownOpen; renderModals();">▼ Liste (${filtered.length})</button>
                 <button class="compact-btn primary" onclick="addNewBirthdayGreeting()">+ Neu</button>
               </div>
+              ${renderAlphabetQuickBarHtml(greetingsSelectedLetter, (l) => `greetingsSelectedLetter='${l}'; renderModals()`)}
+              ${greetingsDropdownOpen ? `
+                <div style="background:var(--card-slate); border:1.5px solid var(--accent-steel); border-radius:8px; overflow:hidden;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-slate); padding:6px 9px; border-bottom:1px solid var(--border-slate);">
+                    <span style="font-size:11.5px; font-weight:700; color:var(--accent-steel);">✓ ${filtered.length} Sprüche</span>
+                    <button class="compact-btn primary" style="padding:3px 8px; font-size:11px;" onclick="greetingsDropdownOpen=false; renderModals();">✓ Bestätigen</button>
+                  </div>
+                  <div style="max-height:160px; overflow-y:auto;">
+                    ${filtered.map(item => `
+                      <div style="padding:6px 9px; font-size:11.5px; cursor:pointer; border-bottom:1px solid var(--border-slate);" onclick="greetingsSearchQuery='${item.idx + 1}'; greetingsDropdownOpen=false; renderModals();">
+                        <b>#${item.idx + 1}:</b> ${escapeHtml(item.text)}
+                      </div>
+                    `).join("")}
+                  </div>
+                </div>
+              ` : ""}
               <div style="display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow-y:auto; padding-right:2px;">
                 ${filtered.map(item => `
                   <div style="display:flex; gap:5px; align-items:center; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:7px; padding:5px 7px;">
@@ -3289,8 +3634,19 @@
       }
 
       if (showCreateDialog) {
-        const sortedPersons = [...state.persons].sort((a, b) => (a.name || "").localeCompare(b.name || "", "de"));
-        const existingOptions = sortedPersons.map(p => `<option value="${p.id}">👤 ${escapeHtml(p.name)}</option>`).join("");
+        const sortedPersons = sortPersonsByLastName(state.persons);
+        const createRelDropdownHtml = renderContactSearchDropdownHtml({
+          key: "create_rel_target",
+          persons: sortedPersons,
+          selectedPersonId: createDraft.relTargetId ?? -1,
+          placeholder: "🔎 Verknüpften Kontakt wählen (Nachname)...",
+          allowNone: true,
+          noneLabel: "-- Keine Verknüpfung --",
+          onSelectNoneJs: "createDraft.relTargetId = -1",
+          onSelectPersonJs: (pid) => `createDraft.relTargetId = ${pid}`,
+          showInlineAlphabet: true,
+          inModal: true
+        });
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
             <div class="modal" onclick="event.stopPropagation()">
@@ -3370,12 +3726,9 @@
                   ${createRelationsExpanded ? `
                     <div class="field-group" style="margin-top:6px;">
                       <label class="field-label">1. Beziehungsart</label>
-                      <select id="c-rellabel" class="field-select">${relPresetOptions}</select>
-                      <label class="field-label" style="margin-top:4px;">2. Verknüpfter Kontakt</label>
-                      <select id="c-reltarget" class="field-select">
-                        <option value="-1">🚫 -- Keine Verknüpfung --</option>
-                        ${existingOptions}
-                      </select>
+                      <select id="c-rellabel" class="field-select" onchange="createDraft.relLabel=this.value">${RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}" ${(createDraft.relLabel || 'Kind von') === r ? 'selected' : ''}>${escapeHtml(r)}</option>`).join("")}</select>
+                      <label class="field-label" style="margin-top:4px;">2. Verknüpfter Kontakt (Nachname, Vorname + ABCD)</label>
+                      ${createRelDropdownHtml}
                     </div>
                   ` : ""}
                 </div>
@@ -3393,9 +3746,23 @@
       if (detailPersonId !== null) {
         const dp = state.persons.find(p => p.id === detailPersonId);
         if (!dp) { detailPersonId = null; modalRoot.innerHTML = ""; return; }
-        const otherPersons = state.persons.filter(p => p.id !== dp.id).sort((a, b) => (a.name || "").localeCompare(b.name || "", "de"));
-        const currentRels = getRelationsForPerson(dp.id);
+        const otherPersons = sortPersonsByLastName(state.persons.filter(p => p.id !== dp.id));
+        if (!detailDraftRelTargetId || !otherPersons.some(p => p.id === detailDraftRelTargetId)) {
+          detailDraftRelTargetId = otherPersons[0] ? otherPersons[0].id : -1;
+        }
+        const currentRels = getRelationsForPerson(dp.id).sort((a, b) => comparePersonsByLastName(a.target, b.target));
         const currentEvs = state.specialEvents.filter(e => e.personId === dp.id);
+        const detailRelDropdownHtml = renderContactSearchDropdownHtml({
+          key: "detail_rel_target",
+          persons: otherPersons,
+          selectedPersonId: detailDraftRelTargetId,
+          placeholder: "🔎 Kontakt suchen / wählen (Nachname)...",
+          confirmLabel: "✓ + Speichern",
+          onSelectPersonJs: (pid) => `syncDetailDraftBeforeRerender(); detailDraftRelTargetId = ${pid}`,
+          onConfirmJs: `addRelationFromDetail(${dp.id})`,
+          showInlineAlphabet: true,
+          inModal: true
+        });
 
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
@@ -3475,24 +3842,22 @@
                   </div>
                   ${detailRelationsExpanded ? `
                     ${otherPersons.length > 0 ? `
-                      <div style="display:flex; flex-direction:column; gap:5px; width:100%; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:8px; margin-top:6px;">
+                      <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:8px; margin-top:6px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                          <span style="font-size:11px; font-weight:600; color:var(--text-secondary);">Beziehung zuordnen:</span>
+                          <span style="font-size:11px; font-weight:600; color:var(--text-secondary);">Beziehung zuordnen (Nachname, ABCD):</span>
                           <button class="compact-btn primary" style="padding:4px 8px; font-size:11px;" onclick="addRelationFromDetail(${dp.id})">✓ + Beziehung speichern</button>
                         </div>
-                        <div style="display:flex; gap:6px; width:100%;">
-                          <select id="d-rellabel" class="field-select" style="flex:1;">${relPresetOptions}</select>
-                          <select id="d-reltarget" class="field-select" style="flex:1;">
-                            ${otherPersons.map(op => `<option value="${op.id}">👤 ${escapeHtml(op.name)}</option>`).join("")}
-                          </select>
-                        </div>
+                        <select id="d-rellabel" class="field-select" onchange="detailDraftRelLabel=this.value">
+                          ${RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}" ${(detailDraftRelLabel || 'Kind von') === r ? 'selected' : ''}>${escapeHtml(r)}</option>`).join("")}
+                        </select>
+                        ${detailRelDropdownHtml}
                       </div>
                     ` : ""}
                     <div style="display:flex; flex-direction:column; gap:4px; margin:6px 0;">
                       ${currentRels.length === 0 ? `<div style="font-size:11px; color:var(--text-muted);">Noch keine Beziehungen verknüpft.</div>` :
                         currentRels.map(r => `
                           <div class="rel-item-row">
-                            <span>${escapeHtml(r.rel.relationLabel)} <b>${escapeHtml(r.target.name)}</b></span>
+                            <span>${escapeHtml(r.rel.relationLabel)} <b>${escapeHtml(formatLastNameFirst(r.target.name))}</b></span>
                             <span style="color:var(--warn-amber); cursor:pointer; font-weight:700;" onclick="removeRelation(${r.rel.id})">✕</span>
                           </div>
                         `).join("")}
@@ -3670,6 +4035,19 @@
                   <input id="wg-budget" class="field-input" placeholder="z. B. 25 €" value="${escapeHtml(wg.budget)}" oninput="wichtelGroupModalState.budget=this.value" />
                 </div>
               </div>
+              ${state.persons.length > 0 ? `
+                <div class="field-group">
+                  <label class="field-label">Oder Gruppenadmin per Dropdown-Liste (ABCD, Nachname) wählen:</label>
+                  ${renderContactSearchDropdownHtml({
+                    key: "wichtel_admin_select",
+                    persons: state.persons,
+                    selectedPersonId: (state.persons.find(p => p.name.toLowerCase() === (wg.adminName || "").trim().toLowerCase()) || {}).id || null,
+                    placeholder: "🔎 Gruppenadmin aus Kontakten wählen...",
+                    onSelectPersonJs: (pid) => `const found = state.persons.find(x => x.id === ${pid}); if (found) { wichtelGroupModalState.adminName = found.name; }`,
+                    inModal: true
+                  })}
+                </div>
+              ` : ""}
               <div class="field-group">
                 <label class="field-label">🎭 Wichtel-Modus / Motto</label>
                 <select id="wg-motto" class="field-select" onchange="wichtelGroupModalState.motto=this.value">
@@ -3715,13 +4093,18 @@
       if (wichtelParticipantModalState !== null) {
         const wp = wichtelParticipantModalState;
         if (wp.mode === "add") {
-          // Sortiere Kontakte so, dass Paare direkt untereinander in einer hervorgehobenen Paar-Box stehen
+          const sortedWichtelPersons = sortPersonsByLastName(state.persons);
+          const ddState = getDropdownState("wichtel_checklist_dd");
+          const filteredForChecklist = sortedWichtelPersons.filter(p => matchesPersonSearchAndLetter(p, ddState.query, ddState.letter));
+          const filteredIdSet = new Set(filteredForChecklist.map(p => p.id));
+
+          // Sortiere Kontakte nach Nachname so, dass Paare direkt untereinander in einer hervorgehobenen Paar-Box stehen
           const orderedContacts = [];
           const visitedIds = new Set();
-          for (const p of state.persons) {
+          for (const p of filteredForChecklist) {
             if (visitedIds.has(p.id)) continue;
             const partner = getCouplePartnerForPerson(p.id);
-            if (partner && !visitedIds.has(partner.id)) {
+            if (partner && !visitedIds.has(partner.id) && filteredIdSet.has(partner.id)) {
               visitedIds.add(p.id);
               visitedIds.add(partner.id);
               orderedContacts.push({ type: "couple", members: [p, partner] });
@@ -3730,6 +4113,19 @@
               orderedContacts.push({ type: "single", person: p });
             }
           }
+
+          const checklistDropdownHtml = renderContactSearchDropdownHtml({
+            key: "wichtel_checklist_dd",
+            persons: sortedWichtelPersons,
+            selectedPersonId: null,
+            placeholder: "🔎 Teilnehmer per Dropdown-Liste (ABCD) an-/abwählen",
+            confirmLabel: "✓ Übernehmen",
+            onConfirmJs: "saveWichtelParticipantModal()",
+            onSelectPersonJs: (pid) => `toggleWichtelChecklistPerson(${pid}, !wichtelParticipantModalState.checkedPersonIds.includes(${pid})); renderModals()`,
+            showInlineAlphabet: true,
+            inModal: true,
+            checkedIds: wp.checkedPersonIds
+          });
 
           const checklistHtml = orderedContacts.map(item => {
             if (item.type === "couple") {
@@ -3744,13 +4140,13 @@
                   </div>
                   <label class="checkbox-row" style="padding:3px 4px; background:var(--bg-slate); border-radius:5px; color:var(--text-primary); font-weight:600;">
                     <input type="checkbox" ${c1 ? 'checked' : ''} onchange="toggleWichtelChecklistPerson(${p1.id}, this.checked)" />
-                    <span style="flex:1;">${escapeHtml(p1.name)}</span>
-                    <span style="font-size:10px; color:var(--partner-rose);">💑 Paar mit ${escapeHtml(p2.name.split(' ')[0])}</span>
+                    <span style="flex:1;">${escapeHtml(formatLastNameFirst(p1.name))}</span>
+                    <span style="font-size:10px; color:var(--partner-rose);">💑 Paar mit ${escapeHtml(extractFirstName(p2.name))}</span>
                   </label>
                   <label class="checkbox-row" style="padding:3px 4px; background:var(--bg-slate); border-radius:5px; color:var(--text-primary); font-weight:600;">
                     <input type="checkbox" ${c2 ? 'checked' : ''} onchange="toggleWichtelChecklistPerson(${p2.id}, this.checked)" />
-                    <span style="flex:1;">${escapeHtml(p2.name)}</span>
-                    <span style="font-size:10px; color:var(--partner-rose);">💑 Paar mit ${escapeHtml(p1.name.split(' ')[0])}</span>
+                    <span style="flex:1;">${escapeHtml(formatLastNameFirst(p2.name))}</span>
+                    <span style="font-size:10px; color:var(--partner-rose);">💑 Paar mit ${escapeHtml(extractFirstName(p1.name))}</span>
                   </label>
                 </div>
               `;
@@ -3760,7 +4156,7 @@
               return `
                 <label class="checkbox-row" style="padding:6px 8px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:6px; color:var(--text-primary);">
                   <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleWichtelChecklistPerson(${p.id}, this.checked)" />
-                  <span style="flex:1; font-weight:500;">${escapeHtml(p.name)}</span>
+                  <span style="flex:1; font-weight:500;">${escapeHtml(formatLastNameFirst(p.name))}</span>
                   ${p.phone ? `<span style="font-size:10.5px; color:var(--text-muted);">${escapeHtml(p.phone)}</span>` : ""}
                 </label>
               `;
@@ -3778,14 +4174,15 @@
                   </div>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                  <span style="font-size:11.5px; color:var(--text-secondary);">Kontakte zum Mitwichteln ankreuzen:</span>
+                  <span style="font-size:11.5px; color:var(--text-secondary);">Nachname, Vorname (ABCD-Schnellwahl):</span>
                   <div class="btn-row">
                     <button class="compact-btn" style="padding:3px 7px; font-size:10.5px;" onclick="selectAllWichtelChecklist(true)">Alle</button>
                     <button class="compact-btn" style="padding:3px 7px; font-size:10.5px;" onclick="selectAllWichtelChecklist(false)">Keine</button>
                   </div>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; padding-right:2px;">
-                  ${checklistHtml || `<div style="font-size:12px; color:var(--text-muted);">Noch keine Kontakte vorhanden.</div>`}
+                ${checklistDropdownHtml}
+                <div style="display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; padding-right:2px;">
+                  ${checklistHtml || `<div style="font-size:12px; color:var(--text-muted);">Keine Kontakte für diesen ABCD-/Suchfilter.</div>`}
                 </div>
                 <div style="border-top:1px solid var(--border-slate); padding-top:8px; margin-top:2px;">
                   <div class="field-label" style="margin-bottom:4px;">Oder weitere Person frei hinzufügen (optional):</div>
@@ -4028,8 +4425,10 @@
     let pendingDeleteConfirm = null;
     let showOptionsDialog = false;
     let detailRelationsExpanded = false;
+    let detailDraftRelLabel = "Kind von";
+    let detailDraftRelTargetId = -1;
     let createRelationsExpanded = false;
-    let createDraft = { name: "", bday: "", noPhone: false, phone: "", email: "", timer: "14", notes: "", photoBase64: "" };
+    let createDraft = { name: "", bday: "", noPhone: false, phone: "", email: "", timer: "14", notes: "", photoBase64: "", relLabel: "Kind von", relTargetId: -1 };
 
     function triggerContactPhotoPicker(mode) {
       if (mode === "detail") syncDetailDraftBeforeRerender();
@@ -4911,7 +5310,9 @@
         email: "",
         timer: "14",
         notes: "",
-        photoBase64: ""
+        photoBase64: "",
+        relLabel: "Kind von",
+        relTargetId: -1
       };
       renderModals();
     }
@@ -4919,6 +5320,9 @@
     function openDetailModal(id) {
       detailPersonId = id;
       detailRelationsExpanded = false;
+      detailDraftRelLabel = "Kind von";
+      const others = sortPersonsByLastName(state.persons.filter(p => p.id !== id));
+      detailDraftRelTargetId = others[0] ? others[0].id : -1;
       const dp = state.persons.find(p => p.id === id);
       detailDraftPhotoBase64 = dp ? (dp.photoBase64 || "") : "";
       detailExtraInfos = dp && Array.isArray(dp.extraInfos)
@@ -5034,11 +5438,15 @@
     }
 
     function addRelationFromDetail(fromId) {
-      const label = document.getElementById("d-rellabel").value;
-      const targetId = parseInt(document.getElementById("d-reltarget").value, 10);
-      addBidirectionalRelation(fromId, targetId, label);
-      addLog(`Beziehung "${label}" gespeichert.`);
-      saveState();
+      syncDetailDraftBeforeRerender();
+      const labelEl = document.getElementById("d-rellabel");
+      const label = labelEl ? labelEl.value : (detailDraftRelLabel || "Kind von");
+      const targetId = parseInt(detailDraftRelTargetId, 10);
+      if (targetId > 0) {
+        addBidirectionalRelation(fromId, targetId, label);
+        addLog(`Beziehung "${label}" gespeichert.`);
+        saveState();
+      }
     }
 
     function removeRelation(relId) {
@@ -5086,14 +5494,11 @@
         lastContactedIso: todayIso()
       });
 
-      const relTargetEl = document.getElementById("c-reltarget");
       const relLabelEl = document.getElementById("c-rellabel");
-      if (relTargetEl && relLabelEl) {
-        const targetId = parseInt(relTargetEl.value, 10);
-        const relLabel = relLabelEl.value.trim();
-        if (targetId > 0 && relLabel) {
-          addBidirectionalRelation(newId, targetId, relLabel);
-        }
+      const targetId = parseInt(createDraft.relTargetId ?? -1, 10);
+      const relLabel = (relLabelEl ? relLabelEl.value : (createDraft.relLabel || "Kind von")).trim();
+      if (targetId > 0 && relLabel) {
+        addBidirectionalRelation(newId, targetId, relLabel);
       }
 
       selectedTreeRootId = newId;
@@ -5307,7 +5712,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.24",
+        version: "1.0.25",
         createdAt: dateStr,
         state
       };
@@ -5325,7 +5730,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.24",
+        version: "1.0.25",
         createdAt: dateStr,
         state
       };
@@ -5400,7 +5805,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.24 gestartet.");
+    addLog("Remember Me v1.0.25 gestartet.");
     renderAll();
   </script>
 </body>
