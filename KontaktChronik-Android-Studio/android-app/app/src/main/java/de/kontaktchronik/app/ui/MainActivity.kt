@@ -690,6 +690,381 @@ fun combineFirstAndLastName(firstName: String, lastName: String): String {
 }
 
 @Composable
+fun contactFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = TextPrimary,
+    unfocusedTextColor = TextPrimary,
+    focusedContainerColor = CardSlate,
+    unfocusedContainerColor = CardSlate,
+    cursorColor = AccentSteel,
+    focusedBorderColor = AccentSteel,
+    unfocusedBorderColor = BorderSlate,
+    focusedLabelColor = AccentSteel,
+    unfocusedLabelColor = TextSecondary,
+    focusedPlaceholderColor = TextMuted,
+    unfocusedPlaceholderColor = TextMuted
+)
+
+@Composable
+fun PrimaryActionButton(
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val bgBrush = if (appThemeMode == "xmas") {
+        Brush.horizontalGradient(listOf(Color(0xFF15803D), Color(0xFF0F766E)))
+    } else {
+        Brush.horizontalGradient(listOf(Color(0xFF3B82C4), Color(0xFF2563EB)))
+    }
+    Box(
+        modifier = modifier
+            .background(bgBrush, RoundedCornerShape(9.dp))
+            .border(1.dp, AccentSteel.copy(alpha = 0.75f), RoundedCornerShape(9.dp))
+            .clip(RoundedCornerShape(9.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            style = CenteredPillTextStyle,
+            maxLines = 1,
+            softWrap = false
+        )
+    }
+}
+
+@Composable
+fun DangerActionButton(
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .background(PartnerRose.copy(alpha = 0.12f), RoundedCornerShape(9.dp))
+            .border(1.dp, PartnerRose.copy(alpha = 0.55f), RoundedCornerShape(9.dp))
+            .clip(RoundedCornerShape(9.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 11.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = PartnerRose,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            style = CenteredPillTextStyle,
+            maxLines = 1,
+            softWrap = false
+        )
+    }
+}
+
+@Composable
+fun StyledContactTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    leadingSymbol: String? = null,
+    placeholder: String? = null,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    OutlinedTextField(
+        value = value.replace("\n", " ").replace("\r", " "),
+        onValueChange = { onValueChange(it.replace("\n", " ").replace("\r", " ")) },
+        label = { Text(label, maxLines = 1, softWrap = false, fontSize = 11.5.sp) },
+        placeholder = placeholder?.let { ph -> { Text(ph, maxLines = 1, softWrap = false, fontSize = 12.sp) } },
+        leadingIcon = leadingSymbol?.let { sym ->
+            {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(BgSlate, RoundedCornerShape(7.dp))
+                        .border(1.dp, BorderSlate, RoundedCornerShape(7.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(sym, fontSize = 13.sp, style = CenteredPillTextStyle)
+                }
+            }
+        },
+        shape = RoundedCornerShape(10.dp),
+        colors = contactFieldColors(),
+        modifier = modifier,
+        singleLine = true,
+        maxLines = 1
+    )
+}
+
+@Composable
+fun ContactFormSectionCard(
+    icon: String,
+    title: String,
+    badge: String? = null,
+    onHeaderClick: (() -> Unit)? = null,
+    trailingHeader: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BgSlate.copy(alpha = if (isLightMode) 0.85f else 0.72f), RoundedCornerShape(14.dp))
+            .border(1.dp, BorderSlate, RoundedCornerShape(14.dp))
+            .padding(horizontal = 11.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (onHeaderClick != null) Modifier.clickable { onHeaderClick() } else Modifier)
+                .padding(vertical = 1.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(CardSlate, RoundedCornerShape(7.dp))
+                        .border(1.dp, BorderSlate, RoundedCornerShape(7.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(icon, fontSize = 12.sp, style = CenteredPillTextStyle)
+                }
+                Text(
+                    text = title,
+                    color = TextPrimary,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                if (!badge.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .background(AccentSteel.copy(alpha = 0.16f), RoundedCornerShape(50))
+                            .border(1.dp, AccentSteel.copy(alpha = 0.45f), RoundedCornerShape(50))
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = badge,
+                            color = AccentSteel,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            style = CenteredPillTextStyle,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+            if (trailingHeader != null) {
+                trailingHeader()
+            }
+        }
+        content()
+    }
+}
+
+@Composable
+fun ContactOptionToggleRow(
+    icon: String,
+    title: String,
+    subtitle: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                if (checked) AccentSteel.copy(alpha = 0.11f) else CardSlate,
+                RoundedCornerShape(10.dp)
+            )
+            .border(
+                1.dp,
+                if (checked) AccentSteel.copy(alpha = 0.65f) else BorderSlate,
+                RoundedCornerShape(10.dp)
+            )
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(icon, fontSize = 14.sp, style = CenteredPillTextStyle)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    color = if (checked) TextPrimary else TextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        // Kompakte moderne Switch-Pill
+        Box(
+            modifier = Modifier
+                .width(38.dp)
+                .height(21.dp)
+                .background(
+                    if (checked) AccentSteel else BorderSlate.copy(alpha = 0.8f),
+                    RoundedCornerShape(50)
+                )
+                .padding(horizontal = 3.dp),
+            contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(15.dp)
+                    .background(Color.White, CircleShape)
+            )
+        }
+    }
+}
+
+@Composable
+fun ContactHeroBanner(
+    displayName: String,
+    placeholderTitle: String,
+    birthdayText: String,
+    photoBase64: String,
+    onPickPhoto: () -> Unit,
+    onRemovePhoto: () -> Unit,
+    extraActionRow: (@Composable () -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.horizontalGradient(listOf(RootNodeBg, BgSlate)),
+                RoundedCornerShape(14.dp)
+            )
+            .border(1.dp, BorderSlate, RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .clickable { onPickPhoto() },
+                contentAlignment = Alignment.BottomEnd
+            ) {
+                PersonAvatar(
+                    name = displayName.ifBlank { "?" },
+                    photoBase64 = photoBase64,
+                    sizeDp = 56
+                )
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .background(AccentSteel, CircleShape)
+                        .border(1.5.dp, CardSlate, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📷", fontSize = 10.sp, style = CenteredPillTextStyle)
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = if (displayName.isNotBlank()) formatLastNameFirst(displayName) else placeholderTitle,
+                    color = if (displayName.isNotBlank()) TextPrimary else TextMuted,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                ) {
+                    if (birthdayText.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .background(CardSlate.copy(alpha = 0.85f), RoundedCornerShape(6.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "🎂 $birthdayText",
+                                color = AccentSteel,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                    Text(
+                        text = if (photoBase64.isNotBlank()) "✓ Foto aktiv" else "Tippe auf Avatar für Foto",
+                        color = TextSecondary,
+                        fontSize = 10.5.sp,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CompactButton(if (photoBase64.isNotBlank()) "📷 Ändern" else "📷 Foto") {
+                    onPickPhoto()
+                }
+                if (photoBase64.isNotBlank()) {
+                    DangerActionButton("✕") {
+                        onRemovePhoto()
+                    }
+                }
+            }
+        }
+        if (extraActionRow != null) {
+            extraActionRow()
+        }
+    }
+}
+
+@Composable
 fun FirstAndLastNameFields(
     firstName: String,
     onFirstNameChange: (String) -> Unit,
@@ -706,7 +1081,9 @@ fun FirstAndLastNameFields(
         OutlinedTextField(
             value = firstName,
             onValueChange = { onFirstNameChange(it.replace("\n", " ").replace("\r", " ")) },
-            label = { Text(firstLabel, maxLines = 1, softWrap = false) },
+            label = { Text(firstLabel, maxLines = 1, softWrap = false, fontSize = 11.5.sp) },
+            shape = RoundedCornerShape(10.dp),
+            colors = contactFieldColors(),
             modifier = Modifier.weight(1f),
             singleLine = true,
             maxLines = 1
@@ -714,7 +1091,9 @@ fun FirstAndLastNameFields(
         OutlinedTextField(
             value = lastName,
             onValueChange = { onLastNameChange(it.replace("\n", " ").replace("\r", " ")) },
-            label = { Text(lastLabel, maxLines = 1, softWrap = false) },
+            label = { Text(lastLabel, maxLines = 1, softWrap = false, fontSize = 11.5.sp) },
+            shape = RoundedCornerShape(10.dp),
+            colors = contactFieldColors(),
             modifier = Modifier.weight(1f),
             singleLine = true,
             maxLines = 1
@@ -739,6 +1118,8 @@ fun SingleLineExtraInfoRow(
             value = infoLabel.replace("\n", " ").replace("\r", " "),
             onValueChange = { onLabelChange(it.replace("\n", " ").replace("\r", " ")) },
             label = { Text("Bezeichnung", maxLines = 1, softWrap = false, fontSize = 11.sp) },
+            shape = RoundedCornerShape(10.dp),
+            colors = contactFieldColors(),
             modifier = Modifier.weight(0.82f),
             singleLine = true,
             maxLines = 1
@@ -747,21 +1128,31 @@ fun SingleLineExtraInfoRow(
             value = infoValue.replace("\n", " ").replace("\r", " "),
             onValueChange = { onValueChange(it.replace("\n", " ").replace("\r", " ")) },
             label = { Text("Wert", maxLines = 1, softWrap = false, fontSize = 11.sp) },
+            shape = RoundedCornerShape(10.dp),
+            colors = contactFieldColors(),
             modifier = Modifier.weight(1.18f),
             singleLine = true,
             maxLines = 1
         )
-        Text(
-            "✕",
-            color = WarnAmber,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            softWrap = false,
+        Box(
             modifier = Modifier
-                .clickable { onDeleteClick() }
-                .padding(horizontal = 4.dp)
-        )
+                .size(30.dp)
+                .background(PartnerRose.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                .border(1.dp, PartnerRose.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onDeleteClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "✕",
+                color = PartnerRose,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                style = CenteredPillTextStyle,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
     }
 }
 
@@ -2778,7 +3169,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.39", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.40", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -3708,7 +4099,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.39")
+                put("version", "1.0.40")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
@@ -4882,14 +5273,18 @@ fun KontaktChronikApp(
             }
         }
 
-        Dialog(onDismissRequest = { showCreateDialog = false }) {
+        Dialog(
+            onDismissRequest = { showCreateDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(CardSlate, RoundedCornerShape(10.dp))
-                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                    .fillMaxWidth(0.94f)
+                    .widthIn(max = 435.dp)
+                    .background(CardSlate, RoundedCornerShape(18.dp))
+                    .border(1.5.dp, BorderSlate, RoundedCornerShape(18.dp))
                     .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // Fixierte Kopfzeile oben (kein Scrollen nötig zum Bestätigen)
                 Row(
@@ -4897,16 +5292,35 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Kontakt anlegen",
-                        color = TextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.weight(1f)
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(AccentSteel.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+                                .border(1.dp, AccentSteel.copy(alpha = 0.45f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("✨", fontSize = 13.sp, style = CenteredPillTextStyle)
+                        }
+                        Text(
+                            "Kontakt anlegen",
+                            color = TextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         CompactButton("✕") { showCreateDialog = false }
-                        CompactButton("✓ Speichern") { saveNewContact() }
+                        PrimaryActionButton("✓ Speichern") { saveNewContact() }
                     }
                 }
                 HorizontalDivider(color = BorderSlate)
@@ -4915,210 +5329,246 @@ fun KontaktChronikApp(
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(BgSlate, RoundedCornerShape(10.dp))
-                            .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            PersonAvatar(name = name.ifBlank { "?" }, photoBase64 = photoVal, sizeDp = 44)
-                            Column {
-                                Text("Kontaktfoto", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Text("Wird auch mit Handykontakten synchronisiert", color = TextMuted, fontSize = 10.5.sp)
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            CompactButton("📷 Foto") {
-                                createPhotoPickerLauncher.launch("image/*")
-                            }
-                            if (photoVal.isNotBlank()) {
-                                CompactButton("✕") {
-                                    photoVal = ""
-                                }
-                            }
-                        }
-                    }
-                    FirstAndLastNameFields(
-                        firstName = firstName,
-                        onFirstNameChange = { firstName = it },
-                        lastName = lastName,
-                        onLastNameChange = { lastName = it }
+                    ContactHeroBanner(
+                        displayName = name,
+                        placeholderTitle = "Neuer Kontakt",
+                        birthdayText = bday.trim(),
+                        photoBase64 = photoVal,
+                        onPickPhoto = { createPhotoPickerLauncher.launch("image/*") },
+                        onRemovePhoto = { photoVal = "" }
                     )
-                    DateInputWithCalendar(value = bday, onValueChange = { bday = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = saveInDeviceContacts, onCheckedChange = { saveInDeviceContacts = it })
-                        Text("In Handykontakten speichern", color = TextSecondary, fontSize = 12.sp)
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = noPhone, onCheckedChange = { noPhone = it })
-                        Text("Keine eigene Nummer", color = TextSecondary, fontSize = 12.sp)
-                    }
-
-                    OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Telefon", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("E-Mail", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(value = timerInterval, onValueChange = { timerInterval = it }, label = { Text("Melde-Timer (Tage)", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-
-                    // Zusätzliche Informationszeilen (immer einzeilig ohne Textumbruch)
-                    extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
-                        SingleLineExtraInfoRow(
-                            infoLabel = infoLabel,
-                            infoValue = infoValue,
-                            onLabelChange = { newL ->
-                                extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
-                            },
-                            onValueChange = { newV ->
-                                extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
-                            },
-                            onDeleteClick = {
-                                pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
-                                pendingConfirmAction = {
-                                    extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
-                                }
-                            }
+                    ContactFormSectionCard(
+                        icon = "👤",
+                        title = "Persönliche Daten"
+                    ) {
+                        FirstAndLastNameFields(
+                            firstName = firstName,
+                            onFirstNameChange = { firstName = it },
+                            lastName = lastName,
+                            onLastNameChange = { lastName = it }
+                        )
+                        DateInputWithCalendar(
+                            value = bday,
+                            onValueChange = { bday = it },
+                            label = "Geburtsdatum (TT.MM.JJJJ)"
                         )
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start
+
+                    ContactFormSectionCard(
+                        icon = "📞",
+                        title = "Erreichbarkeit & Notizen",
+                        badge = extraInfos.size.takeIf { it > 0 }?.let { "+$it" }
                     ) {
-                        CompactButton("+") {
-                            val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Info"
-                            extraInfos = extraInfos + (defaultLabel to "")
+                        StyledContactTextField(
+                            value = phone,
+                            onValueChange = { phone = it },
+                            label = "Telefon",
+                            leadingSymbol = "📞",
+                            placeholder = "+49 170 ..."
+                        )
+                        StyledContactTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = "E-Mail-Adresse",
+                            leadingSymbol = "✉️",
+                            placeholder = "name@beispiel.de"
+                        )
+                        StyledContactTextField(
+                            value = timerInterval,
+                            onValueChange = { timerInterval = it },
+                            label = "Melde-Timer (Tage)",
+                            leadingSymbol = "⏱️"
+                        )
+                        StyledContactTextField(
+                            value = notes,
+                            onValueChange = { notes = it },
+                            label = "Notiz",
+                            leadingSymbol = "📝",
+                            placeholder = "Geschenkideen, Beruf, Hinweise ..."
+                        )
+
+                        // Zusätzliche Informationszeilen (immer einzeilig ohne Textumbruch)
+                        extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
+                            SingleLineExtraInfoRow(
+                                infoLabel = infoLabel,
+                                infoValue = infoValue,
+                                onLabelChange = { newL ->
+                                    extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
+                                },
+                                onValueChange = { newV ->
+                                    extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
+                                },
+                                onDeleteClick = {
+                                    pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
+                                    pendingConfirmAction = {
+                                        extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                    }
+                                }
+                            )
                         }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            CompactButton("➕ Weiteres Feld hinzufügen") {
+                                val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Adresse / Info"
+                                extraInfos = extraInfos + (defaultLabel to "")
+                            }
+                        }
+                    }
+
+                    ContactFormSectionCard(
+                        icon = "⚙️",
+                        title = "Kontakt-Optionen"
+                    ) {
+                        ContactOptionToggleRow(
+                            icon = "📱",
+                            title = "In Handykontakten speichern",
+                            subtitle = "Synchronisiert Name, Nummer, Foto & Infos mit dem Telefonbuch",
+                            checked = saveInDeviceContacts,
+                            onCheckedChange = { saveInDeviceContacts = it }
+                        )
+                        ContactOptionToggleRow(
+                            icon = "📵",
+                            title = "Keine eigene Nummer",
+                            subtitle = "Nachrichten gehen über verknüpfte Eltern / Partner",
+                            checked = noPhone,
+                            onCheckedChange = { noPhone = it }
+                        )
                     }
 
                     if (treeEnabled && persons.isNotEmpty()) {
-                        HorizontalDivider(color = BorderSlate)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { createRelExpanded = !createRelExpanded }
-                                .padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        ContactFormSectionCard(
+                            icon = "🌳",
+                            title = "Beziehungen",
+                            onHeaderClick = { createRelExpanded = !createRelExpanded },
+                            trailingHeader = {
+                                Box(
+                                    modifier = Modifier
+                                        .background(CardSlate, RoundedCornerShape(7.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(7.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        if (createRelExpanded) "▼ Einklappen" else "▶ Ausklappen",
+                                        color = AccentSteel,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
                         ) {
-                            Text(
-                                "${if (createRelExpanded) "▼" else "▶"} Beziehungen",
-                                color = AccentSteel,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                if (createRelExpanded) "Einklappen" else "Ausklappen",
-                                color = TextMuted,
-                                fontSize = 11.sp
-                            )
-                        }
-                        if (createRelExpanded) {
-                            var createRelLabelExpanded by remember { mutableStateOf(false) }
+                            if (createRelExpanded) {
+                                var createRelLabelExpanded by remember { mutableStateOf(false) }
 
-                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Beziehungsart:", color = TextSecondary, fontSize = 11.sp)
-                                Box {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(BgSlate, RoundedCornerShape(6.dp))
-                                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                            .clickable { createRelLabelExpanded = true }
-                                            .padding(horizontal = 10.dp, vertical = 10.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            relLabel,
-                                            color = TextPrimary,
-                                            fontSize = 12.5.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text("▼", color = AccentSteel, fontSize = 11.sp)
-                                    }
-                                    DropdownMenu(
-                                        expanded = createRelLabelExpanded,
-                                        onDismissRequest = { createRelLabelExpanded = false },
-                                        modifier = Modifier.background(CardSlate)
-                                    ) {
-                                        Column(modifier = Modifier.width(260.dp)) {
-                                            // Fixierte Leiste oben im Dropdown
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(BgSlate)
-                                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    "✓ $relLabel",
-                                                    color = AccentSteel,
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                CompactButton("✓ Bestätigen") {
-                                                    createRelLabelExpanded = false
-                                                }
-                                            }
-                                            HorizontalDivider(color = BorderSlate)
-                                            Column(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .heightIn(max = 200.dp)
-                                                    .verticalScroll(rememberScrollState())
-                                            ) {
-                                                RELATION_PRESETS.forEach { preset ->
-                                                    DropdownMenuItem(
-                                                        text = {
-                                                            Text(
-                                                                preset,
-                                                                color = if (preset == relLabel) AccentSteel else TextPrimary,
-                                                                fontSize = 13.sp,
-                                                                fontWeight = if (preset == relLabel) FontWeight.Bold else FontWeight.Normal
-                                                            )
-                                                        },
-                                                        onClick = {
-                                                            relLabel = preset
-                                                            createRelLabelExpanded = false
-                                                        }
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("Beziehungsart:", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    Box {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(CardSlate, RoundedCornerShape(10.dp))
+                                                .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable { createRelLabelExpanded = true }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                relLabel,
+                                                color = TextPrimary,
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                            Text("▼", color = AccentSteel, fontSize = 11.sp)
+                                        }
+                                        DropdownMenu(
+                                            expanded = createRelLabelExpanded,
+                                            onDismissRequest = { createRelLabelExpanded = false },
+                                            modifier = Modifier.background(CardSlate)
+                                        ) {
+                                            Column(modifier = Modifier.width(260.dp)) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(BgSlate)
+                                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        "✓ $relLabel",
+                                                        color = AccentSteel,
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                        modifier = Modifier.weight(1f)
                                                     )
+                                                    CompactButton("✓ Bestätigen") {
+                                                        createRelLabelExpanded = false
+                                                    }
+                                                }
+                                                HorizontalDivider(color = BorderSlate)
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .heightIn(max = 200.dp)
+                                                        .verticalScroll(rememberScrollState())
+                                                ) {
+                                                    RELATION_PRESETS.forEach { preset ->
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(
+                                                                    preset,
+                                                                    color = if (preset == relLabel) AccentSteel else TextPrimary,
+                                                                    fontSize = 13.sp,
+                                                                    fontWeight = if (preset == relLabel) FontWeight.Bold else FontWeight.Normal
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                relLabel = preset
+                                                                createRelLabelExpanded = false
+                                                            }
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
 
-                                Text("Verknüpfter Kontakt (Nachname, Vorname):", color = TextSecondary, fontSize = 11.sp)
-                                ContactSearchDropdown(
-                                    persons = persons,
-                                    selectedPersonId = selectedRelTargetId.takeIf { it > 0L },
-                                    onSelectPerson = { p -> selectedRelTargetId = p.id },
-                                    allowNone = true,
-                                    noneLabel = "-- Keine Verknüpfung --",
-                                    onSelectNone = { selectedRelTargetId = -1L },
-                                    showInlineAlphabet = true
-                                )
+                                    Text("Verknüpfter Kontakt (Nachname, Vorname):", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                    ContactSearchDropdown(
+                                        persons = persons,
+                                        selectedPersonId = selectedRelTargetId.takeIf { it > 0L },
+                                        onSelectPerson = { p -> selectedRelTargetId = p.id },
+                                        allowNone = true,
+                                        noneLabel = "-- Keine Verknüpfung --",
+                                        onSelectNone = { selectedRelTargetId = -1L },
+                                        showInlineAlphabet = true
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
                 HorizontalDivider(color = BorderSlate)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     CompactButton("Abbrechen") { showCreateDialog = false }
-                    CompactButton("✓ Speichern") { saveNewContact() }
+                    PrimaryActionButton("✓ Kontakt speichern") { saveNewContact() }
                 }
             }
         }
@@ -5233,14 +5683,18 @@ fun KontaktChronikApp(
             }
         }
 
-        Dialog(onDismissRequest = { detailPerson = null }) {
+        Dialog(
+            onDismissRequest = { detailPerson = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(CardSlate, RoundedCornerShape(10.dp))
-                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxWidth(0.94f)
+                    .widthIn(max = 435.dp)
+                    .background(CardSlate, RoundedCornerShape(18.dp))
+                    .border(1.5.dp, BorderSlate, RoundedCornerShape(18.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // Fixierte Leiste oben im Dialog (kein Scrollen nötig zum Bestätigen)
                 Row(
@@ -5248,26 +5702,36 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Details: ${dp.name}",
-                        color = TextPrimary,
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.weight(1f)
-                    )
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .background(AccentSteel.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+                                .border(1.dp, AccentSteel.copy(alpha = 0.45f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🪪", fontSize = 13.sp, style = CenteredPillTextStyle)
+                        }
+                        Text(
+                            "Kontakt bearbeiten",
+                            color = TextPrimary,
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.horizontalScroll(rememberScrollState())
+                        )
+                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (treeEnabled) {
-                            CompactButton("🌳") {
-                                selectedTreeRootId = dp.id
-                                detailPerson = null
-                                activeTab = "Stammbaum"
-                            }
-                        }
                         CompactButton("✕") { detailPerson = null }
-                        CompactButton("✓ Speichern") { saveDetailChanges() }
+                        PrimaryActionButton("✓ Speichern") { saveDetailChanges() }
                     }
                 }
                 HorizontalDivider(color = BorderSlate)
@@ -5276,65 +5740,139 @@ fun KontaktChronikApp(
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(BgSlate, RoundedCornerShape(10.dp))
-                            .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            PersonAvatar(name = nameVal.ifBlank { dp.name }, photoBase64 = photoVal, sizeDp = 44)
-                            Column {
-                                Text("Kontaktfoto", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                Text(
-                                    if (photoVal.isNotBlank()) "Foto vorhanden (Handy & App)" else "Aus Galerie wählen oder Sync",
-                                    color = TextMuted,
-                                    fontSize = 10.5.sp
-                                )
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            CompactButton("📷 Foto") {
-                                detailPhotoPickerLauncher.launch("image/*")
-                            }
-                            if (photoVal.isNotBlank()) {
-                                CompactButton("✕") {
-                                    photoVal = ""
+                    ContactHeroBanner(
+                        displayName = nameVal.ifBlank { dp.name },
+                        placeholderTitle = dp.name,
+                        birthdayText = bdayVal.trim(),
+                        photoBase64 = photoVal,
+                        onPickPhoto = { detailPhotoPickerLauncher.launch("image/*") },
+                        onRemovePhoto = { photoVal = "" },
+                        extraActionRow = if (persons.size >= 2 || treeEnabled) {
+                            {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (persons.size >= 2) {
+                                        CompactButton("🔗 Zusammenführen") {
+                                            mergeInitialPersonIds = listOf(dp.id)
+                                            detailPerson = null
+                                            showMergeContactsDialog = true
+                                        }
+                                    }
+                                    if (treeEnabled) {
+                                        CompactButton("🌳 Im Stammbaum öffnen") {
+                                            selectedTreeRootId = dp.id
+                                            detailPerson = null
+                                            activeTab = "Stammbaum"
+                                        }
+                                    }
                                 }
                             }
-                        }
+                        } else null
+                    )
+
+                    ContactFormSectionCard(
+                        icon = "👤",
+                        title = "Persönliche Daten"
+                    ) {
+                        FirstAndLastNameFields(
+                            firstName = firstNameVal,
+                            onFirstNameChange = { firstNameVal = it },
+                            lastName = lastNameVal,
+                            onLastNameChange = { lastNameVal = it }
+                        )
+                        DateInputWithCalendar(
+                            value = bdayVal,
+                            onValueChange = { bdayVal = it },
+                            label = "Geburtsdatum (TT.MM.JJJJ)"
+                        )
                     }
-                    if (persons.size >= 2) {
+
+                    ContactFormSectionCard(
+                        icon = "📞",
+                        title = "Erreichbarkeit & Notizen",
+                        badge = extraInfos.size.takeIf { it > 0 }?.let { "+$it" }
+                    ) {
+                        StyledContactTextField(
+                            value = phoneVal,
+                            onValueChange = { phoneVal = it },
+                            label = "Telefon",
+                            leadingSymbol = "📞",
+                            placeholder = "+49 170 ..."
+                        )
+                        StyledContactTextField(
+                            value = emailVal,
+                            onValueChange = { emailVal = it },
+                            label = "E-Mail-Adresse",
+                            leadingSymbol = "✉️",
+                            placeholder = "name@beispiel.de"
+                        )
+                        StyledContactTextField(
+                            value = notesVal,
+                            onValueChange = { notesVal = it },
+                            label = "Notiz",
+                            leadingSymbol = "📝",
+                            placeholder = "Geschenkideen, Beruf, Hinweise ..."
+                        )
+
+                        // Zusätzliche Informationszeilen (immer einzeilig ohne Textumbruch)
+                        extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
+                            SingleLineExtraInfoRow(
+                                infoLabel = infoLabel,
+                                infoValue = infoValue,
+                                onLabelChange = { newL ->
+                                    extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
+                                },
+                                onValueChange = { newV ->
+                                    extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
+                                },
+                                onDeleteClick = {
+                                    pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
+                                    pendingConfirmAction = {
+                                        extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                    }
+                                }
+                            )
+                        }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Start
                         ) {
-                            CompactButton("🔗 Mit anderem Kontakt zusammenführen") {
-                                mergeInitialPersonIds = listOf(dp.id)
-                                detailPerson = null
-                                showMergeContactsDialog = true
+                            CompactButton("➕ Weiteres Feld hinzufügen") {
+                                val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Adresse / Info"
+                                extraInfos = extraInfos + (defaultLabel to "")
                             }
                         }
                     }
-                    FirstAndLastNameFields(
-                        firstName = firstNameVal,
-                        onFirstNameChange = { firstNameVal = it },
-                        lastName = lastNameVal,
-                        onLastNameChange = { lastNameVal = it }
-                    )
-                    DateInputWithCalendar(value = bdayVal, onValueChange = { bdayVal = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
-                    OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = saveInDeviceVal, onCheckedChange = { saveInDeviceVal = it })
-                        Text("In Handykontakten speichern", color = TextSecondary, fontSize = 12.sp)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
+
+                    ContactFormSectionCard(
+                        icon = "⚙️",
+                        title = "Kontakt-Optionen"
+                    ) {
+                        ContactOptionToggleRow(
+                            icon = "📱",
+                            title = "In Handykontakten speichern",
+                            subtitle = "Synchronisiert Änderungen direkt mit dem Telefonbuch",
+                            checked = saveInDeviceVal,
+                            onCheckedChange = { saveInDeviceVal = it }
+                        )
+                        ContactOptionToggleRow(
+                            icon = "📵",
+                            title = "Keine eigene Nummer",
+                            subtitle = "Nachrichten laufen über verknüpfte Eltern / Partner",
+                            checked = noPhoneVal,
+                            onCheckedChange = { noPhoneVal = it }
+                        )
+                        ContactOptionToggleRow(
+                            icon = "🙈",
+                            title = "Kontakt ausblenden",
+                            subtitle = "Aus Übersicht ausblenden (unter Optionen jederzeit reaktivierbar)",
                             checked = isHiddenVal,
                             onCheckedChange = {
                                 isHiddenVal = it
@@ -5344,234 +5882,202 @@ fun KontaktChronikApp(
                                 }
                             }
                         )
-                        Text("Kontakt ausblenden", color = TextSecondary, fontSize = 12.sp)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = noPhoneVal, onCheckedChange = { noPhoneVal = it })
-                        Text("Keine eigene Nummer", color = TextSecondary, fontSize = 12.sp)
-                    }
-                    OutlinedTextField(value = emailVal, onValueChange = { emailVal = it }, label = { Text("E-Mail-Adresse", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    OutlinedTextField(value = notesVal, onValueChange = { notesVal = it }, label = { Text("Notiz", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-
-                    // Zusätzliche Informationszeilen (immer einzeilig ohne Textumbruch)
-                    extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
-                        SingleLineExtraInfoRow(
-                            infoLabel = infoLabel,
-                            infoValue = infoValue,
-                            onLabelChange = { newL ->
-                                extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
-                            },
-                            onValueChange = { newV ->
-                                extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
-                            },
-                            onDeleteClick = {
-                                pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
-                                pendingConfirmAction = {
-                                    extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
-                                }
-                            }
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start
-                    ) {
-                        CompactButton("+") {
-                            val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Info"
-                            extraInfos = extraInfos + (defaultLabel to "")
-                        }
                     }
 
                     // Abschnitt: Beziehungen für Stammbaum (standardmäßig eingeklappt)
                     if (treeEnabled) {
-                        HorizontalDivider(color = BorderSlate)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { detailRelExpanded = !detailRelExpanded }
-                                .padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "${if (detailRelExpanded) "▼" else "▶"} Beziehungen (${currentRelations.size})",
-                                color = AccentSteel,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                if (detailRelExpanded) "Einklappen" else "Ausklappen",
-                                color = TextMuted,
-                                fontSize = 11.sp
-                            )
-                        }
-
-                        if (detailRelExpanded) {
-                            // Oben fixierte Auswahl- und Bestätigungsleiste für neue Beziehung
-                            if (otherPersons.isNotEmpty()) {
-                                var detailRelLabelExpanded by remember { mutableStateOf(false) }
-
-                                Column(
+                        ContactFormSectionCard(
+                            icon = "🌳",
+                            title = "Beziehungen",
+                            badge = "${currentRelations.size}",
+                            onHeaderClick = { detailRelExpanded = !detailRelExpanded },
+                            trailingHeader = {
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(BgSlate.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                                        .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                                        .padding(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        .background(CardSlate, RoundedCornerShape(7.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(7.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Text(
+                                        if (detailRelExpanded) "▼ Einklappen" else "▶ Ausklappen",
+                                        color = AccentSteel,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+                        ) {
+                            if (detailRelExpanded) {
+                                if (otherPersons.isNotEmpty()) {
+                                    var detailRelLabelExpanded by remember { mutableStateOf(false) }
+
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(CardSlate, RoundedCornerShape(10.dp))
+                                            .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                            .padding(9.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Text(
-                                            "Beziehung zuordnen:",
-                                            color = TextSecondary,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        CompactButton("✓ + Beziehung speichern") {
-                                            if (newRelTargetId > 0) {
-                                                scope.launch {
-                                                    addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    Box(modifier = Modifier.fillMaxWidth()) {
                                         Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(CardSlate, RoundedCornerShape(6.dp))
-                                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                            .clickable { detailRelLabelExpanded = true }
-                                            .padding(horizontal = 10.dp, vertical = 9.dp),
+                                            modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                "Beziehungsart: $newRelLabel",
+                                                "Beziehung zuordnen:",
+                                                color = TextSecondary,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            PrimaryActionButton("✓ + Speichern") {
+                                                if (newRelTargetId > 0) {
+                                                    scope.launch {
+                                                        addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Box(modifier = Modifier.fillMaxWidth()) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(BgSlate, RoundedCornerShape(8.dp))
+                                                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clickable { detailRelLabelExpanded = true }
+                                                    .padding(horizontal = 10.dp, vertical = 9.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    "Beziehungsart: $newRelLabel",
+                                                    color = TextPrimary,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    softWrap = false,
+                                                    modifier = Modifier.weight(1f, fill = false)
+                                                )
+                                                Text("▼", color = AccentSteel, fontSize = 10.sp)
+                                            }
+                                            DropdownMenu(
+                                                expanded = detailRelLabelExpanded,
+                                                onDismissRequest = { detailRelLabelExpanded = false },
+                                                modifier = Modifier.background(CardSlate)
+                                            ) {
+                                                Column(modifier = Modifier.width(260.dp)) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .background(BgSlate)
+                                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            "✓ $newRelLabel",
+                                                            color = AccentSteel,
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            softWrap = false,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                        CompactButton("✓ Bestätigen") {
+                                                            detailRelLabelExpanded = false
+                                                        }
+                                                    }
+                                                    HorizontalDivider(color = BorderSlate)
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .heightIn(max = 200.dp)
+                                                            .verticalScroll(rememberScrollState())
+                                                    ) {
+                                                        RELATION_PRESETS.forEach { preset ->
+                                                            DropdownMenuItem(
+                                                                text = {
+                                                                    Text(
+                                                                        preset,
+                                                                        color = if (preset == newRelLabel) AccentSteel else TextPrimary,
+                                                                        fontSize = 13.sp,
+                                                                        fontWeight = if (preset == newRelLabel) FontWeight.Bold else FontWeight.Normal
+                                                                    )
+                                                                },
+                                                                onClick = {
+                                                                    newRelLabel = preset
+                                                                    detailRelLabelExpanded = false
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        ContactSearchDropdown(
+                                            persons = otherPersons,
+                                            selectedPersonId = newRelTargetId.takeIf { it > 0L },
+                                            onSelectPerson = { op -> newRelTargetId = op.id },
+                                            confirmButtonLabel = "✓ + Speichern",
+                                            onConfirmAction = {
+                                                if (newRelTargetId > 0) {
+                                                    scope.launch {
+                                                        addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
+                                                    }
+                                                }
+                                            },
+                                            showInlineAlphabet = true
+                                        )
+                                    }
+                                }
+
+                                if (currentRelations.isEmpty()) {
+                                    Text("Noch keine Beziehungen verknüpft.", color = TextMuted, fontSize = 11.sp)
+                                } else {
+                                    currentRelations.sortedWith { a, b -> LastNamePersonComparator.compare(a.second, b.second) }.forEach { (rel, targetPerson) ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(CardSlate, RoundedCornerShape(8.dp))
+                                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "🔗 ${rel.relationLabel} ${formatLastNameFirst(targetPerson.name)}",
                                                 color = TextPrimary,
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Medium,
                                                 maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f, fill = false)
+                                                softWrap = false,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .horizontalScroll(rememberScrollState())
                                             )
-                                            Text("▼", color = AccentSteel, fontSize = 10.sp)
-                                        }
-                                        DropdownMenu(
-                                            expanded = detailRelLabelExpanded,
-                                            onDismissRequest = { detailRelLabelExpanded = false },
-                                            modifier = Modifier.background(CardSlate)
-                                        ) {
-                                            Column(modifier = Modifier.width(260.dp)) {
-                                                // Fixierte Leiste oben im Dropdown
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .background(BgSlate)
-                                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        "✓ $newRelLabel",
-                                                        color = AccentSteel,
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        modifier = Modifier.weight(1f)
-                                                    )
-                                                    CompactButton("✓ Bestätigen") {
-                                                        detailRelLabelExpanded = false
-                                                    }
-                                                }
-                                                HorizontalDivider(color = BorderSlate)
-                                                Column(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .heightIn(max = 200.dp)
-                                                        .verticalScroll(rememberScrollState())
-                                                ) {
-                                                    RELATION_PRESETS.forEach { preset ->
-                                                        DropdownMenuItem(
-                                                            text = {
-                                                                Text(
-                                                                    preset,
-                                                                    color = if (preset == newRelLabel) AccentSteel else TextPrimary,
-                                                                    fontSize = 13.sp,
-                                                                    fontWeight = if (preset == newRelLabel) FontWeight.Bold else FontWeight.Normal
-                                                                )
-                                                            },
-                                                            onClick = {
-                                                                newRelLabel = preset
-                                                                detailRelLabelExpanded = false
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .background(PartnerRose.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                                    .border(1.dp, PartnerRose.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .clickable {
+                                                        pendingConfirmMessage = "Beziehung „${rel.relationLabel} ${targetPerson.name}\" wirklich löschen?"
+                                                        pendingConfirmAction = {
+                                                            scope.launch {
+                                                                db.deleteRelation(rel)
                                                             }
-                                                        )
-                                                    }
-                                                }
+                                                        }
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text("✕", color = PartnerRose, fontSize = 11.sp, fontWeight = FontWeight.Bold, style = CenteredPillTextStyle)
                                             }
                                         }
-                                    }
-
-                                    ContactSearchDropdown(
-                                        persons = otherPersons,
-                                        selectedPersonId = newRelTargetId.takeIf { it > 0L },
-                                        onSelectPerson = { op -> newRelTargetId = op.id },
-                                        confirmButtonLabel = "✓ + Speichern",
-                                        onConfirmAction = {
-                                            if (newRelTargetId > 0) {
-                                                scope.launch {
-                                                    addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
-                                                }
-                                            }
-                                        },
-                                        showInlineAlphabet = true
-                                    )
-                                }
-                            }
-
-                            if (currentRelations.isEmpty()) {
-                                Text("Noch keine Beziehungen verknüpft.", color = TextMuted, fontSize = 11.sp)
-                            } else {
-                                currentRelations.sortedWith { a, b -> LastNamePersonComparator.compare(a.second, b.second) }.forEach { (rel, targetPerson) ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(BgSlate, RoundedCornerShape(6.dp))
-                                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            "${rel.relationLabel} ${formatLastNameFirst(targetPerson.name)}",
-                                            color = TextPrimary,
-                                            fontSize = 12.sp,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .horizontalScroll(rememberScrollState())
-                                        )
-                                        Text(
-                                            "✕",
-                                            color = WarnAmber,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier
-                                                .clickable {
-                                                    pendingConfirmMessage = "Beziehung „${rel.relationLabel} ${targetPerson.name}\" wirklich löschen?"
-                                                    pendingConfirmAction = {
-                                                        scope.launch {
-                                                            db.deleteRelation(rel)
-                                                        }
-                                                    }
-                                                }
-                                                .padding(horizontal = 6.dp)
-                                        )
                                     }
                                 }
                             }
@@ -5579,163 +6085,189 @@ fun KontaktChronikApp(
                     }
 
                     // Abschnitt: Erinnerungen
-                    HorizontalDivider(color = BorderSlate)
-                    Text("Erinnerungen:", color = AccentSteel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    currentReminders.forEach { ev ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(BgSlate, RoundedCornerShape(6.dp))
-                                .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "${ev.title} (${formatIsoToDdMmYyyy(ev.dateIso)})",
-                                color = TextPrimary,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .horizontalScroll(rememberScrollState())
-                            )
-                            Text(
-                                "✕",
-                                color = WarnAmber,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable {
-                                        pendingConfirmMessage = "Erinnerung „${ev.title}\" wirklich löschen?"
-                                        pendingConfirmAction = {
-                                            scope.launch { db.deleteSpecialEvent(ev) }
-                                        }
-                                    }
-                                    .padding(horizontal = 6.dp)
-                            )
-                        }
-                    }
-
-                    Text("Neue Erinnerung eintragen:", color = TextSecondary, fontSize = 12.sp)
-                    OutlinedTextField(value = newEvTitle, onValueChange = { newEvTitle = it }, label = { Text("Neue Erinnerung (z. B. Anrufen)") }, modifier = Modifier.fillMaxWidth())
-
-                    val parsedEvCount = newEvCount.toIntOrNull()?.coerceAtLeast(1) ?: 1
-                    val calculatedNextEvDateIso = addIntervalToIsoDate(LocalDate.now(), parsedEvCount, newEvUnit).toString()
-                    val calculatedNextEvDateFormatted = formatIsoToDdMmYyyy(calculatedNextEvDateIso)
-                    val unitOptions = listOf(
-                        "DAYS" to "Tag",
-                        "WEEKS" to "Woche",
-                        "MONTHS" to "Monat",
-                        "YEARS" to "Jahr"
-                    )
-                    val selectedUnitLabel = unitOptions.find { it.first == newEvUnit }?.second ?: "Tag"
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    ContactFormSectionCard(
+                        icon = "🔔",
+                        title = "Erinnerungen & Termine",
+                        badge = currentReminders.size.takeIf { it > 0 }?.toString()
                     ) {
-                        OutlinedTextField(
-                            value = newEvCount,
-                            onValueChange = { newEvCount = it.filter { ch -> ch.isDigit() } },
-                            label = { Text("Rhythmus (Zahl)") },
-                            modifier = Modifier.weight(0.9f)
-                        )
-                        Column(modifier = Modifier.weight(1.1f)) {
-                            Text("Einheit", color = TextSecondary, fontSize = 11.sp)
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Box {
-                                Row(
+                        currentReminders.forEach { ev ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(CardSlate, RoundedCornerShape(8.dp))
+                                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "📅 ${ev.title} (${formatIsoToDdMmYyyy(ev.dateIso)})",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(BgSlate, RoundedCornerShape(6.dp))
-                                        .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                        .clickable { evUnitDropdownExpanded = true }
-                                        .padding(horizontal = 10.dp, vertical = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(selectedUnitLabel, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                    Text("▼", color = AccentSteel, fontSize = 11.sp)
-                                }
-                                DropdownMenu(
-                                    expanded = evUnitDropdownExpanded,
-                                    onDismissRequest = { evUnitDropdownExpanded = false },
-                                    modifier = Modifier.background(CardSlate)
-                                ) {
-                                    Column(modifier = Modifier.width(210.dp)) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(BgSlate)
-                                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                "✓ $selectedUnitLabel",
-                                                color = AccentSteel,
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            CompactButton("✓ Bestätigen") {
-                                                evUnitDropdownExpanded = false
+                                        .weight(1f)
+                                        .horizontalScroll(rememberScrollState())
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .background(PartnerRose.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                        .border(1.dp, PartnerRose.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable {
+                                            pendingConfirmMessage = "Erinnerung „${ev.title}\" wirklich löschen?"
+                                            pendingConfirmAction = {
+                                                scope.launch { db.deleteSpecialEvent(ev) }
                                             }
-                                        }
-                                        HorizontalDivider(color = BorderSlate)
-                                        unitOptions.forEach { (uCode, uLabel) ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        uLabel,
-                                                        color = if (uCode == newEvUnit) AccentSteel else TextPrimary,
-                                                        fontSize = 13.sp,
-                                                        fontWeight = if (uCode == newEvUnit) FontWeight.Bold else FontWeight.Normal
-                                                    )
-                                                },
-                                                onClick = {
-                                                    newEvUnit = uCode
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("✕", color = PartnerRose, fontSize = 11.sp, fontWeight = FontWeight.Bold, style = CenteredPillTextStyle)
+                                }
+                            }
+                        }
+
+                        StyledContactTextField(
+                            value = newEvTitle,
+                            onValueChange = { newEvTitle = it },
+                            label = "Neue Erinnerung",
+                            leadingSymbol = "🔔",
+                            placeholder = "z. B. Anrufen, Arzttermin, Jubiläum ..."
+                        )
+
+                        val parsedEvCount = newEvCount.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                        val calculatedNextEvDateIso = addIntervalToIsoDate(LocalDate.now(), parsedEvCount, newEvUnit).toString()
+                        val calculatedNextEvDateFormatted = formatIsoToDdMmYyyy(calculatedNextEvDateIso)
+                        val unitOptions = listOf(
+                            "DAYS" to "Tag",
+                            "WEEKS" to "Woche",
+                            "MONTHS" to "Monat",
+                            "YEARS" to "Jahr"
+                        )
+                        val selectedUnitLabel = unitOptions.find { it.first == newEvUnit }?.second ?: "Tag"
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            OutlinedTextField(
+                                value = newEvCount,
+                                onValueChange = { newEvCount = it.filter { ch -> ch.isDigit() } },
+                                label = { Text("Rhythmus", maxLines = 1, softWrap = false, fontSize = 11.5.sp) },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = contactFieldColors(),
+                                singleLine = true,
+                                maxLines = 1,
+                                modifier = Modifier.weight(0.9f)
+                            )
+                            Column(modifier = Modifier.weight(1.1f)) {
+                                Text("Einheit", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Box {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(CardSlate, RoundedCornerShape(10.dp))
+                                            .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable { evUnitDropdownExpanded = true }
+                                            .padding(horizontal = 12.dp, vertical = 14.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(selectedUnitLabel, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("▼", color = AccentSteel, fontSize = 11.sp)
+                                    }
+                                    DropdownMenu(
+                                        expanded = evUnitDropdownExpanded,
+                                        onDismissRequest = { evUnitDropdownExpanded = false },
+                                        modifier = Modifier.background(CardSlate)
+                                    ) {
+                                        Column(modifier = Modifier.width(210.dp)) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(BgSlate)
+                                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    "✓ $selectedUnitLabel",
+                                                    color = AccentSteel,
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                CompactButton("✓ Bestätigen") {
                                                     evUnitDropdownExpanded = false
                                                 }
-                                            )
+                                            }
+                                            HorizontalDivider(color = BorderSlate)
+                                            unitOptions.forEach { (uCode, uLabel) ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            uLabel,
+                                                            color = if (uCode == newEvUnit) AccentSteel else TextPrimary,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (uCode == newEvUnit) FontWeight.Bold else FontWeight.Normal
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        newEvUnit = uCode
+                                                        evUnitDropdownExpanded = false
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = newEvRepeatChecked, onCheckedChange = { newEvRepeatChecked = it })
-                        Text("Wiederholen", color = TextSecondary, fontSize = 12.sp)
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(BgSlate, RoundedCornerShape(6.dp))
-                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                            .padding(horizontal = 10.dp, vertical = 7.dp)
-                    ) {
-                        val suffixText = if (newEvRepeatChecked) {
-                            "🔁 Alle ${formatRhythmTextDe(parsedEvCount, newEvUnit)}"
-                        } else {
-                            "Einmalig"
-                        }
-                        Text(
-                            text = "📅 Nächster Termin: $calculatedNextEvDateFormatted ($suffixText)",
-                            color = if (newEvRepeatChecked) TreeGreen else AccentSteel,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
+                        ContactOptionToggleRow(
+                            icon = "🔁",
+                            title = "Regelmäßig wiederholen",
+                            checked = newEvRepeatChecked,
+                            onCheckedChange = { newEvRepeatChecked = it }
                         )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(CardSlate, RoundedCornerShape(10.dp))
+                                .border(1.dp, if (newEvRepeatChecked) TreeGreen.copy(alpha = 0.55f) else BorderSlate, RoundedCornerShape(10.dp))
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            val suffixText = if (newEvRepeatChecked) {
+                                "🔁 Alle ${formatRhythmTextDe(parsedEvCount, newEvUnit)}"
+                            } else {
+                                "Einmalig"
+                            }
+                            Text(
+                                text = "📅 Nächster Termin: $calculatedNextEvDateFormatted ($suffixText)",
+                                color = if (newEvRepeatChecked) TreeGreen else AccentSteel,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.horizontalScroll(rememberScrollState())
+                            )
+                        }
                     }
                 }
 
                 HorizontalDivider(color = BorderSlate)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    CompactButton("Löschen") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DangerActionButton("🗑️ Löschen") {
                         pendingConfirmMessage = "Kontakt „${dp.name}\" wirklich unwiderruflich löschen?"
                         pendingConfirmAction = {
                             scope.launch {
@@ -5744,9 +6276,12 @@ fun KontaktChronikApp(
                             }
                         }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         CompactButton("Schließen") { detailPerson = null }
-                        CompactButton("✓ Speichern") { saveDetailChanges() }
+                        PrimaryActionButton("✓ Speichern") { saveDetailChanges() }
                     }
                 }
             }
@@ -7434,19 +7969,43 @@ fun DateInputWithCalendar(
     }
 
     OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
+        value = value.replace("\n", " ").replace("\r", " "),
+        onValueChange = { onValueChange(it.replace("\n", " ").replace("\r", " ")) },
+        label = { Text(label, maxLines = 1, softWrap = false, fontSize = 11.5.sp) },
+        leadingIcon = {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .background(BgSlate, RoundedCornerShape(7.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(7.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("🎂", fontSize = 13.sp, style = CenteredPillTextStyle)
+            }
+        },
         interactionSource = interactionSource,
         trailingIcon = {
-            Text(
-                "📅",
-                fontSize = 15.sp,
+            Box(
                 modifier = Modifier
+                    .padding(end = 6.dp)
+                    .background(BtnBg, RoundedCornerShape(8.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .clickable { showCalendar() }
-                    .padding(6.dp)
-            )
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "📅",
+                    fontSize = 13.sp,
+                    style = CenteredPillTextStyle
+                )
+            }
         },
+        shape = RoundedCornerShape(10.dp),
+        colors = contactFieldColors(),
+        singleLine = true,
+        maxLines = 1,
         modifier = Modifier.fillMaxWidth()
     )
 }

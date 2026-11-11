@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.39 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.40 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -748,6 +748,203 @@
       min-width: 0;
       overflow-x: auto;
       white-space: nowrap;
+    }
+
+    /* Optik-Upgrade Kontakt-Eingabemaske (v1.0.40) */
+    .modal.contact-modal {
+      max-width: 382px;
+      border-radius: 18px;
+      border-width: 1.5px;
+      padding: 14px;
+      gap: 10px;
+    }
+
+    .contact-hero-banner {
+      background: linear-gradient(135deg, var(--root-node-bg), var(--bg-slate));
+      border: 1px solid var(--border-slate);
+      border-radius: 14px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .avatar-upload-box {
+      position: relative;
+      width: 56px;
+      height: 56px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    .avatar-cam-badge {
+      position: absolute;
+      right: -2px;
+      bottom: -2px;
+      width: 21px;
+      height: 21px;
+      border-radius: 50%;
+      background: var(--accent-steel);
+      border: 1.5px solid var(--card-slate);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    .form-section-card {
+      background: var(--bg-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 14px;
+      padding: 10px 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+
+    .section-icon-badge {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .section-count-pill {
+      background: rgba(59, 130, 196, 0.16);
+      border: 1px solid var(--accent-steel);
+      color: var(--accent-steel);
+      border-radius: 999px;
+      padding: 1px 7px;
+      font-size: 10.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .form-section-card .field-input,
+    .form-section-card .field-select {
+      background: var(--card-slate);
+      border-radius: 10px;
+      padding: 7px 10px;
+    }
+
+    .input-icon-wrap {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 10px;
+      padding: 3px 8px 3px 5px;
+      transition: border-color 0.15s;
+    }
+
+    .input-icon-wrap:focus-within {
+      border-color: var(--accent-steel);
+    }
+
+    .input-icon-chip {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      background: var(--bg-slate);
+      border: 1px solid var(--border-slate);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12.5px;
+      flex-shrink: 0;
+    }
+
+    .input-icon-wrap input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 12.5px;
+      padding: 5px 2px;
+      outline: none;
+    }
+
+    .modern-toggle-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
+      border-radius: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .modern-toggle-card.active {
+      border-color: var(--accent-steel);
+      background: var(--root-node-bg);
+    }
+
+    .modern-toggle-card input[type="checkbox"] {
+      display: none;
+    }
+
+    .modern-switch-pill {
+      width: 36px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--border-slate);
+      padding: 2px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    .modern-toggle-card.active .modern-switch-pill {
+      background: var(--accent-steel);
+      justify-content: flex-end;
+    }
+
+    .modern-switch-knob {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+
+    .extra-delete-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(201, 53, 43, 0.12);
+      border: 1px solid rgba(201, 53, 43, 0.45);
+      color: var(--danger);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
     }
   </style>
 </head>
@@ -1901,7 +2098,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.39</div>
+            <div class="app-title">Remember Me v1.0.40</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -5174,6 +5371,7 @@
 
       if (showCreateDialog) {
         const sortedPersons = sortPersonsByLastName(state.persons);
+        const createCombinedPreview = combineFirstAndLastName(createDraft.firstName || "", createDraft.lastName || "");
         const createRelDropdownHtml = renderContactSearchDropdownHtml({
           key: "create_rel_target",
           persons: sortedPersons,
@@ -5188,88 +5386,161 @@
         });
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
-            <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal contact-modal" onclick="event.stopPropagation()">
               <div class="modal-header-sticky">
-                <div class="modal-title">Kontakt anlegen</div>
+                <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+                  <span class="section-icon-badge" style="width:28px; height:28px; border-color:var(--accent-steel);">✨</span>
+                  <div class="modal-title" style="white-space:nowrap;">Kontakt anlegen</div>
+                </div>
                 <div class="btn-row">
                   <button class="compact-btn" onclick="showCreateDialog=false; renderModals();">✕</button>
-                  <button class="compact-btn primary" onclick="saveNewPerson()">✓ Speichern</button>
+                  <button class="compact-btn primary" style="font-weight:700; padding:6px 12px; border-radius:9px;" onclick="saveNewPerson()">✓ Speichern</button>
                 </div>
               </div>
-              <div style="display:flex; align-items:center; gap:10px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:10px; padding:8px 10px;">
-                ${renderPersonAvatarHtml(combineFirstAndLastName(createDraft.firstName, createDraft.lastName) || "?", createDraft.photoBase64 || "", 46)}
-                <div style="flex:1; min-width:0;">
-                  <div style="font-size:12px; font-weight:700; color:var(--text-primary);">Kontaktfoto</div>
-                  <div style="font-size:10.5px; color:var(--text-muted);">Wird auch bei Kontakt-Sync übernommen</div>
-                </div>
-                <div class="btn-row">
-                  <button class="compact-btn" onclick="triggerContactPhotoPicker('create')">📷 Foto</button>
-                  ${createDraft.photoBase64 ? `<button class="compact-btn danger" style="padding:4px 7px;" onclick="removeContactPhoto('create')" title="Foto entfernen">✕</button>` : ""}
-                </div>
-              </div>
-              <div style="display:flex; gap:6px;">
-                <div class="field-group" style="flex:1;">
-                  <label class="field-label">Vorname</label>
-                  <input id="c-firstname" class="field-input" placeholder="Vorname" value="${escapeHtml(createDraft.firstName || '')}" oninput="createDraft.firstName=this.value" />
-                </div>
-                <div class="field-group" style="flex:1;">
-                  <label class="field-label">Nachname</label>
-                  <input id="c-lastname" class="field-input" placeholder="Nachname" value="${escapeHtml(createDraft.lastName || '')}" oninput="createDraft.lastName=this.value" />
-                </div>
-              </div>
-              <div class="field-group">
-                <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
-                <div style="display:flex; gap:5px; align-items:center;">
-                  <input id="c-bday" class="field-input" style="flex:1; cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(createDraft.bday)}" onclick="openCalendarPicker('c-bday')" onfocus="openCalendarPicker('c-bday')" oninput="createDraft.bday=this.value" />
-                  <button class="compact-btn" style="padding:5px 8px;" onclick="openCalendarPicker('c-bday')" title="Kalender öffnen">📅</button>
-                </div>
-              </div>
-              <label class="checkbox-row">
-                <input type="checkbox" id="c-savephone" ${createDraft.saveInDevice !== false ? 'checked' : ''} onchange="createDraft.saveInDevice=this.checked" />
-                <span>In Handykontakten speichern</span>
-              </label>
-              <label class="checkbox-row">
-                <input type="checkbox" id="c-nophone" ${createDraft.noPhone ? 'checked' : ''} onchange="createDraft.noPhone=this.checked" />
-                <span>Keine eigene Nummer</span>
-              </label>
-              <div class="field-group">
-                <label class="field-label">Telefon</label>
-                <input id="c-phone" class="field-input" value="${escapeHtml(createDraft.phone)}" oninput="createDraft.phone=this.value" />
-              </div>
-              <div class="field-group">
-                <label class="field-label">E-Mail</label>
-                <input id="c-email" class="field-input" value="${escapeHtml(createDraft.email)}" oninput="createDraft.email=this.value" />
-              </div>
-              <div class="field-group">
-                <label class="field-label">Melde-Timer (Tage)</label>
-                <input id="c-timer" class="field-input" value="${escapeHtml(createDraft.timer)}" oninput="createDraft.timer=this.value" />
-              </div>
-              <div class="field-group">
-                <label class="field-label">Notiz</label>
-                <input id="c-notes" class="field-input" value="${escapeHtml(createDraft.notes)}" oninput="createDraft.notes=this.value" />
-              </div>
-              <div id="c-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
-                ${createExtraInfos.map((info, idx) => `
-                  <div style="display:flex; flex-wrap:nowrap; gap:5px; align-items:center;">
-                    <input class="field-input" style="flex:0.85; min-width:0; white-space:nowrap;" placeholder="Bezeichnung" value="${escapeHtml(String(info.label || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="createExtraInfos[${idx}].label = this.value.replace(/[\r\n]+/g, ' ')" />
-                    <input class="field-input" style="flex:1.15; min-width:0; white-space:nowrap;" placeholder="Wert" value="${escapeHtml(String(info.value || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="createExtraInfos[${idx}].value = this.value.replace(/[\r\n]+/g, ' ')" />
-                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px; flex-shrink:0; white-space:nowrap;" onclick="removeCreateExtraInfoRow(${idx})">✕</span>
+
+              <div class="contact-hero-banner">
+                <div style="display:flex; align-items:center; gap:11px;">
+                  <div class="avatar-upload-box" onclick="triggerContactPhotoPicker('create')" title="Kontaktfoto auswählen">
+                    ${renderPersonAvatarHtml(createCombinedPreview || "?", createDraft.photoBase64 || "", 56)}
+                    <span class="avatar-cam-badge">📷</span>
                   </div>
-                `).join("")}
-                <div style="display:flex; justify-content:flex-start;">
-                  <button class="compact-btn primary" style="padding:3px 10px; font-weight:700;" onclick="addCreateExtraInfoRow()">+</button>
+                  <div style="flex:1; min-width:0;">
+                    <div id="c-hero-name" style="font-size:15px; font-weight:700; color:${createCombinedPreview ? 'var(--text-primary)' : 'var(--text-muted)'}; white-space:nowrap; overflow-x:auto;">
+                      ${escapeHtml(createCombinedPreview ? formatLastNameFirst(createCombinedPreview) : "Neuer Kontakt")}
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:3px; overflow-x:auto; white-space:nowrap;">
+                      <span id="c-hero-bday" style="display:${createDraft.bday ? 'inline-block' : 'none'}; background:var(--card-slate); border:1px solid var(--border-slate); border-radius:6px; padding:1px 6px; font-size:10.5px; font-weight:600; color:var(--accent-steel);">
+                        🎂 ${escapeHtml(createDraft.bday || "")}
+                      </span>
+                      <span style="font-size:10.5px; color:var(--text-secondary);">${createDraft.photoBase64 ? "✓ Foto aktiv" : "Tippe auf Avatar für Foto"}</span>
+                    </div>
+                  </div>
+                  <div class="btn-row">
+                    <button class="compact-btn" onclick="triggerContactPhotoPicker('create')">${createDraft.photoBase64 ? "📷 Ändern" : "📷 Foto"}</button>
+                    ${createDraft.photoBase64 ? `<button class="compact-btn danger" style="padding:5px 8px;" onclick="removeContactPhoto('create')" title="Foto entfernen">✕</button>` : ""}
+                  </div>
                 </div>
               </div>
+
+              <div class="form-section-card">
+                <div class="form-section-header">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span class="section-icon-badge">👤</span>
+                    <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Persönliche Daten</span>
+                  </div>
+                </div>
+                <div style="display:flex; gap:7px;">
+                  <div class="field-group" style="flex:1;">
+                    <label class="field-label">Vorname</label>
+                    <input id="c-firstname" class="field-input" placeholder="Vorname" value="${escapeHtml(createDraft.firstName || '')}" oninput="createDraft.firstName=this.value; updateContactHeroLive('create');" />
+                  </div>
+                  <div class="field-group" style="flex:1;">
+                    <label class="field-label">Nachname</label>
+                    <input id="c-lastname" class="field-input" placeholder="Nachname" value="${escapeHtml(createDraft.lastName || '')}" oninput="createDraft.lastName=this.value; updateContactHeroLive('create');" />
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">🎂</span>
+                    <input id="c-bday" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(createDraft.bday)}" onclick="openCalendarPicker('c-bday')" onfocus="openCalendarPicker('c-bday')" oninput="createDraft.bday=this.value; updateContactHeroLive('create');" />
+                    <button class="compact-btn" style="padding:4px 8px; border-radius:7px;" onclick="openCalendarPicker('c-bday')" title="Kalender öffnen">📅</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section-card">
+                <div class="form-section-header">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span class="section-icon-badge">📞</span>
+                    <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Erreichbarkeit & Notizen</span>
+                    ${createExtraInfos.length > 0 ? `<span class="section-count-pill">+${createExtraInfos.length}</span>` : ""}
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Telefon</label>
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">📞</span>
+                    <input id="c-phone" placeholder="+49 170 ..." value="${escapeHtml(createDraft.phone)}" oninput="createDraft.phone=this.value" />
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">E-Mail-Adresse</label>
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">✉️</span>
+                    <input id="c-email" placeholder="name@beispiel.de" value="${escapeHtml(createDraft.email)}" oninput="createDraft.email=this.value" />
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Melde-Timer (Tage)</label>
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">⏱️</span>
+                    <input id="c-timer" value="${escapeHtml(createDraft.timer)}" oninput="createDraft.timer=this.value" />
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Notiz</label>
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">📝</span>
+                    <input id="c-notes" placeholder="Geschenkideen, Beruf, Hinweise ..." value="${escapeHtml(createDraft.notes)}" oninput="createDraft.notes=this.value" />
+                  </div>
+                </div>
+                <div id="c-extra-rows" style="display:flex; flex-direction:column; gap:6px;">
+                  ${createExtraInfos.map((info, idx) => `
+                    <div style="display:flex; flex-wrap:nowrap; gap:6px; align-items:center;">
+                      <input class="field-input" style="flex:0.85; min-width:0; white-space:nowrap;" placeholder="Bezeichnung" value="${escapeHtml(String(info.label || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="createExtraInfos[${idx}].label = this.value.replace(/[\r\n]+/g, ' ')" />
+                      <input class="field-input" style="flex:1.15; min-width:0; white-space:nowrap;" placeholder="Wert" value="${escapeHtml(String(info.value || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="createExtraInfos[${idx}].value = this.value.replace(/[\r\n]+/g, ' ')" />
+                      <span class="extra-delete-btn" onclick="removeCreateExtraInfoRow(${idx})" title="Zeile löschen">✕</span>
+                    </div>
+                  `).join("")}
+                  <div style="display:flex; justify-content:flex-start;">
+                    <button class="compact-btn" style="padding:5px 10px; font-weight:600;" onclick="addCreateExtraInfoRow()">➕ Weiteres Feld hinzufügen</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section-card">
+                <div class="form-section-header">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span class="section-icon-badge">⚙️</span>
+                    <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Kontakt-Optionen</span>
+                  </div>
+                </div>
+                <label class="modern-toggle-card ${createDraft.saveInDevice !== false ? 'active' : ''}" onclick="setTimeout(() => this.classList.toggle('active', document.getElementById('c-savephone').checked), 0)">
+                  <input type="checkbox" id="c-savephone" ${createDraft.saveInDevice !== false ? 'checked' : ''} onchange="createDraft.saveInDevice=this.checked" />
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+                    <span style="font-size:14px;">📱</span>
+                    <div style="min-width:0; flex:1;">
+                      <div style="font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow-x:auto;">In Handykontakten speichern</div>
+                      <div style="font-size:10px; color:var(--text-muted); white-space:nowrap; overflow-x:auto;">Synchronisiert Name, Nummer & Foto</div>
+                    </div>
+                  </div>
+                  <span class="modern-switch-pill"><span class="modern-switch-knob"></span></span>
+                </label>
+                <label class="modern-toggle-card ${createDraft.noPhone ? 'active' : ''}" onclick="setTimeout(() => this.classList.toggle('active', document.getElementById('c-nophone').checked), 0)">
+                  <input type="checkbox" id="c-nophone" ${createDraft.noPhone ? 'checked' : ''} onchange="createDraft.noPhone=this.checked" />
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+                    <span style="font-size:14px;">📵</span>
+                    <div style="min-width:0; flex:1;">
+                      <div style="font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow-x:auto;">Keine eigene Nummer</div>
+                      <div style="font-size:10px; color:var(--text-muted); white-space:nowrap; overflow-x:auto;">Nachrichten über Eltern / Partner senden</div>
+                    </div>
+                  </div>
+                  <span class="modern-switch-pill"><span class="modern-switch-knob"></span></span>
+                </label>
+              </div>
+
               ${treeActive && state.persons.length > 0 ? `
-                <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" onclick="createRelationsExpanded=!createRelationsExpanded; renderModals();">
-                    <span style="font-size:12px; font-weight:600; color:var(--accent-steel);">
-                      ${createRelationsExpanded ? '▼' : '▶'} Beziehungen
-                    </span>
-                    <span style="font-size:11px; color:var(--text-muted);">${createRelationsExpanded ? 'Einklappen' : 'Ausklappen'}</span>
+                <div class="form-section-card">
+                  <div class="form-section-header" style="cursor:pointer;" onclick="createRelationsExpanded=!createRelationsExpanded; renderModals();">
+                    <div style="display:flex; align-items:center; gap:7px;">
+                      <span class="section-icon-badge">🌳</span>
+                      <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Beziehungen</span>
+                    </div>
+                    <span class="compact-btn" style="padding:2px 8px; font-size:11px; color:var(--accent-steel); font-weight:600;">${createRelationsExpanded ? '▼ Einklappen' : '▶ Ausklappen'}</span>
                   </div>
                   ${createRelationsExpanded ? `
-                    <div class="field-group" style="margin-top:6px;">
+                    <div class="field-group" style="margin-top:2px;">
                       <label class="field-label">1. Beziehungsart</label>
                       <select id="c-rellabel" class="field-select" onchange="createDraft.relLabel=this.value">${RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}" ${(createDraft.relLabel || 'Kind von') === r ? 'selected' : ''}>${escapeHtml(r)}</option>`).join("")}</select>
                       <label class="field-label" style="margin-top:4px;">2. Verknüpfter Kontakt (Nachname, Vorname + ABCD)</label>
@@ -5280,7 +5551,7 @@
               ` : ""}
               <div class="modal-footer">
                 <button class="compact-btn" onclick="showCreateDialog=false; renderModals();">Abbrechen</button>
-                <button class="compact-btn primary" onclick="saveNewPerson()">Speichern</button>
+                <button class="compact-btn primary" style="font-weight:700; padding:6px 12px; border-radius:9px;" onclick="saveNewPerson()">✓ Kontakt speichern</button>
               </div>
             </div>
           </div>
@@ -5297,6 +5568,8 @@
         }
         const currentRels = getRelationsForPerson(dp.id).sort((a, b) => comparePersonsByLastName(a.target, b.target));
         const currentEvs = state.specialEvents.filter(e => e.personId === dp.id);
+        const splitDp = splitFullNameIntoFirstAndLast(dp.name);
+        const formattedDpBday = formatIsoToDdMmYyyy(dp.birthdayIso || "");
         const detailRelDropdownHtml = renderContactSearchDropdownHtml({
           key: "detail_rel_target",
           persons: otherPersons,
@@ -5311,108 +5584,189 @@
 
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
-            <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal contact-modal" onclick="event.stopPropagation()">
               <div class="modal-header-sticky">
-                <div class="modal-title" style="flex:1; min-width:0; word-break:break-word;">Details: ${escapeHtml(dp.name)}</div>
+                <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0;">
+                  <span class="section-icon-badge" style="width:28px; height:28px; border-color:var(--accent-steel);">🪪</span>
+                  <div class="modal-title" style="white-space:nowrap; overflow-x:auto;">Kontakt bearbeiten</div>
+                </div>
                 <div class="btn-row">
-                  ${treeActive ? `<button class="compact-btn" style="flex-shrink:0;" onclick="selectedTreeRootId=${dp.id}; detailPersonId=null; setTab('Stammbaum'); renderModals();" title="Im Stammbaum öffnen">🌳</button>` : ""}
                   <button class="compact-btn" onclick="detailPersonId=null; renderModals();">✕</button>
-                  <button class="compact-btn primary" onclick="saveDetailPerson(${dp.id})">✓ Speichern</button>
+                  <button class="compact-btn primary" style="font-weight:700; padding:6px 12px; border-radius:9px;" onclick="saveDetailPerson(${dp.id})">✓ Speichern</button>
                 </div>
               </div>
-              <div style="display:flex; align-items:center; gap:10px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:10px; padding:8px 10px;">
-                ${renderPersonAvatarHtml(dp.name, detailDraftPhotoBase64 || "", 46)}
-                <div style="flex:1; min-width:0;">
-                  <div style="font-size:12px; font-weight:700; color:var(--text-primary);">Kontaktfoto</div>
-                  <div style="font-size:10.5px; color:var(--text-muted);">${detailDraftPhotoBase64 ? "Foto vorhanden (Handykontakte & App)" : "Aus Galerie wählen oder per Sync laden"}</div>
-                </div>
-                <div class="btn-row">
-                  <button class="compact-btn" onclick="triggerContactPhotoPicker('detail')">📷 Foto</button>
-                  ${detailDraftPhotoBase64 ? `<button class="compact-btn danger" style="padding:4px 7px;" onclick="removeContactPhoto('detail')" title="Foto entfernen">✕</button>` : ""}
-                </div>
-              </div>
-              ${state.persons.length >= 2 ? `
-                <div style="display:flex; justify-content:flex-start;">
-                  <button class="compact-btn" onclick="openMergeContactsModal([${dp.id}])">🔗 Mit anderem Kontakt zusammenführen</button>
-                </div>
-              ` : ""}
-              <div style="display:flex; gap:6px;">
-                <div class="field-group" style="flex:1;">
-                  <label class="field-label">Vorname</label>
-                  <input id="d-firstname" class="field-input" placeholder="Vorname" value="${escapeHtml(splitFullNameIntoFirstAndLast(dp.name).firstName)}" />
-                </div>
-                <div class="field-group" style="flex:1;">
-                  <label class="field-label">Nachname</label>
-                  <input id="d-lastname" class="field-input" placeholder="Nachname" value="${escapeHtml(splitFullNameIntoFirstAndLast(dp.name).lastName)}" />
-                </div>
-              </div>
-              <div class="field-group">
-                <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
-                <input id="d-bday" class="field-input" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(formatIsoToDdMmYyyy(dp.birthdayIso || ''))}" onclick="openCalendarPicker('d-bday')" onfocus="openCalendarPicker('d-bday')" />
-              </div>
-              <div style="display:flex; gap:6px;">
-                <div class="field-group" style="flex:1;">
-                  <label class="field-label">Telefon</label>
-                  <input id="d-phone" class="field-input" value="${escapeHtml(dp.phone || '')}" />
-                </div>
-                <div class="field-group" style="flex:1;">
-                  <label class="field-label">E-Mail</label>
-                  <input id="d-email" class="field-input" value="${escapeHtml(dp.email || '')}" />
-                </div>
-              </div>
-              <div class="field-group">
-                <label class="field-label">Notiz</label>
-                <input id="d-notes" class="field-input" value="${escapeHtml(dp.notes || '')}" />
-              </div>
-              <label class="checkbox-row">
-                <input type="checkbox" id="d-savephone" ${dp.savedInDeviceContacts !== false ? 'checked' : ''} />
-                <span>In Handykontakten speichern</span>
-              </label>
-              <label class="checkbox-row">
-                <input type="checkbox" id="d-hidden" ${dp.isHidden ? 'checked' : ''} onchange="togglePersonHidden(${dp.id})" />
-                <span>Kontakt ausblenden</span>
-              </label>
 
-              <div id="d-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
-                ${detailExtraInfos.map((info, idx) => `
-                  <div style="display:flex; flex-wrap:nowrap; gap:5px; align-items:center;">
-                    <input class="field-input" style="flex:0.85; min-width:0; white-space:nowrap;" placeholder="Bezeichnung" value="${escapeHtml(String(info.label || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="detailExtraInfos[${idx}].label = this.value.replace(/[\r\n]+/g, ' ')" />
-                    <input class="field-input" style="flex:1.15; min-width:0; white-space:nowrap;" placeholder="Wert" value="${escapeHtml(String(info.value || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="detailExtraInfos[${idx}].value = this.value.replace(/[\r\n]+/g, ' ')" />
-                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px; flex-shrink:0; white-space:nowrap;" onclick="removeDetailExtraInfoRow(${idx})">✕</span>
+              <div class="contact-hero-banner">
+                <div style="display:flex; align-items:center; gap:11px;">
+                  <div class="avatar-upload-box" onclick="triggerContactPhotoPicker('detail')" title="Kontaktfoto ändern">
+                    ${renderPersonAvatarHtml(dp.name, detailDraftPhotoBase64 || "", 56)}
+                    <span class="avatar-cam-badge">📷</span>
                   </div>
-                `).join("")}
-                <div style="display:flex; justify-content:flex-start;">
-                  <button class="compact-btn primary" style="padding:3px 10px; font-weight:700;" onclick="addDetailExtraInfoRow()">+</button>
+                  <div style="flex:1; min-width:0;">
+                    <div id="d-hero-name" style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow-x:auto;">
+                      ${escapeHtml(formatLastNameFirst(dp.name))}
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:3px; overflow-x:auto; white-space:nowrap;">
+                      <span id="d-hero-bday" style="display:${formattedDpBday ? 'inline-block' : 'none'}; background:var(--card-slate); border:1px solid var(--border-slate); border-radius:6px; padding:1px 6px; font-size:10.5px; font-weight:600; color:var(--accent-steel);">
+                        🎂 ${escapeHtml(formattedDpBday)}
+                      </span>
+                      <span style="font-size:10.5px; color:var(--text-secondary);">${detailDraftPhotoBase64 ? "✓ Foto aktiv" : "Tippe auf Avatar für Foto"}</span>
+                    </div>
+                  </div>
+                  <div class="btn-row">
+                    <button class="compact-btn" onclick="triggerContactPhotoPicker('detail')">${detailDraftPhotoBase64 ? "📷 Ändern" : "📷 Foto"}</button>
+                    ${detailDraftPhotoBase64 ? `<button class="compact-btn danger" style="padding:5px 8px;" onclick="removeContactPhoto('detail')" title="Foto entfernen">✕</button>` : ""}
+                  </div>
                 </div>
+                ${(state.persons.length >= 2 || treeActive) ? `
+                  <div style="display:flex; gap:6px; align-items:center; overflow-x:auto; white-space:nowrap; padding-top:2px;">
+                    ${state.persons.length >= 2 ? `<button class="compact-btn" onclick="openMergeContactsModal([${dp.id}])">🔗 Zusammenführen</button>` : ""}
+                    ${treeActive ? `<button class="compact-btn" onclick="selectedTreeRootId=${dp.id}; detailPersonId=null; setTab('Stammbaum'); renderModals();">🌳 Im Stammbaum öffnen</button>` : ""}
+                  </div>
+                ` : ""}
+              </div>
+
+              <div class="form-section-card">
+                <div class="form-section-header">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span class="section-icon-badge">👤</span>
+                    <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Persönliche Daten</span>
+                  </div>
+                </div>
+                <div style="display:flex; gap:7px;">
+                  <div class="field-group" style="flex:1;">
+                    <label class="field-label">Vorname</label>
+                    <input id="d-firstname" class="field-input" placeholder="Vorname" value="${escapeHtml(splitDp.firstName)}" oninput="updateContactHeroLive('detail')" />
+                  </div>
+                  <div class="field-group" style="flex:1;">
+                    <label class="field-label">Nachname</label>
+                    <input id="d-lastname" class="field-input" placeholder="Nachname" value="${escapeHtml(splitDp.lastName)}" oninput="updateContactHeroLive('detail')" />
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">🎂</span>
+                    <input id="d-bday" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(formattedDpBday)}" onclick="openCalendarPicker('d-bday')" onfocus="openCalendarPicker('d-bday')" oninput="updateContactHeroLive('detail')" />
+                    <button class="compact-btn" style="padding:4px 8px; border-radius:7px;" onclick="openCalendarPicker('d-bday')" title="Kalender öffnen">📅</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section-card">
+                <div class="form-section-header">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span class="section-icon-badge">📞</span>
+                    <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Erreichbarkeit & Notizen</span>
+                    ${detailExtraInfos.length > 0 ? `<span class="section-count-pill">+${detailExtraInfos.length}</span>` : ""}
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Telefon</label>
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">📞</span>
+                    <input id="d-phone" placeholder="+49 170 ..." value="${escapeHtml(dp.phone || '')}" />
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">E-Mail-Adresse</label>
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">✉️</span>
+                    <input id="d-email" placeholder="name@beispiel.de" value="${escapeHtml(dp.email || '')}" />
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Notiz</label>
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">📝</span>
+                    <input id="d-notes" placeholder="Geschenkideen, Beruf, Hinweise ..." value="${escapeHtml(dp.notes || '')}" />
+                  </div>
+                </div>
+                <div id="d-extra-rows" style="display:flex; flex-direction:column; gap:6px;">
+                  ${detailExtraInfos.map((info, idx) => `
+                    <div style="display:flex; flex-wrap:nowrap; gap:6px; align-items:center;">
+                      <input class="field-input" style="flex:0.85; min-width:0; white-space:nowrap;" placeholder="Bezeichnung" value="${escapeHtml(String(info.label || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="detailExtraInfos[${idx}].label = this.value.replace(/[\r\n]+/g, ' ')" />
+                      <input class="field-input" style="flex:1.15; min-width:0; white-space:nowrap;" placeholder="Wert" value="${escapeHtml(String(info.value || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="detailExtraInfos[${idx}].value = this.value.replace(/[\r\n]+/g, ' ')" />
+                      <span class="extra-delete-btn" onclick="removeDetailExtraInfoRow(${idx})" title="Zeile löschen">✕</span>
+                    </div>
+                  `).join("")}
+                  <div style="display:flex; justify-content:flex-start;">
+                    <button class="compact-btn" style="padding:5px 10px; font-weight:600;" onclick="addDetailExtraInfoRow()">➕ Weiteres Feld hinzufügen</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-section-card">
+                <div class="form-section-header">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span class="section-icon-badge">⚙️</span>
+                    <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Kontakt-Optionen</span>
+                  </div>
+                </div>
+                <label class="modern-toggle-card ${dp.savedInDeviceContacts !== false ? 'active' : ''}" onclick="setTimeout(() => this.classList.toggle('active', document.getElementById('d-savephone').checked), 0)">
+                  <input type="checkbox" id="d-savephone" ${dp.savedInDeviceContacts !== false ? 'checked' : ''} />
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+                    <span style="font-size:14px;">📱</span>
+                    <div style="min-width:0; flex:1;">
+                      <div style="font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow-x:auto;">In Handykontakten speichern</div>
+                      <div style="font-size:10px; color:var(--text-muted); white-space:nowrap; overflow-x:auto;">Synchronisiert Änderungen mit dem Telefonbuch</div>
+                    </div>
+                  </div>
+                  <span class="modern-switch-pill"><span class="modern-switch-knob"></span></span>
+                </label>
+                <label class="modern-toggle-card ${dp.hasNoOwnPhone ? 'active' : ''}" onclick="setTimeout(() => this.classList.toggle('active', document.getElementById('d-nophone').checked), 0)">
+                  <input type="checkbox" id="d-nophone" ${dp.hasNoOwnPhone ? 'checked' : ''} />
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+                    <span style="font-size:14px;">📵</span>
+                    <div style="min-width:0; flex:1;">
+                      <div style="font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow-x:auto;">Keine eigene Nummer</div>
+                      <div style="font-size:10px; color:var(--text-muted); white-space:nowrap; overflow-x:auto;">Nachrichten über Eltern / Partner senden</div>
+                    </div>
+                  </div>
+                  <span class="modern-switch-pill"><span class="modern-switch-knob"></span></span>
+                </label>
+                <label class="modern-toggle-card ${dp.isHidden ? 'active' : ''}">
+                  <input type="checkbox" id="d-hidden" ${dp.isHidden ? 'checked' : ''} onchange="togglePersonHidden(${dp.id})" />
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+                    <span style="font-size:14px;">🙈</span>
+                    <div style="min-width:0; flex:1;">
+                      <div style="font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow-x:auto;">Kontakt ausblenden</div>
+                      <div style="font-size:10px; color:var(--text-muted); white-space:nowrap; overflow-x:auto;">Aus Übersicht ausblenden (unter Optionen sichtbar)</div>
+                    </div>
+                  </div>
+                  <span class="modern-switch-pill"><span class="modern-switch-knob"></span></span>
+                </label>
               </div>
 
               ${treeActive ? `
-                <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;" onclick="toggleDetailRelations()">
-                    <span style="font-size:12px; font-weight:600; color:var(--accent-steel);">
-                      ${detailRelationsExpanded ? '▼' : '▶'} Beziehungen (${currentRels.length})
-                    </span>
-                    <span style="font-size:11px; color:var(--text-muted);">${detailRelationsExpanded ? 'Einklappen' : 'Ausklappen'}</span>
+                <div class="form-section-card">
+                  <div class="form-section-header" style="cursor:pointer;" onclick="toggleDetailRelations()">
+                    <div style="display:flex; align-items:center; gap:7px;">
+                      <span class="section-icon-badge">🌳</span>
+                      <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Beziehungen</span>
+                      <span class="section-count-pill">${currentRels.length}</span>
+                    </div>
+                    <span class="compact-btn" style="padding:2px 8px; font-size:11px; color:var(--accent-steel); font-weight:600;">${detailRelationsExpanded ? '▼ Einklappen' : '▶ Ausklappen'}</span>
                   </div>
                   ${detailRelationsExpanded ? `
                     ${otherPersons.length > 0 ? `
-                      <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:8px; margin-top:6px;">
+                      <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:var(--card-slate); border:1px solid var(--border-slate); border-radius:10px; padding:9px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                          <span style="font-size:11px; font-weight:600; color:var(--text-secondary);">Beziehung zuordnen (Nachname, ABCD):</span>
-                          <button class="compact-btn primary" style="padding:4px 8px; font-size:11px;" onclick="addRelationFromDetail(${dp.id})">✓ + Beziehung speichern</button>
+                          <span style="font-size:11px; font-weight:600; color:var(--text-secondary);">Beziehung zuordnen:</span>
+                          <button class="compact-btn primary" style="padding:4px 9px; font-size:11px; font-weight:700;" onclick="addRelationFromDetail(${dp.id})">✓ + Speichern</button>
                         </div>
-                        <select id="d-rellabel" class="field-select" onchange="detailDraftRelLabel=this.value">
+                        <select id="d-rellabel" class="field-select" style="background:var(--bg-slate);" onchange="detailDraftRelLabel=this.value">
                           ${RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}" ${(detailDraftRelLabel || 'Kind von') === r ? 'selected' : ''}>${escapeHtml(r)}</option>`).join("")}
                         </select>
                         ${detailRelDropdownHtml}
                       </div>
                     ` : ""}
-                    <div style="display:flex; flex-direction:column; gap:4px; margin:6px 0;">
+                    <div style="display:flex; flex-direction:column; gap:5px; margin-top:2px;">
                       ${currentRels.length === 0 ? `<div style="font-size:11px; color:var(--text-muted);">Noch keine Beziehungen verknüpft.</div>` :
                         currentRels.map(r => `
-                          <div class="rel-item-row">
-                            <span>${escapeHtml(r.rel.relationLabel)} <b>${escapeHtml(formatLastNameFirst(r.target.name))}</b></span>
-                            <span style="color:var(--warn-amber); cursor:pointer; font-weight:700;" onclick="removeRelation(${r.rel.id})">✕</span>
+                          <div class="rel-item-row" style="background:var(--card-slate); border-radius:8px;">
+                            <span>🔗 ${escapeHtml(r.rel.relationLabel)} <b>${escapeHtml(formatLastNameFirst(r.target.name))}</b></span>
+                            <span class="extra-delete-btn" style="width:24px; height:24px;" onclick="removeRelation(${r.rel.id})">✕</span>
                           </div>
                         `).join("")}
                     </div>
@@ -5420,23 +5774,34 @@
                 </div>
               ` : ""}
 
-              <div style="border-top:1px solid var(--border-slate); padding-top:8px;">
-                <div style="font-size:12px; font-weight:600; color:var(--accent-steel); margin-bottom:6px;">Erinnerungen:</div>
-                <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:6px;">
-                  ${currentEvs.map(ev => `
-                    <div class="rel-item-row">
-                      <span>${escapeHtml(ev.title)} (${escapeHtml(formatIsoToDdMmYyyy(ev.dateIso))})</span>
-                      <span style="color:var(--warn-amber); cursor:pointer; font-weight:700;" onclick="removeEvent(${ev.id})">✕</span>
-                    </div>
-                  `).join("")}
+              <div class="form-section-card">
+                <div class="form-section-header">
+                  <div style="display:flex; align-items:center; gap:7px;">
+                    <span class="section-icon-badge">🔔</span>
+                    <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Erinnerungen & Termine</span>
+                    ${currentEvs.length > 0 ? `<span class="section-count-pill">${currentEvs.length}</span>` : ""}
+                  </div>
                 </div>
-                <div class="field-group" style="margin-bottom:6px;">
+                ${currentEvs.length > 0 ? `
+                  <div style="display:flex; flex-direction:column; gap:5px;">
+                    ${currentEvs.map(ev => `
+                      <div class="rel-item-row" style="background:var(--card-slate); border-radius:8px;">
+                        <span>📅 ${escapeHtml(ev.title)} (${escapeHtml(formatIsoToDdMmYyyy(ev.dateIso))})</span>
+                        <span class="extra-delete-btn" style="width:24px; height:24px;" onclick="removeEvent(${ev.id})">✕</span>
+                      </div>
+                    `).join("")}
+                  </div>
+                ` : ""}
+                <div class="field-group">
                   <label class="field-label">Neue Erinnerung</label>
-                  <input id="d-evtitle" class="field-input" placeholder="z. B. Anrufen" />
+                  <div class="input-icon-wrap">
+                    <span class="input-icon-chip">🔔</span>
+                    <input id="d-evtitle" placeholder="z. B. Anrufen, Arzttermin, Jubiläum ..." />
+                  </div>
                 </div>
-                <div style="display:flex; gap:6px; margin-bottom:6px;">
+                <div style="display:flex; gap:7px;">
                   <div class="field-group" style="flex:0.85;">
-                    <label class="field-label">Rhythmus (Zahl)</label>
+                    <label class="field-label">Rhythmus</label>
                     <input id="d-evcount" type="number" min="1" class="field-input" value="1" oninput="updateDetailReminderPreview()" />
                   </div>
                   <div class="field-group" style="flex:1.15;">
@@ -5449,20 +5814,24 @@
                     </select>
                   </div>
                 </div>
-                <label class="checkbox-row" style="margin-bottom:6px;">
+                <label class="modern-toggle-card" onclick="setTimeout(() => this.classList.toggle('active', document.getElementById('d-evrepeat-chk').checked), 0)">
                   <input type="checkbox" id="d-evrepeat-chk" onchange="updateDetailReminderPreview()" />
-                  <span>Wiederholen</span>
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">
+                    <span style="font-size:14px;">🔁</span>
+                    <span style="font-size:12px; font-weight:600; color:var(--text-primary); white-space:nowrap;">Regelmäßig wiederholen</span>
+                  </div>
+                  <span class="modern-switch-pill"><span class="modern-switch-knob"></span></span>
                 </label>
-                <div id="d-evnext-preview" style="font-size:12px; color:var(--accent-steel); background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:6px; padding:6px 10px;">
+                <div id="d-evnext-preview" style="font-size:12px; font-weight:600; color:var(--accent-steel); background:var(--card-slate); border:1px solid var(--border-slate); border-radius:10px; padding:7px 10px; white-space:nowrap; overflow-x:auto;">
                   📅 Nächster Termin: <b>${formatIsoToDdMmYyyy(addIntervalToIsoDate(todayIso(), 1, 'DAYS'))}</b> <span style="color:var(--text-muted);">(Einmalig)</span>
                 </div>
               </div>
 
               <div class="modal-footer">
-                <button class="compact-btn danger" onclick="deletePerson(${dp.id})">Löschen</button>
+                <button class="compact-btn danger" style="border-radius:9px;" onclick="deletePerson(${dp.id})">🗑️ Löschen</button>
                 <div class="btn-row">
                   <button class="compact-btn" onclick="detailPersonId=null; renderModals();">Schließen</button>
-                  <button class="compact-btn primary" onclick="saveDetailPerson(${dp.id})">Speichern</button>
+                  <button class="compact-btn primary" style="font-weight:700; padding:6px 12px; border-radius:9px;" onclick="saveDetailPerson(${dp.id})">✓ Speichern</button>
                 </div>
               </div>
             </div>
@@ -7089,6 +7458,41 @@
       });
     }
 
+    function updateContactHeroLive(mode) {
+      if (mode === "create") {
+        const fnEl = document.getElementById("c-firstname");
+        const lnEl = document.getElementById("c-lastname");
+        const bdayEl = document.getElementById("c-bday");
+        const combined = combineFirstAndLastName(fnEl ? fnEl.value : "", lnEl ? lnEl.value : "");
+        const heroNameEl = document.getElementById("c-hero-name");
+        const heroBdayEl = document.getElementById("c-hero-bday");
+        if (heroNameEl) {
+          heroNameEl.textContent = combined ? formatLastNameFirst(combined) : "Neuer Kontakt";
+          heroNameEl.style.color = combined ? "var(--text-primary)" : "var(--text-muted)";
+        }
+        if (heroBdayEl && bdayEl) {
+          const bv = bdayEl.value.trim();
+          heroBdayEl.textContent = bv ? `🎂 ${bv}` : "";
+          heroBdayEl.style.display = bv ? "inline-block" : "none";
+        }
+      } else {
+        const fnEl = document.getElementById("d-firstname");
+        const lnEl = document.getElementById("d-lastname");
+        const bdayEl = document.getElementById("d-bday");
+        const combined = combineFirstAndLastName(fnEl ? fnEl.value : "", lnEl ? lnEl.value : "");
+        const heroNameEl = document.getElementById("d-hero-name");
+        const heroBdayEl = document.getElementById("d-hero-bday");
+        if (heroNameEl && combined) {
+          heroNameEl.textContent = formatLastNameFirst(combined);
+        }
+        if (heroBdayEl && bdayEl) {
+          const bv = bdayEl.value.trim();
+          heroBdayEl.textContent = bv ? `🎂 ${bv}` : "";
+          heroBdayEl.style.display = bv ? "inline-block" : "none";
+        }
+      }
+    }
+
     function syncDetailDraftBeforeRerender() {
       if (detailPersonId === null) return;
       const dp = state.persons.find(p => p.id === detailPersonId);
@@ -7099,6 +7503,8 @@
       const pEl = document.getElementById("d-phone");
       const eEl = document.getElementById("d-email");
       const noEl = document.getElementById("d-notes");
+      const npEl = document.getElementById("d-nophone");
+      const spEl = document.getElementById("d-savephone");
       if (fnEl || lnEl) {
         const combined = combineFirstAndLastName(fnEl ? fnEl.value : "", lnEl ? lnEl.value : "");
         if (combined) dp.name = combined;
@@ -7107,16 +7513,19 @@
       if (pEl) dp.phone = pEl.value;
       if (eEl) dp.email = eEl.value;
       if (noEl) dp.notes = noEl.value;
+      if (npEl) dp.hasNoOwnPhone = npEl.checked;
+      if (spEl) dp.savedInDeviceContacts = spEl.checked;
     }
 
     function addDetailExtraInfoRow() {
       syncDetailDraftBeforeRerender();
-      const nextLabel = detailExtraInfos.length === 0 ? "2. Telefon" : "Weitere Info";
+      const nextLabel = detailExtraInfos.length === 0 ? "2. Telefon" : "Adresse / Info";
       detailExtraInfos.push({ label: nextLabel, value: "" });
       renderModals();
     }
 
     function removeDetailExtraInfoRow(idx) {
+      syncDetailDraftBeforeRerender();
       askDeleteConfirm("Zusätzliche Info-Zeile wirklich löschen?", () => {
         detailExtraInfos.splice(idx, 1);
         renderModals();
@@ -7290,6 +7699,8 @@
       dp.photoBase64 = detailDraftPhotoBase64 || "";
       const savePhoneEl = document.getElementById("d-savephone");
       dp.savedInDeviceContacts = savePhoneEl ? savePhoneEl.checked : true;
+      const noPhoneEl = document.getElementById("d-nophone");
+      if (noPhoneEl) dp.hasNoOwnPhone = noPhoneEl.checked;
       const hiddenEl = document.getElementById("d-hidden");
       if (hiddenEl) dp.isHidden = hiddenEl.checked;
       dp.extraInfos = detailExtraInfos.filter(x => (x.label && x.label.trim()) || (x.value && x.value.trim()));
@@ -7391,6 +7802,10 @@
         el.value = formatted;
         if (calendarPickerState.inputId === "c-bday") {
           createDraft.bday = formatted;
+          updateContactHeroLive("create");
+        }
+        if (calendarPickerState.inputId === "d-bday") {
+          updateContactHeroLive("detail");
         }
         if (calendarPickerState.inputId === "wg-reveal" && wichtelGroupModalState) {
           wichtelGroupModalState.revealDate = formatted;
@@ -7472,7 +7887,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.39",
+        version: "1.0.40",
         createdAt: dateStr,
         state
       };
@@ -7490,7 +7905,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.39",
+        version: "1.0.40",
         createdAt: dateStr,
         state
       };
@@ -7565,7 +7980,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.39 gestartet.");
+    addLog("Remember Me v1.0.40 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>
