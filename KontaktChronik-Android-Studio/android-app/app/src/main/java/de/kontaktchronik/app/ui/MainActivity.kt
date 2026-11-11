@@ -44,6 +44,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
@@ -53,6 +54,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -418,16 +420,17 @@ fun BirthdayCountdownPill(birthdayIso: String?, isPastMode: Boolean) {
 
 val RELATION_PRESETS = listOf(
     "Kind von",
+    "Mutter von",
+    "Vater von",
+    "Elternteil von",
     "Ehe-Partner von",
     "Partner von",
     "Bruder von",
     "Schwester von",
-    "Mutter von",
-    "Vater von",
-    "Elternteil von",
     "Oma/Opa von",
     "Enkelkind von",
     "Onkel/Tante von",
+    "Neffe/Nichte von",
     "Cousin/Cousine von"
 )
 
@@ -435,7 +438,7 @@ fun inverseRelationLabel(label: String): String {
     val l = label.trim().lowercase()
     return when {
         l.startsWith("kind") || l.startsWith("sohn") || l.startsWith("tochter") -> "Elternteil von"
-        l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil") -> "Kind von"
+        l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil") || l.startsWith("eltern") -> "Kind von"
         l.startsWith("ehe-partner") || l.startsWith("ehepartner") -> "Ehe-Partner von"
         l.startsWith("partner") -> "Partner von"
         l.startsWith("bruder") || l.startsWith("schwester") || l.startsWith("geschwister") -> "Geschwister von"
@@ -446,6 +449,16 @@ fun inverseRelationLabel(label: String): String {
         l.startsWith("cousin") -> "Cousin/Cousine von"
         else -> "Verknüpft mit"
     }
+}
+
+fun isDirectParentLabel(label: String): Boolean {
+    val l = label.trim().lowercase()
+    return l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil") || l.startsWith("eltern")
+}
+
+fun isDirectChildLabel(label: String): Boolean {
+    val l = label.trim().lowercase()
+    return l.startsWith("kind") || l.startsWith("sohn") || l.startsWith("tochter")
 }
 
 /**
@@ -1152,6 +1165,249 @@ fun SingleLineExtraInfoRow(
                 maxLines = 1,
                 softWrap = false
             )
+        }
+    }
+}
+
+@Composable
+fun RelationPresetDropdownBox(
+    selectedLabel: String,
+    onSelectLabel: (String) -> Unit,
+    prefixText: String = "",
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(CardSlate, RoundedCornerShape(9.dp))
+                .border(1.dp, if (expanded) AccentSteel else BorderSlate, RoundedCornerShape(9.dp))
+                .clip(RoundedCornerShape(9.dp))
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (prefixText.isNotBlank()) "$prefixText $selectedLabel" else selectedLabel,
+                color = TextPrimary,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState())
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("▼", color = AccentSteel, fontSize = 10.5.sp, maxLines = 1, softWrap = false)
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(CardSlate)
+        ) {
+            Column(modifier = Modifier.width(265.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(BgSlate)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "✓ $selectedLabel",
+                        color = AccentSteel,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.weight(1f)
+                    )
+                    CompactButton("✓ OK") { expanded = false }
+                }
+                HorizontalDivider(color = BorderSlate)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 210.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    RELATION_PRESETS.forEach { preset ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    preset,
+                                    color = if (preset == selectedLabel) AccentSteel else TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (preset == selectedLabel) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            },
+                            onClick = {
+                                onSelectLabel(preset)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MultiRelationDraftEditor(
+    draftRows: List<Pair<String, Long>>,
+    onDraftRowsChange: (List<Pair<String, Long>>) -> Unit,
+    candidatePersons: List<PersonEntity>,
+    onSaveAllNow: (() -> Unit)? = null
+) {
+    val validCount = draftRows.count { it.second > 0L && it.first.isNotBlank() }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Mehrere Beziehungen gleichzeitig verknüpfen (z. B. Kind von … & Bruder von …):",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.horizontalScroll(rememberScrollState())
+        )
+
+        draftRows.forEachIndexed { idx, (rowLabel, rowTargetId) ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(
+                        1.dp,
+                        if (rowTargetId > 0L) AccentSteel.copy(alpha = 0.55f) else BorderSlate,
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(9.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(AccentSteel.copy(alpha = 0.14f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                "#${idx + 1}",
+                                color = AccentSteel,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                        Text(
+                            if (rowTargetId > 0L) "Bereit zum Verknüpfen" else "Beziehung auswählen",
+                            color = if (rowTargetId > 0L) TreeGreen else TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                    if (draftRows.size > 1 || rowTargetId > 0L) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(PartnerRose.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                .border(1.dp, PartnerRose.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable {
+                                    if (draftRows.size > 1) {
+                                        onDraftRowsChange(draftRows.filterIndexed { i, _ -> i != idx })
+                                    } else {
+                                        onDraftRowsChange(listOf("Kind von" to -1L))
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "✕",
+                                color = PartnerRose,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                style = CenteredPillTextStyle,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+
+                RelationPresetDropdownBox(
+                    selectedLabel = rowLabel,
+                    onSelectLabel = { newLbl ->
+                        onDraftRowsChange(
+                            draftRows.toMutableList().also { it[idx] = newLbl to rowTargetId }
+                        )
+                    },
+                    prefixText = "Art:"
+                )
+
+                ContactSearchDropdown(
+                    persons = candidatePersons,
+                    selectedPersonId = rowTargetId.takeIf { it > 0L },
+                    onSelectPerson = { chosen ->
+                        onDraftRowsChange(
+                            draftRows.toMutableList().also { it[idx] = rowLabel to chosen.id }
+                        )
+                    },
+                    allowNone = true,
+                    noneLabel = "-- Kontakt auswählen --",
+                    onSelectNone = {
+                        onDraftRowsChange(
+                            draftRows.toMutableList().also { it[idx] = rowLabel to -1L }
+                        )
+                    },
+                    placeholderText = "🔎 Verknüpften Kontakt wählen",
+                    showInlineAlphabet = draftRows.size == 1
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CompactButton("➕ Weitere Beziehung hinzufügen") {
+                val usedPresets = draftRows.map { it.first }.toSet()
+                val nextDefault = listOf("Bruder von", "Schwester von", "Ehe-Partner von", "Kind von", "Mutter von", "Vater von")
+                    .firstOrNull { it !in usedPresets } ?: "Kind von"
+                onDraftRowsChange(draftRows + (nextDefault to -1L))
+            }
+            if (onSaveAllNow != null && validCount > 0) {
+                PrimaryActionButton(
+                    if (validCount == 1) "✓ 1 Beziehung verknüpfen" else "✓ $validCount Beziehungen verknüpfen"
+                ) {
+                    onSaveAllNow()
+                }
+            }
         }
     }
 }
@@ -3125,7 +3381,8 @@ fun KontaktChronikApp(
     suspend fun addBidirectionalRelation(fromId: Long, toId: Long, label: String) {
         if (fromId <= 0 || toId <= 0 || fromId == toId) return
         val cleanLabel = label.trim()
-        val existsForward = relations.any {
+        val fresh = db.getAllRelationsOnce()
+        val existsForward = fresh.any {
             it.fromPersonId == fromId && it.toPersonId == toId && it.relationLabel.equals(cleanLabel, ignoreCase = true)
         }
         if (!existsForward) {
@@ -3139,8 +3396,8 @@ fun KontaktChronikApp(
             )
         }
         val revLabel = inverseRelationLabel(cleanLabel)
-        val existsReverse = relations.any {
-            it.fromPersonId == toId && it.toPersonId == fromId
+        val existsReverse = fresh.any {
+            it.fromPersonId == toId && it.toPersonId == fromId && it.relationLabel.equals(revLabel, ignoreCase = true)
         }
         if (!existsReverse) {
             db.insertRelation(
@@ -3148,12 +3405,44 @@ fun KontaktChronikApp(
                     fromPersonId = toId,
                     toPersonId = fromId,
                     relationLabel = revLabel,
-                    isFallbackContact = cleanLabel.lowercase().startsWith("mutter") ||
-                        cleanLabel.lowercase().startsWith("vater") ||
-                        cleanLabel.lowercase().startsWith("elternteil") ||
-                        isPartnerRelation(cleanLabel)
+                    isFallbackContact = isDirectParentLabel(cleanLabel) || isPartnerRelation(cleanLabel)
                 )
             )
+        }
+    }
+
+    suspend fun deleteBidirectionalRelationPair(personAId: Long, personBId: Long, specificRel: RelationEntity? = null) {
+        val fresh = db.getAllRelationsOnce()
+        if (specificRel != null) {
+            val inv = inverseRelationLabel(specificRel.relationLabel)
+            val toDelete = fresh.filter { r ->
+                r.id == specificRel.id ||
+                    (r.fromPersonId == specificRel.fromPersonId && r.toPersonId == specificRel.toPersonId && r.relationLabel.equals(specificRel.relationLabel, ignoreCase = true)) ||
+                    (r.fromPersonId == specificRel.toPersonId && r.toPersonId == specificRel.fromPersonId &&
+                        (r.relationLabel.equals(inv, ignoreCase = true) || fresh.count { it.fromPersonId == specificRel.fromPersonId && it.toPersonId == specificRel.toPersonId } <= 1))
+            }
+            toDelete.forEach { db.deleteRelation(it) }
+        } else {
+            fresh.filter { r ->
+                (r.fromPersonId == personAId && r.toPersonId == personBId) ||
+                    (r.fromPersonId == personBId && r.toPersonId == personAId)
+            }.forEach { db.deleteRelation(it) }
+        }
+    }
+
+    suspend fun replaceBidirectionalRelation(
+        oldPersonAId: Long,
+        oldPersonBId: Long,
+        newFromId: Long,
+        newToId: Long,
+        newLabel: String
+    ) {
+        if (oldPersonAId > 0 && oldPersonBId > 0) {
+            deleteBidirectionalRelationPair(oldPersonAId, oldPersonBId, null)
+        }
+        if (newFromId > 0 && newToId > 0 && newFromId != newToId) {
+            deleteBidirectionalRelationPair(newFromId, newToId, null)
+            addBidirectionalRelation(newFromId, newToId, newLabel)
         }
     }
 
@@ -3169,7 +3458,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.40", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.41", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -3486,6 +3775,21 @@ fun KontaktChronikApp(
                         popupReason = "Nachricht"
                         quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
                         popupPerson = p
+                    },
+                    onUpsertRelation = { fromId, toId, label ->
+                        scope.launch {
+                            addBidirectionalRelation(fromId, toId, label)
+                        }
+                    },
+                    onReplaceRelation = { oldA, oldB, newFrom, newTo, newLabel ->
+                        scope.launch {
+                            replaceBidirectionalRelation(oldA, oldB, newFrom, newTo, newLabel)
+                        }
+                    },
+                    onDeleteRelationPair = { personA, personB ->
+                        scope.launch {
+                            deleteBidirectionalRelationPair(personA, personB, null)
+                        }
                     }
                 )
             }
@@ -4099,7 +4403,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.40")
+                put("version", "1.0.41")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
@@ -5189,8 +5493,7 @@ fun KontaktChronikApp(
         var photoVal by remember { mutableStateOf("") }
         var extraInfos by remember { mutableStateOf(listOf<Pair<String, String>>()) }
         var timerInterval by remember { mutableStateOf("14") }
-        var relLabel by remember { mutableStateOf("Kind von") }
-        var selectedRelTargetId by remember { mutableStateOf(-1L) }
+        var pendingCreateRelations by remember { mutableStateOf(listOf("Kind von" to -1L)) }
         var createRelExpanded by remember { mutableStateOf(false) }
 
         val createPhotoPickerLauncher = rememberLauncherForActivityResult(
@@ -5259,8 +5562,10 @@ fun KontaktChronikApp(
                     val newId = db.upsertPerson(
                         basePerson.copy(importedFromDeviceContactId = deviceCid)
                     )
-                    if (selectedRelTargetId > 0 && relLabel.isNotBlank()) {
-                        addBidirectionalRelation(newId, selectedRelTargetId, relLabel)
+                    for ((lbl, targetId) in pendingCreateRelations) {
+                        if (targetId > 0L && lbl.isNotBlank()) {
+                            addBidirectionalRelation(newId, targetId, lbl)
+                        }
                     }
                     val serializedExtras = extraInfos
                         .map { sanitizeSingleLineExtraText(it.first) to sanitizeSingleLineExtraText(it.second) }
@@ -5441,9 +5746,11 @@ fun KontaktChronikApp(
                     }
 
                     if (treeEnabled && persons.isNotEmpty()) {
+                        val filledCreateRelCount = pendingCreateRelations.count { it.second > 0L }
                         ContactFormSectionCard(
                             icon = "🌳",
                             title = "Beziehungen",
+                            badge = filledCreateRelCount.takeIf { it > 0 }?.toString(),
                             onHeaderClick = { createRelExpanded = !createRelExpanded },
                             trailingHeader = {
                                 Box(
@@ -5464,98 +5771,11 @@ fun KontaktChronikApp(
                             }
                         ) {
                             if (createRelExpanded) {
-                                var createRelLabelExpanded by remember { mutableStateOf(false) }
-
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("Beziehungsart:", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                                    Box {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .background(CardSlate, RoundedCornerShape(10.dp))
-                                                .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .clickable { createRelLabelExpanded = true }
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                relLabel,
-                                                color = TextPrimary,
-                                                fontSize = 12.5.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
-                                            Text("▼", color = AccentSteel, fontSize = 11.sp)
-                                        }
-                                        DropdownMenu(
-                                            expanded = createRelLabelExpanded,
-                                            onDismissRequest = { createRelLabelExpanded = false },
-                                            modifier = Modifier.background(CardSlate)
-                                        ) {
-                                            Column(modifier = Modifier.width(260.dp)) {
-                                                Row(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .background(BgSlate)
-                                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Text(
-                                                        "✓ $relLabel",
-                                                        color = AccentSteel,
-                                                        fontSize = 11.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1,
-                                                        softWrap = false,
-                                                        modifier = Modifier.weight(1f)
-                                                    )
-                                                    CompactButton("✓ Bestätigen") {
-                                                        createRelLabelExpanded = false
-                                                    }
-                                                }
-                                                HorizontalDivider(color = BorderSlate)
-                                                Column(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .heightIn(max = 200.dp)
-                                                        .verticalScroll(rememberScrollState())
-                                                ) {
-                                                    RELATION_PRESETS.forEach { preset ->
-                                                        DropdownMenuItem(
-                                                            text = {
-                                                                Text(
-                                                                    preset,
-                                                                    color = if (preset == relLabel) AccentSteel else TextPrimary,
-                                                                    fontSize = 13.sp,
-                                                                    fontWeight = if (preset == relLabel) FontWeight.Bold else FontWeight.Normal
-                                                                )
-                                                            },
-                                                            onClick = {
-                                                                relLabel = preset
-                                                                createRelLabelExpanded = false
-                                                            }
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    Text("Verknüpfter Kontakt (Nachname, Vorname):", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                                    ContactSearchDropdown(
-                                        persons = persons,
-                                        selectedPersonId = selectedRelTargetId.takeIf { it > 0L },
-                                        onSelectPerson = { p -> selectedRelTargetId = p.id },
-                                        allowNone = true,
-                                        noneLabel = "-- Keine Verknüpfung --",
-                                        onSelectNone = { selectedRelTargetId = -1L },
-                                        showInlineAlphabet = true
-                                    )
-                                }
+                                MultiRelationDraftEditor(
+                                    draftRows = pendingCreateRelations,
+                                    onDraftRowsChange = { pendingCreateRelations = it },
+                                    candidatePersons = persons
+                                )
                             }
                         }
                     }
@@ -5609,12 +5829,9 @@ fun KontaktChronikApp(
         var newEvRepeatChecked by remember { mutableStateOf(false) }
         var evUnitDropdownExpanded by remember { mutableStateOf(false) }
 
-        // Neue Beziehung hinzufügen
+        // Neue Beziehungen (auch mehrere gleichzeitig: z. B. Kind von ... & Bruder von ...)
         val otherPersons = remember(persons, dp.id) { persons.filter { it.id != dp.id }.sortedByLastName() }
-        var newRelLabel by remember { mutableStateOf("Kind von") }
-        var newRelTargetId by remember(dp, otherPersons.size) {
-            mutableStateOf(otherPersons.firstOrNull()?.id ?: -1L)
-        }
+        var pendingDetailRelations by remember(dp) { mutableStateOf(listOf("Kind von" to -1L)) }
 
         val currentRelations = relations
             .filter { it.fromPersonId == dp.id }
@@ -5660,6 +5877,11 @@ fun KontaktChronikApp(
                 }
                 db.updatePerson(updated)
                 setPersonHidden(dp.id, isHiddenVal)
+                for ((lbl, targetId) in pendingDetailRelations) {
+                    if (targetId > 0L && lbl.isNotBlank()) {
+                        addBidirectionalRelation(dp.id, targetId, lbl)
+                    }
+                }
                 val serializedExtras = serializeExtraInfosPref(extraInfos)
                 prefs.edit().putString("extra_infos_${dp.id}", serializedExtras).apply()
                 if (newEvTitle.isNotBlank()) {
@@ -5886,10 +6108,11 @@ fun KontaktChronikApp(
 
                     // Abschnitt: Beziehungen für Stammbaum (standardmäßig eingeklappt)
                     if (treeEnabled) {
+                        val queuedRelCount = pendingDetailRelations.count { it.second > 0L }
                         ContactFormSectionCard(
                             icon = "🌳",
                             title = "Beziehungen",
-                            badge = "${currentRelations.size}",
+                            badge = if (queuedRelCount > 0) "${currentRelations.size} (+$queuedRelCount)" else "${currentRelations.size}",
                             onHeaderClick = { detailRelExpanded = !detailRelExpanded },
                             trailingHeader = {
                                 Box(
@@ -5910,142 +6133,26 @@ fun KontaktChronikApp(
                             }
                         ) {
                             if (detailRelExpanded) {
-                                if (otherPersons.isNotEmpty()) {
-                                    var detailRelLabelExpanded by remember { mutableStateOf(false) }
-
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(CardSlate, RoundedCornerShape(10.dp))
-                                            .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                                            .padding(9.dp),
-                                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                "Beziehung zuordnen:",
-                                                color = TextSecondary,
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.SemiBold
-                                            )
-                                            PrimaryActionButton("✓ + Speichern") {
-                                                if (newRelTargetId > 0) {
-                                                    scope.launch {
-                                                        addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Box(modifier = Modifier.fillMaxWidth()) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(BgSlate, RoundedCornerShape(8.dp))
-                                                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .clickable { detailRelLabelExpanded = true }
-                                                    .padding(horizontal = 10.dp, vertical = 9.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    "Beziehungsart: $newRelLabel",
-                                                    color = TextPrimary,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    maxLines = 1,
-                                                    softWrap = false,
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                                Text("▼", color = AccentSteel, fontSize = 10.sp)
-                                            }
-                                            DropdownMenu(
-                                                expanded = detailRelLabelExpanded,
-                                                onDismissRequest = { detailRelLabelExpanded = false },
-                                                modifier = Modifier.background(CardSlate)
-                                            ) {
-                                                Column(modifier = Modifier.width(260.dp)) {
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .background(BgSlate)
-                                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Text(
-                                                            "✓ $newRelLabel",
-                                                            color = AccentSteel,
-                                                            fontSize = 11.5.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            maxLines = 1,
-                                                            softWrap = false,
-                                                            modifier = Modifier.weight(1f)
-                                                        )
-                                                        CompactButton("✓ Bestätigen") {
-                                                            detailRelLabelExpanded = false
-                                                        }
-                                                    }
-                                                    HorizontalDivider(color = BorderSlate)
-                                                    Column(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .heightIn(max = 200.dp)
-                                                            .verticalScroll(rememberScrollState())
-                                                    ) {
-                                                        RELATION_PRESETS.forEach { preset ->
-                                                            DropdownMenuItem(
-                                                                text = {
-                                                                    Text(
-                                                                        preset,
-                                                                        color = if (preset == newRelLabel) AccentSteel else TextPrimary,
-                                                                        fontSize = 13.sp,
-                                                                        fontWeight = if (preset == newRelLabel) FontWeight.Bold else FontWeight.Normal
-                                                                    )
-                                                                },
-                                                                onClick = {
-                                                                    newRelLabel = preset
-                                                                    detailRelLabelExpanded = false
-                                                                }
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        ContactSearchDropdown(
-                                            persons = otherPersons,
-                                            selectedPersonId = newRelTargetId.takeIf { it > 0L },
-                                            onSelectPerson = { op -> newRelTargetId = op.id },
-                                            confirmButtonLabel = "✓ + Speichern",
-                                            onConfirmAction = {
-                                                if (newRelTargetId > 0) {
-                                                    scope.launch {
-                                                        addBidirectionalRelation(dp.id, newRelTargetId, newRelLabel)
-                                                    }
-                                                }
-                                            },
-                                            showInlineAlphabet = true
-                                        )
-                                    }
-                                }
-
                                 if (currentRelations.isEmpty()) {
                                     Text("Noch keine Beziehungen verknüpft.", color = TextMuted, fontSize = 11.sp)
                                 } else {
+                                    Text(
+                                        "Bestehende Verknüpfungen (${currentRelations.size}):",
+                                        color = TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
                                     currentRelations.sortedWith { a, b -> LastNamePersonComparator.compare(a.second, b.second) }.forEach { (rel, targetPerson) ->
+                                        var editRowExpanded by remember(rel.id) { mutableStateOf(false) }
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .background(CardSlate, RoundedCornerShape(8.dp))
                                                 .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
                                                 .padding(horizontal = 10.dp, vertical = 7.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
@@ -6059,6 +6166,73 @@ fun KontaktChronikApp(
                                                     .weight(1f)
                                                     .horizontalScroll(rememberScrollState())
                                             )
+                                            Box {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .background(AccentSteel.copy(alpha = 0.14f), RoundedCornerShape(6.dp))
+                                                        .border(1.dp, AccentSteel.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .clickable { editRowExpanded = true },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text("✏️", fontSize = 10.5.sp, style = CenteredPillTextStyle, maxLines = 1, softWrap = false)
+                                                }
+                                                DropdownMenu(
+                                                    expanded = editRowExpanded,
+                                                    onDismissRequest = { editRowExpanded = false },
+                                                    modifier = Modifier.background(CardSlate)
+                                                ) {
+                                                    Column(modifier = Modifier.width(260.dp)) {
+                                                        Text(
+                                                            "Beziehung zu ${targetPerson.name} ändern:",
+                                                            color = AccentSteel,
+                                                            fontSize = 11.5.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            softWrap = false,
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .background(BgSlate)
+                                                                .padding(horizontal = 10.dp, vertical = 7.dp)
+                                                        )
+                                                        HorizontalDivider(color = BorderSlate)
+                                                        Column(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .heightIn(max = 210.dp)
+                                                                .verticalScroll(rememberScrollState())
+                                                        ) {
+                                                            RELATION_PRESETS.forEach { preset ->
+                                                                DropdownMenuItem(
+                                                                    text = {
+                                                                        Text(
+                                                                            preset,
+                                                                            color = if (preset.equals(rel.relationLabel, ignoreCase = true)) AccentSteel else TextPrimary,
+                                                                            fontSize = 13.sp,
+                                                                            fontWeight = if (preset.equals(rel.relationLabel, ignoreCase = true)) FontWeight.Bold else FontWeight.Normal,
+                                                                            maxLines = 1,
+                                                                            softWrap = false
+                                                                        )
+                                                                    },
+                                                                    onClick = {
+                                                                        editRowExpanded = false
+                                                                        scope.launch {
+                                                                            replaceBidirectionalRelation(
+                                                                                oldPersonAId = dp.id,
+                                                                                oldPersonBId = targetPerson.id,
+                                                                                newFromId = dp.id,
+                                                                                newToId = targetPerson.id,
+                                                                                newLabel = preset
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                             Box(
                                                 modifier = Modifier
                                                     .size(24.dp)
@@ -6069,7 +6243,7 @@ fun KontaktChronikApp(
                                                         pendingConfirmMessage = "Beziehung „${rel.relationLabel} ${targetPerson.name}\" wirklich löschen?"
                                                         pendingConfirmAction = {
                                                             scope.launch {
-                                                                db.deleteRelation(rel)
+                                                                deleteBidirectionalRelationPair(dp.id, targetPerson.id, rel)
                                                             }
                                                         }
                                                     },
@@ -6079,6 +6253,26 @@ fun KontaktChronikApp(
                                             }
                                         }
                                     }
+                                }
+
+                                if (otherPersons.isNotEmpty()) {
+                                    HorizontalDivider(color = BorderSlate.copy(alpha = 0.6f))
+                                    MultiRelationDraftEditor(
+                                        draftRows = pendingDetailRelations,
+                                        onDraftRowsChange = { pendingDetailRelations = it },
+                                        candidatePersons = otherPersons,
+                                        onSaveAllNow = {
+                                            val toCommit = pendingDetailRelations.filter { it.second > 0L && it.first.isNotBlank() }
+                                            if (toCommit.isNotEmpty()) {
+                                                scope.launch {
+                                                    for ((lbl, tid) in toCommit) {
+                                                        addBidirectionalRelation(dp.id, tid, lbl)
+                                                    }
+                                                    pendingDetailRelations = listOf("Kind von" to -1L)
+                                                }
+                                            }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -7342,10 +7536,65 @@ fun KontaktChronikApp(
     }
 }
 
+private enum class TreeEdgeKind {
+    PARENT_CHILD,
+    PARTNER,
+    SIBLING,
+    EXTENDED
+}
+
+private data class CanonicalTreeEdge(
+    val personAId: Long,
+    val personBId: Long,
+    val fromId: Long,
+    val toId: Long,
+    val label: String,
+    val kind: TreeEdgeKind,
+    val parentId: Long? = null,
+    val childId: Long? = null
+)
+
+private data class TreeNodeCoords(
+    val person: PersonEntity,
+    val genLevel: Int,
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float,
+    val roleText: String
+) {
+    val right: Float get() = left + width
+    val bottom: Float get() = top + height
+    val centerX: Float get() = left + width / 2f
+    val centerY: Float get() = top + height / 2f
+}
+
+private data class TreeBadgeHotspot(
+    val key: String,
+    val centerX: Float,
+    val centerY: Float,
+    val personAId: Long,
+    val personBId: Long,
+    val fromId: Long,
+    val toId: Long,
+    val label: String,
+    val badgeText: String,
+    val accentColor: Color,
+    val alwaysVisible: Boolean
+)
+
+private data class TreeEditModalState(
+    val originalAId: Long,
+    val originalBId: Long,
+    val fromId: Long,
+    val toId: Long,
+    val label: String,
+    val isExisting: Boolean
+)
+
 /**
- * Automatischer Stammbaum-Generator und visuelle Baum-Ansicht.
- * Berechnet aus allen Beziehungen (Kind von, Ehe-Partner von, Bruder von, Mutter/Vater von, Oma/Opa von ...)
- * die Generationen-Ebenen rund um die gewählte Fokus-Person sowie alle verbundenen Familienzweige.
+ * Präziser 2D-Stammbaum-Generator mit direkten Beziehungslinien, interaktiver Verbindungsbearbeitung
+ * und modernem Genealogie-Karten-Design.
  */
 @Composable
 fun FamilyTreeScreen(
@@ -7354,17 +7603,26 @@ fun FamilyTreeScreen(
     selectedRootId: Long?,
     onSelectRoot: (Long) -> Unit,
     onOpenDetails: (PersonEntity) -> Unit,
-    onOpenMessage: (PersonEntity) -> Unit
+    onOpenMessage: (PersonEntity) -> Unit,
+    onUpsertRelation: (Long, Long, String) -> Unit,
+    onReplaceRelation: (Long, Long, Long, Long, String) -> Unit,
+    onDeleteRelationPair: (Long, Long) -> Unit
 ) {
+    val ExtendedFamilyViolet = if (isLightMode) Color(0xFF7C3AED) else Color(0xFFA78BFA)
+
     if (persons.isEmpty()) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(CardSlate, RoundedCornerShape(8.dp))
-                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                .padding(14.dp)
+                .background(CardSlate, RoundedCornerShape(12.dp))
+                .border(1.dp, BorderSlate, RoundedCornerShape(12.dp))
+                .padding(16.dp)
         ) {
-            Text("Lege Kontakte und Beziehungen an, um den Stammbaum zu sehen.", color = TextSecondary, fontSize = 12.sp)
+            Text(
+                "Lege Kontakte und Beziehungen an, um den Stammbaum zu sehen.",
+                color = TextSecondary,
+                fontSize = 12.5.sp
+            )
         }
         return
     }
@@ -7373,35 +7631,137 @@ fun FamilyTreeScreen(
     val rootPerson = sortedPersons.find { it.id == selectedRootId } ?: sortedPersons.first()
     val personMap = remember(sortedPersons) { sortedPersons.associateBy { it.id } }
 
-    // Berechne relative Generationen-Ebenen per Breitensuche (BFS) ab rootPerson
-    val generationByPersonId = remember(persons, relations, rootPerson.id) {
+    // 1. Kanonische Kanten zwischen sichtbaren Personen extrahieren (exakt wie hinterlegt!)
+    val allCanonicalEdges = remember(persons, relations) {
+        val validIds = personMap.keys
+        val byPair = relations
+            .filter { it.fromPersonId in validIds && it.toPersonId in validIds && it.fromPersonId != it.toPersonId }
+            .groupBy { r -> minOf(r.fromPersonId, r.toPersonId) to maxOf(r.fromPersonId, r.toPersonId) }
+
+        byPair.map { (pair, pairRels) ->
+            val (idA, idB) = pair
+            val parentRel = pairRels.firstOrNull { isDirectParentLabel(it.relationLabel) }
+            val childRel = pairRels.firstOrNull { isDirectChildLabel(it.relationLabel) }
+            val partnerRel = pairRels.firstOrNull { isPartnerRelation(it.relationLabel) }
+            val siblingRel = pairRels.firstOrNull { isSiblingRelation(it.relationLabel) }
+
+            when {
+                parentRel != null -> {
+                    val pId = parentRel.fromPersonId
+                    val cId = parentRel.toPersonId
+                    val specificParent = pairRels.firstOrNull {
+                        it.fromPersonId == pId && (it.relationLabel.startsWith("Mutter", true) || it.relationLabel.startsWith("Vater", true))
+                    } ?: parentRel
+                    CanonicalTreeEdge(
+                        personAId = idA,
+                        personBId = idB,
+                        fromId = specificParent.fromPersonId,
+                        toId = specificParent.toPersonId,
+                        label = specificParent.relationLabel,
+                        kind = TreeEdgeKind.PARENT_CHILD,
+                        parentId = pId,
+                        childId = cId
+                    )
+                }
+                childRel != null -> {
+                    val cId = childRel.fromPersonId
+                    val pId = childRel.toPersonId
+                    CanonicalTreeEdge(
+                        personAId = idA,
+                        personBId = idB,
+                        fromId = childRel.fromPersonId,
+                        toId = childRel.toPersonId,
+                        label = childRel.relationLabel,
+                        kind = TreeEdgeKind.PARENT_CHILD,
+                        parentId = pId,
+                        childId = cId
+                    )
+                }
+                partnerRel != null -> {
+                    val eheRel = pairRels.firstOrNull { it.relationLabel.startsWith("Ehe", true) } ?: partnerRel
+                    CanonicalTreeEdge(
+                        personAId = idA,
+                        personBId = idB,
+                        fromId = eheRel.fromPersonId,
+                        toId = eheRel.toPersonId,
+                        label = eheRel.relationLabel,
+                        kind = TreeEdgeKind.PARTNER
+                    )
+                }
+                siblingRel != null -> {
+                    val specSib = pairRels.firstOrNull {
+                        it.relationLabel.startsWith("Bruder", true) || it.relationLabel.startsWith("Schwester", true)
+                    } ?: siblingRel
+                    CanonicalTreeEdge(
+                        personAId = idA,
+                        personBId = idB,
+                        fromId = specSib.fromPersonId,
+                        toId = specSib.toPersonId,
+                        label = specSib.relationLabel,
+                        kind = TreeEdgeKind.SIBLING
+                    )
+                }
+                else -> {
+                    val chosen = pairRels.first()
+                    CanonicalTreeEdge(
+                        personAId = idA,
+                        personBId = idB,
+                        fromId = chosen.fromPersonId,
+                        toId = chosen.toPersonId,
+                        label = chosen.relationLabel,
+                        kind = TreeEdgeKind.EXTENDED
+                    )
+                }
+            }
+        }
+    }
+
+    // 2. Relative Generationen-Ebenen per Breitensuche (priorisiere direkte Eltern/Partner/Geschwister vor Sprung-Kanten)
+    val generationByPersonId = remember(persons, allCanonicalEdges, rootPerson.id) {
         val genMap = mutableMapOf<Long, Int>()
         val queue = ArrayDeque<Long>()
         genMap[rootPerson.id] = 0
         queue.add(rootPerson.id)
 
+        val prioritizedEdges = allCanonicalEdges.sortedBy {
+            when (it.kind) {
+                TreeEdgeKind.PARENT_CHILD -> 0
+                TreeEdgeKind.PARTNER -> 1
+                TreeEdgeKind.SIBLING -> 2
+                TreeEdgeKind.EXTENDED -> 3
+            }
+        }
+
         while (queue.isNotEmpty()) {
             val currentId = queue.removeFirst()
             val currentGen = genMap[currentId] ?: 0
-
-            // Ausgehende Beziehungen von currentId
-            relations.filter { it.fromPersonId == currentId }.forEach { rel ->
-                if (!genMap.containsKey(rel.toPersonId) && personMap.containsKey(rel.toPersonId)) {
-                    val step = relationGenerationStep(rel.relationLabel)
-                    genMap[rel.toPersonId] = currentGen + step
-                    queue.add(rel.toPersonId)
-                }
-            }
-            // Eingehende Beziehungen zu currentId
-            relations.filter { it.toPersonId == currentId }.forEach { rel ->
-                if (!genMap.containsKey(rel.fromPersonId) && personMap.containsKey(rel.fromPersonId)) {
-                    val step = -relationGenerationStep(rel.relationLabel)
-                    genMap[rel.fromPersonId] = currentGen + step
-                    queue.add(rel.fromPersonId)
+            for (edge in prioritizedEdges) {
+                if (edge.fromId == currentId && !genMap.containsKey(edge.toId)) {
+                    val step = when (edge.kind) {
+                        TreeEdgeKind.PARENT_CHILD -> if (edge.parentId == currentId) 1 else -1
+                        TreeEdgeKind.PARTNER, TreeEdgeKind.SIBLING -> 0
+                        TreeEdgeKind.EXTENDED -> relationGenerationStep(edge.label)
+                    }
+                    genMap[edge.toId] = currentGen + step
+                    queue.add(edge.toId)
+                } else if (edge.toId == currentId && !genMap.containsKey(edge.fromId)) {
+                    val step = when (edge.kind) {
+                        TreeEdgeKind.PARENT_CHILD -> if (edge.parentId == currentId) 1 else -1
+                        TreeEdgeKind.PARTNER, TreeEdgeKind.SIBLING -> 0
+                        TreeEdgeKind.EXTENDED -> -relationGenerationStep(edge.label)
+                    }
+                    genMap[edge.fromId] = currentGen + step
+                    queue.add(edge.fromId)
                 }
             }
         }
         genMap
+    }
+
+    val treeEdges = remember(allCanonicalEdges, generationByPersonId) {
+        allCanonicalEdges.filter {
+            generationByPersonId.containsKey(it.personAId) && generationByPersonId.containsKey(it.personBId)
+        }
     }
 
     fun shortRelationName(rawLabel: String): String {
@@ -7409,7 +7769,7 @@ fun FamilyTreeScreen(
         return when {
             l.startsWith("mutter") -> "Mutter"
             l.startsWith("vater") -> "Vater"
-            l.startsWith("elternteil") || l.startsWith("eltern") -> "Eltern"
+            l.startsWith("elternteil") || l.startsWith("eltern") -> "Elternteil"
             l.startsWith("ehe-partner") || l.startsWith("ehepartner") -> "Ehe-Partner"
             l.startsWith("partner") -> "Partner"
             l.startsWith("bruder") -> "Bruder"
@@ -7425,149 +7785,714 @@ fun FamilyTreeScreen(
         }
     }
 
-    // Kurze Rolle jeder Person relativ zur Fokus-Person ermitteln (z.B. Eltern, Bruder, Kind)
-    fun roleRelativeToRoot(p: PersonEntity, genLevel: Int): String {
-        if (p.id == rootPerson.id) return "Fokus"
-        val directOut = relations.find { it.fromPersonId == p.id && it.toPersonId == rootPerson.id }
-        if (directOut != null) return shortRelationName(directOut.relationLabel)
-        val directIn = relations.find { it.fromPersonId == rootPerson.id && it.toPersonId == p.id }
-        if (directIn != null) return shortRelationName(inverseRelationLabel(directIn.relationLabel))
-
-        if (genLevel <= -2) return "Oma/Opa"
-        if (genLevel >= 2) return "Enkelkind"
-        if (genLevel == -1) {
-            val relToParent = relations.find { r ->
-                r.fromPersonId == p.id && generationByPersonId[r.toPersonId] == -1 &&
-                    relations.any { pr ->
-                        (pr.fromPersonId == r.toPersonId && pr.toPersonId == rootPerson.id && relationGenerationStep(pr.relationLabel) == 1) ||
-                            (pr.fromPersonId == rootPerson.id && pr.toPersonId == r.toPersonId && relationGenerationStep(pr.relationLabel) == -1)
-                    }
-            }
-            if (relToParent != null && isPartnerRelation(relToParent.relationLabel)) return "Eltern"
-            if (relToParent != null && isSiblingRelation(relToParent.relationLabel)) return "Onkel/Tante"
-            return "Eltern"
+    fun explicitPartners(idA: Long, idB: Long): Boolean =
+        treeEdges.any {
+            it.kind == TreeEdgeKind.PARTNER &&
+                ((it.personAId == idA && it.personBId == idB) || (it.personAId == idB && it.personBId == idA))
         }
-        if (genLevel == 1) return "Kind"
 
-        val anyRel = relations.firstOrNull { it.fromPersonId == p.id }
-        if (anyRel != null) return shortRelationName(anyRel.relationLabel)
+    fun explicitSiblings(idA: Long, idB: Long): Boolean =
+        treeEdges.any {
+            it.kind == TreeEdgeKind.SIBLING &&
+                ((it.personAId == idA && it.personBId == idB) || (it.personAId == idB && it.personBId == idA))
+        }
+
+    fun directParentsOf(childId: Long): List<Long> =
+        treeEdges.filter { it.kind == TreeEdgeKind.PARENT_CHILD && it.childId == childId }
+            .mapNotNull { it.parentId }
+
+    fun directChildrenOf(parentId: Long): List<Long> =
+        treeEdges.filter { it.kind == TreeEdgeKind.PARENT_CHILD && it.parentId == parentId }
+            .mapNotNull { it.childId }
+
+    // Präzise Rollen-Bezeichnung relativ zur Fokus-Person (unterscheidet echte Eltern vs. Schwiegereltern, Kinder vs. Neffen usw.)
+    fun roleRelativeToRoot(p: PersonEntity): String {
+        if (p.id == rootPerson.id) return "Fokus"
+        val directPairRels = relations.filter {
+            (it.fromPersonId == p.id && it.toPersonId == rootPerson.id) ||
+                (it.fromPersonId == rootPerson.id && it.toPersonId == p.id)
+        }
+        if (directPairRels.isNotEmpty()) {
+            val outRel = directPairRels.firstOrNull {
+                it.fromPersonId == p.id &&
+                    !it.relationLabel.startsWith("Elternteil", true) &&
+                    !it.relationLabel.startsWith("Geschwister", true)
+            } ?: directPairRels.firstOrNull { it.fromPersonId == p.id }
+            if (outRel != null) return shortRelationName(outRel.relationLabel)
+            val inRel = directPairRels.first()
+            return shortRelationName(inverseRelationLabel(inRel.relationLabel))
+        }
+
+        val rootParents = directParentsOf(rootPerson.id).toSet()
+        val rootChildren = directChildrenOf(rootPerson.id).toSet()
+        val rootPartners = treeEdges
+            .filter { it.kind == TreeEdgeKind.PARTNER && (it.personAId == rootPerson.id || it.personBId == rootPerson.id) }
+            .map { if (it.personAId == rootPerson.id) it.personBId else it.personAId }
+            .toSet()
+        val rootSiblings = (
+            treeEdges
+                .filter { it.kind == TreeEdgeKind.SIBLING && (it.personAId == rootPerson.id || it.personBId == rootPerson.id) }
+                .map { if (it.personAId == rootPerson.id) it.personBId else it.personAId } +
+                rootParents.flatMap { directChildrenOf(it) }.filter { it != rootPerson.id }
+            ).toSet()
+
+        if (rootPartners.any { p.id in directParentsOf(it) }) return "Schwiegereltern"
+        if (rootParents.any { p.id in directParentsOf(it) }) return "Oma/Opa"
+        if (rootParents.any { parId -> explicitSiblings(p.id, parId) || directParentsOf(parId).any { gp -> p.id in directChildrenOf(gp) && p.id != parId } }) {
+            return "Onkel/Tante"
+        }
+        if (rootParents.any { explicitPartners(p.id, it) }) return "Partner v. Eltern"
+        if (rootPartners.any { explicitSiblings(p.id, it) } || rootSiblings.any { explicitPartners(p.id, it) }) {
+            return "Schwager/in"
+        }
+        if (rootSiblings.any { p.id in directChildrenOf(it) }) return "Neffe/Nichte"
+        if (rootChildren.any { explicitPartners(p.id, it) }) return "Schwiegerkind"
+        if (rootChildren.any { p.id in directChildrenOf(it) }) return "Enkelkind"
+
         return "Familie"
     }
 
-    fun arePartnersOrCoParents(idA: Long, idB: Long): Boolean {
-        val directRel = relations.find {
-            (it.fromPersonId == idA && it.toPersonId == idB) ||
-                (it.fromPersonId == idB && it.toPersonId == idA)
-        }
-        if (directRel != null && isPartnerRelation(directRel.relationLabel)) return true
-        val childrenOfA = relations
-            .filter { it.toPersonId == idA && relationGenerationStep(it.relationLabel) == -1 }
-            .map { it.fromPersonId }
-        return childrenOfA.any { cid ->
-            relations.any { it.fromPersonId == cid && it.toPersonId == idB && relationGenerationStep(it.relationLabel) == -1 }
-        }
-    }
-
-    // Sortiert Mitglieder einer Ebene:
-    // - Auf Ebene 0: Fokus-Person zentriert in der Mitte (Geschwister links, Partner rechts)
-    // - Auf anderen Ebenen: Eltern / Partner direkt nebeneinander
-    fun orderRowMembers(members: List<PersonEntity>, genLevel: Int): List<PersonEntity> {
-        if (genLevel == 0 && members.any { it.id == rootPerson.id }) {
-            val others = members.filter { it.id != rootPerson.id }
-            val partners = others.filter { arePartnersOrCoParents(rootPerson.id, it.id) }
-            val nonPartners = others.filter { !arePartnersOrCoParents(rootPerson.id, it.id) }
-            return if (partners.isNotEmpty()) {
-                nonPartners + listOf(rootPerson) + partners
-            } else {
-                val half = (nonPartners.size + 1) / 2
-                nonPartners.take(half) + listOf(rootPerson) + nonPartners.drop(half)
-            }
-        }
-
-        val visited = mutableSetOf<Long>()
-        val ordered = mutableListOf<PersonEntity>()
-        val sortedSeed = members.sortedWith { a, b ->
-            val aRole = roleRelativeToRoot(a, genLevel)
-            val bRole = roleRelativeToRoot(b, genLevel)
-            val aIsParent = aRole == "Eltern" || aRole == "Mutter" || aRole == "Vater"
-            val bIsParent = bRole == "Eltern" || bRole == "Mutter" || bRole == "Vater"
-            when {
-                aIsParent && !bIsParent -> -1
-                !aIsParent && bIsParent -> 1
-                else -> LastNamePersonComparator.compare(a, b)
-            }
-        }
-        for (m in sortedSeed) {
-            if (!visited.add(m.id)) continue
-            ordered.add(m)
-            for (candidate in members) {
-                if (!visited.contains(candidate.id) && arePartnersOrCoParents(m.id, candidate.id)) {
-                    visited.add(candidate.id)
-                    ordered.add(candidate)
-                }
-            }
-        }
-        return ordered
-    }
-
-    val levels = generationByPersonId.entries
-        .groupBy({ it.value }, { personMap[it.key] })
-        .mapValues { entry -> orderRowMembers(entry.value.filterNotNull(), entry.key) }
-        .toSortedMap()
-
-    val maxRowCount = remember(levels) { levels.values.maxOfOrNull { it.size } ?: 1 }
-    val levelCount = levels.size
-
-    var dropdownExpanded by remember { mutableStateOf(false) }
     var treeZoom by remember { mutableStateOf(1.0f) }
     var treePanX by remember { mutableStateOf(0f) }
     var treePanY by remember { mutableStateOf(0f) }
+    var editConnectionsMode by remember { mutableStateOf(false) }
+    var firstPickedPersonId by remember { mutableStateOf<Long?>(null) }
+    var editModalState by remember { mutableStateOf<TreeEditModalState?>(null) }
+    var showAllEdgesDialog by remember { mutableStateOf(false) }
+
     val zoomPct = (treeZoom * 100f).roundToInt()
+
+    fun openConnectionEditorForPair(person1Id: Long, person2Id: Long) {
+        if (person1Id <= 0L || person2Id <= 0L || person1Id == person2Id) return
+        val existingRel = relations.firstOrNull {
+            it.fromPersonId == person1Id && it.toPersonId == person2Id &&
+                !it.relationLabel.startsWith("Elternteil", true) &&
+                !it.relationLabel.startsWith("Geschwister", true)
+        } ?: relations.firstOrNull {
+            it.fromPersonId == person1Id && it.toPersonId == person2Id
+        } ?: relations.firstOrNull {
+            it.fromPersonId == person2Id && it.toPersonId == person1Id
+        }
+
+        editModalState = if (existingRel != null) {
+            TreeEditModalState(
+                originalAId = person1Id,
+                originalBId = person2Id,
+                fromId = existingRel.fromPersonId,
+                toId = existingRel.toPersonId,
+                label = existingRel.relationLabel,
+                isExisting = true
+            )
+        } else {
+            TreeEditModalState(
+                originalAId = 0L,
+                originalBId = 0L,
+                fromId = person1Id,
+                toId = person2Id,
+                label = "Kind von",
+                isExisting = false
+            )
+        }
+    }
+
+    // 3. Exaktes 2D-Koordinaten-Layout berechnen (Eltern strikt über ihren EIGENEN Kindern, Partner nebeneinander)
+    val layoutResult = remember(generationByPersonId, treeEdges, rootPerson.id, treeZoom, editConnectionsMode) {
+        val z = treeZoom
+        val nodeW = 142f * z
+        val nodeH = 92f * z
+        val partnerGap = 44f * z
+        val siblingGap = 24f * z
+        val groupGap = 42f * z
+        val levelStepY = 142f * z
+        val canvasPadX = 26f * z
+        val canvasPadY = 24f * z
+
+        val rawMembersByGen = generationByPersonId.entries
+            .mapNotNull { (pid, gen) -> personMap[pid]?.let { gen to it } }
+            .groupBy({ it.first }, { it.second })
+            .toSortedMap()
+
+        val xCenter = mutableMapOf<Long, Float>()
+
+        fun parentFootprintHalfWidth(personId: Long): Float {
+            val g = generationByPersonId[personId] ?: return nodeW / 2f
+            val parentsInUpperRow = directParentsOf(personId).filter { generationByPersonId[it] == g - 1 }
+            return when {
+                parentsInUpperRow.size >= 2 -> (2f * nodeW + partnerGap) / 2f
+                parentsInUpperRow.size == 1 -> {
+                    val p = parentsInUpperRow.first()
+                    val hasPartner = rawMembersByGen[g - 1].orEmpty().any { it.id != p && explicitPartners(p, it.id) }
+                    if (hasPartner) (2f * nodeW + partnerGap) / 2f else nodeW / 2f
+                }
+                else -> nodeW / 2f
+            }
+        }
+
+        // A) Generation 0 (Fokus-Ebene) strukturieren
+        val gen0Members = rawMembersByGen[0].orEmpty()
+        if (gen0Members.isNotEmpty()) {
+            val placedGen0 = LinkedHashSet<Long>()
+            val orderedGen0 = mutableListOf<PersonEntity>()
+
+            val rootPartners = gen0Members.filter { it.id != rootPerson.id && explicitPartners(rootPerson.id, it.id) }
+                .sortedWith(LastNamePersonComparator)
+            val rootSibs = gen0Members.filter {
+                it.id != rootPerson.id && !explicitPartners(rootPerson.id, it.id) &&
+                    (explicitSiblings(rootPerson.id, it.id) ||
+                        directParentsOf(rootPerson.id).any { pId -> pId in directParentsOf(it.id) })
+            }.sortedWith(LastNamePersonComparator)
+
+            for (sib in rootSibs) {
+                val sibPartners = gen0Members.filter {
+                    it.id != rootPerson.id && it.id != sib.id && explicitPartners(sib.id, it.id) && !placedGen0.contains(it.id)
+                }
+                for (sp in sibPartners) {
+                    if (placedGen0.add(sp.id)) orderedGen0.add(sp)
+                }
+                if (placedGen0.add(sib.id)) orderedGen0.add(sib)
+            }
+
+            if (placedGen0.add(rootPerson.id)) orderedGen0.add(rootPerson)
+
+            for (rp in rootPartners) {
+                if (placedGen0.add(rp.id)) orderedGen0.add(rp)
+                val rpSibs = gen0Members.filter {
+                    !placedGen0.contains(it.id) &&
+                        (explicitSiblings(rp.id, it.id) || directParentsOf(rp.id).any { pId -> pId in directParentsOf(it.id) })
+                }.sortedWith(LastNamePersonComparator)
+                for (rps in rpSibs) {
+                    if (placedGen0.add(rps.id)) orderedGen0.add(rps)
+                }
+            }
+
+            for (rem in gen0Members.sortedWith(LastNamePersonComparator)) {
+                if (placedGen0.add(rem.id)) orderedGen0.add(rem)
+                val remPartners = gen0Members.filter { !placedGen0.contains(it.id) && explicitPartners(rem.id, it.id) }
+                for (rmp in remPartners) {
+                    if (placedGen0.add(rmp.id)) orderedGen0.add(rmp)
+                }
+            }
+
+            var cursorX = 0f
+            orderedGen0.forEachIndexed { idx, p ->
+                if (idx == 0) {
+                    xCenter[p.id] = 0f
+                    cursorX = 0f
+                } else {
+                    val prev = orderedGen0[idx - 1]
+                    val baseGap = when {
+                        explicitPartners(prev.id, p.id) -> partnerGap
+                        explicitSiblings(prev.id, p.id) || directParentsOf(prev.id).any { it in directParentsOf(p.id) } -> siblingGap
+                        else -> groupGap
+                    }
+                    val shareSameParent = directParentsOf(prev.id).any { it in directParentsOf(p.id) }
+                    val minCenterDist = if (!shareSameParent && directParentsOf(prev.id).isNotEmpty() && directParentsOf(p.id).isNotEmpty()) {
+                        maxOf(nodeW + baseGap, parentFootprintHalfWidth(prev.id) + parentFootprintHalfWidth(p.id) + groupGap)
+                    } else {
+                        nodeW + baseGap
+                    }
+                    cursorX += minCenterDist
+                    xCenter[p.id] = cursorX
+                }
+            }
+            val rootShift = xCenter[rootPerson.id] ?: 0f
+            orderedGen0.forEach { p -> xCenter[p.id] = (xCenter[p.id] ?: 0f) - rootShift }
+            rawMembersByGen[0] = orderedGen0
+        }
+
+        data class RowUnit(
+            val members: List<PersonEntity>,
+            var centerX: Float,
+            val hasVerticalAnchor: Boolean
+        ) {
+            val width: Float get() = if (members.size == 2) 2f * nodeW + partnerGap else nodeW
+            val halfW: Float get() = width / 2f
+        }
+
+        fun resolveUnitOverlaps(units: List<RowUnit>, minGap: Float) {
+            if (units.size <= 1) return
+            for (pass in 0 until 4) {
+                for (i in 0 until units.size - 1) {
+                    val leftU = units[i]
+                    val rightU = units[i + 1]
+                    val overlap = (leftU.centerX + leftU.halfW + minGap) - (rightU.centerX - rightU.halfW)
+                    if (overlap > 0.1f) {
+                        when {
+                            leftU.hasVerticalAnchor && !rightU.hasVerticalAnchor -> rightU.centerX += overlap
+                            !leftU.hasVerticalAnchor && rightU.hasVerticalAnchor -> leftU.centerX -= overlap
+                            else -> {
+                                leftU.centerX -= overlap / 2f
+                                rightU.centerX += overlap / 2f
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // B) Aufwärts-Pass (Eltern gen -1, Großeltern gen -2, ...):
+        //    Eltern werden EXAKT über dem Mittelpunkt ihrer EIGENEN Kinder positioniert!
+        val upperGens = rawMembersByGen.keys.filter { it < 0 }.sortedDescending()
+        for (g in upperGens) {
+            val rowMembers = rawMembersByGen[g].orEmpty()
+            val used = mutableSetOf<Long>()
+            val rawUnits = mutableListOf<List<PersonEntity>>()
+
+            val sortedCandidates = rowMembers.sortedWith(LastNamePersonComparator)
+            for (m in sortedCandidates) {
+                if (!used.add(m.id)) continue
+                val partner = sortedCandidates.firstOrNull { !used.contains(it.id) && explicitPartners(m.id, it.id) }
+                if (partner != null) {
+                    used.add(partner.id)
+                    rawUnits.add(listOf(m, partner))
+                } else {
+                    rawUnits.add(listOf(m))
+                }
+            }
+
+            val unitAnchorMap = mutableMapOf<Int, Pair<Float, Boolean>>()
+            rawUnits.forEachIndexed { idx, uMembers ->
+                val childPositions = uMembers
+                    .flatMap { pm -> directChildrenOf(pm.id) }
+                    .distinct()
+                    .mapNotNull { xCenter[it] }
+                if (childPositions.isNotEmpty()) {
+                    unitAnchorMap[idx] = childPositions.average().toFloat() to true
+                } else {
+                    val jumpTargets = treeEdges.filter { e ->
+                        uMembers.any { um -> e.personAId == um.id || e.personBId == um.id }
+                    }.map { e ->
+                        if (uMembers.any { it.id == e.personAId }) e.personBId else e.personAId
+                    }.filter { (generationByPersonId[it] ?: g) > g }
+                        .mapNotNull { xCenter[it] }
+
+                    if (jumpTargets.isNotEmpty()) {
+                        unitAnchorMap[idx] = jumpTargets.average().toFloat() to false
+                    }
+                }
+            }
+
+            rawUnits.forEachIndexed { idx, uMembers ->
+                if (!unitAnchorMap.containsKey(idx)) {
+                    val linkedSiblingUnitIdx = rawUnits.indices.firstOrNull { otherIdx ->
+                        otherIdx != idx && unitAnchorMap.containsKey(otherIdx) &&
+                            uMembers.any { um -> rawUnits[otherIdx].any { om -> explicitSiblings(um.id, om.id) } }
+                    }
+                    if (linkedSiblingUnitIdx != null) {
+                        val refX = unitAnchorMap[linkedSiblingUnitIdx]!!.first
+                        val offset = if (refX <= 0f) -(nodeW + siblingGap) else (nodeW + siblingGap)
+                        unitAnchorMap[idx] = (refX + offset) to false
+                    } else {
+                        unitAnchorMap[idx] = 0f to false
+                    }
+                }
+            }
+
+            val positionedUnits = rawUnits.mapIndexed { idx, uMembers ->
+                val (desX, anchored) = unitAnchorMap[idx] ?: (0f to false)
+                RowUnit(uMembers, desX, anchored)
+            }.sortedBy { it.centerX }
+
+            resolveUnitOverlaps(positionedUnits, groupGap)
+
+            val finalRowOrder = mutableListOf<PersonEntity>()
+            for (u in positionedUnits) {
+                if (u.members.size == 2) {
+                    val leftP = u.members[0]
+                    val rightP = u.members[1]
+                    xCenter[leftP.id] = u.centerX - (nodeW + partnerGap) / 2f
+                    xCenter[rightP.id] = u.centerX + (nodeW + partnerGap) / 2f
+                    finalRowOrder.add(leftP)
+                    finalRowOrder.add(rightP)
+                } else {
+                    val single = u.members[0]
+                    xCenter[single.id] = u.centerX
+                    finalRowOrder.add(single)
+                }
+            }
+            rawMembersByGen[g] = finalRowOrder
+        }
+
+        // C) Abwärts-Pass (Kinder gen +1, Enkel gen +2, ...):
+        //    Kinder werden EXAKT unter ihren EIGENEN Eltern (bzw. dem ❤️-Mittelpunkt beider Eltern) zentriert!
+        val lowerGens = rawMembersByGen.keys.filter { it > 0 }.sorted()
+        for (g in lowerGens) {
+            val rowMembers = rawMembersByGen[g].orEmpty()
+            val used = mutableSetOf<Long>()
+            val childUnits = mutableListOf<Pair<List<PersonEntity>, List<Long>>>()
+
+            val sortedCandidates = rowMembers.sortedWith(LastNamePersonComparator)
+            val withParentsFirst = sortedCandidates.sortedByDescending { c ->
+                directParentsOf(c.id).count { generationByPersonId[it] == g - 1 }
+            }
+            for (m in withParentsFirst) {
+                if (!used.add(m.id)) continue
+                val mParents = directParentsOf(m.id).filter { xCenter.containsKey(it) }.sorted()
+                val partner = withParentsFirst.firstOrNull { cand ->
+                    !used.contains(cand.id) && explicitPartners(m.id, cand.id)
+                }
+                if (partner != null) {
+                    used.add(partner.id)
+                    val combinedParents = (mParents + directParentsOf(partner.id).filter { xCenter.containsKey(it) }).distinct().sorted()
+                    childUnits.add(listOf(m, partner) to combinedParents)
+                } else {
+                    childUnits.add(listOf(m) to mParents)
+                }
+            }
+
+            val groupedByParentSet = LinkedHashMap<String, MutableList<Pair<List<PersonEntity>, List<Long>>>>()
+            childUnits.forEachIndexed { uIdx, unitPair ->
+                val key = if (unitPair.second.isNotEmpty()) {
+                    "P:" + unitPair.second.joinToString(",")
+                } else {
+                    "OTHER:$uIdx"
+                }
+                groupedByParentSet.getOrPut(key) { mutableListOf() }.add(unitPair)
+            }
+
+            val positionedUnits = mutableListOf<RowUnit>()
+            for ((_, groupList) in groupedByParentSet) {
+                val sampleParents = groupList.first().second
+                val anchorX = if (sampleParents.isNotEmpty()) {
+                    sampleParents.mapNotNull { xCenter[it] }.average().toFloat()
+                } else {
+                    val sampleMembers = groupList.flatMap { it.first }
+                    val connectedUpper = treeEdges.filter { e ->
+                        sampleMembers.any { sm -> e.personAId == sm.id || e.personBId == sm.id }
+                    }.map { e ->
+                        if (sampleMembers.any { it.id == e.personAId }) e.personBId else e.personAId
+                    }.mapNotNull { xCenter[it] }
+                    if (connectedUpper.isNotEmpty()) connectedUpper.average().toFloat() else 0f
+                }
+
+                val widths = groupList.map { (mList, _) -> if (mList.size == 2) 2f * nodeW + partnerGap else nodeW }
+                val totalGroupW = widths.sum() + siblingGap * (groupList.size - 1).coerceAtLeast(0)
+                var curLeft = anchorX - totalGroupW / 2f
+                groupList.forEachIndexed { i, (mList, pIds) ->
+                    val w = widths[i]
+                    positionedUnits.add(RowUnit(mList, curLeft + w / 2f, pIds.isNotEmpty()))
+                    curLeft += w + siblingGap
+                }
+            }
+
+            val sortedPositioned = positionedUnits.sortedBy { it.centerX }
+            resolveUnitOverlaps(sortedPositioned, siblingGap)
+
+            val finalRowOrder = mutableListOf<PersonEntity>()
+            for (u in sortedPositioned) {
+                if (u.members.size == 2) {
+                    val leftP = u.members[0]
+                    val rightP = u.members[1]
+                    xCenter[leftP.id] = u.centerX - (nodeW + partnerGap) / 2f
+                    xCenter[rightP.id] = u.centerX + (nodeW + partnerGap) / 2f
+                    finalRowOrder.add(leftP)
+                    finalRowOrder.add(rightP)
+                } else {
+                    val single = u.members[0]
+                    xCenter[single.id] = u.centerX
+                    finalRowOrder.add(single)
+                }
+            }
+            rawMembersByGen[g] = finalRowOrder
+        }
+
+        // D) Koordinaten auf positive Canvas-Fläche normieren
+        val levelList = rawMembersByGen.keys.toList()
+        val rawNodes = mutableListOf<TreeNodeCoords>()
+        levelList.forEachIndexed { rowIdx, genLevel ->
+            val topY = canvasPadY + rowIdx * levelStepY
+            for (person in rawMembersByGen[genLevel].orEmpty()) {
+                val cx = xCenter[person.id] ?: 0f
+                rawNodes.add(
+                    TreeNodeCoords(
+                        person = person,
+                        genLevel = genLevel,
+                        left = cx - nodeW / 2f,
+                        top = topY,
+                        width = nodeW,
+                        height = nodeH,
+                        roleText = roleRelativeToRoot(person)
+                    )
+                )
+            }
+        }
+
+        val minLeft = rawNodes.minOfOrNull { it.left } ?: 0f
+        val shiftX = canvasPadX - minLeft
+        val normalizedNodes = rawNodes.map { it.copy(left = it.left + shiftX) }
+        val nodeById = normalizedNodes.associateBy { it.person.id }
+        val totalW = ((normalizedNodes.maxOfOrNull { it.right } ?: nodeW) + canvasPadX).coerceAtLeast(260f * z)
+        val totalH = ((normalizedNodes.maxOfOrNull { it.bottom } ?: nodeH) + canvasPadY).coerceAtLeast(150f * z)
+
+        // E) Interaktive Badge-Positionen auf den direkten Verbindungslinien berechnen
+        val badges = mutableListOf<TreeBadgeHotspot>()
+        for (edge in treeEdges) {
+            val nA = nodeById[edge.personAId] ?: continue
+            val nB = nodeById[edge.personBId] ?: continue
+            when (edge.kind) {
+                TreeEdgeKind.PARTNER -> {
+                    val leftN = if (nA.centerX <= nB.centerX) nA else nB
+                    val rightN = if (leftN.person.id == nA.person.id) nB else nA
+                    val sameRow = leftN.genLevel == rightN.genLevel
+                    val betweenExists = sameRow && normalizedNodes.any {
+                        it.genLevel == leftN.genLevel &&
+                            it.person.id != leftN.person.id &&
+                            it.person.id != rightN.person.id &&
+                            it.centerX > leftN.centerX && it.centerX < rightN.centerX
+                    }
+                    val bx = (leftN.right + rightN.left) / 2f
+                    val by = if (sameRow && !betweenExists) leftN.centerY else maxOf(leftN.bottom, rightN.bottom) + 14f * z
+                    badges.add(
+                        TreeBadgeHotspot(
+                            key = "partner_${edge.personAId}_${edge.personBId}",
+                            centerX = bx,
+                            centerY = by,
+                            personAId = edge.personAId,
+                            personBId = edge.personBId,
+                            fromId = edge.fromId,
+                            toId = edge.toId,
+                            label = edge.label,
+                            badgeText = if (editConnectionsMode) "✏️ ❤️" else "❤️",
+                            accentColor = PartnerRose,
+                            alwaysVisible = true
+                        )
+                    )
+                }
+                TreeEdgeKind.PARENT_CHILD -> {
+                    val pNode = edge.parentId?.let { nodeById[it] } ?: continue
+                    val cNode = edge.childId?.let { nodeById[it] } ?: continue
+                    val otherParents = directParentsOf(cNode.person.id).filter { it != pNode.person.id }
+                    val xOffset = if (otherParents.isNotEmpty()) {
+                        val otherNode = nodeById[otherParents.first()]
+                        if (otherNode != null && pNode.centerX < otherNode.centerX) -14f * z else 14f * z
+                    } else 0f
+                    badges.add(
+                        TreeBadgeHotspot(
+                            key = "pc_${pNode.person.id}_${cNode.person.id}",
+                            centerX = cNode.centerX + xOffset,
+                            centerY = cNode.top - 14f * z,
+                            personAId = edge.personAId,
+                            personBId = edge.personBId,
+                            fromId = edge.fromId,
+                            toId = edge.toId,
+                            label = edge.label,
+                            badgeText = "✏️ ${shortRelationName(edge.label)}",
+                            accentColor = AccentSteel,
+                            alwaysVisible = false
+                        )
+                    )
+                }
+                TreeEdgeKind.SIBLING -> {
+                    val sharedParentExists = directParentsOf(edge.personAId).any { it in directParentsOf(edge.personBId) }
+                    val leftN = if (nA.centerX <= nB.centerX) nA else nB
+                    val rightN = if (leftN.person.id == nA.person.id) nB else nA
+                    val betweenExists = leftN.genLevel == rightN.genLevel && normalizedNodes.any {
+                        it.genLevel == leftN.genLevel &&
+                            it.person.id != leftN.person.id &&
+                            it.person.id != rightN.person.id &&
+                            it.centerX > leftN.centerX && it.centerX < rightN.centerX
+                    }
+                    val bx = if (!betweenExists && leftN.genLevel == rightN.genLevel) {
+                        (leftN.right + rightN.left) / 2f
+                    } else {
+                        (leftN.centerX + rightN.centerX) / 2f
+                    }
+                    val by = if (!betweenExists && leftN.genLevel == rightN.genLevel) {
+                        leftN.centerY - 14f * z
+                    } else {
+                        minOf(leftN.top, rightN.top) - 13f * z
+                    }
+                    badges.add(
+                        TreeBadgeHotspot(
+                            key = "sib_${edge.personAId}_${edge.personBId}",
+                            centerX = bx,
+                            centerY = by,
+                            personAId = edge.personAId,
+                            personBId = edge.personBId,
+                            fromId = edge.fromId,
+                            toId = edge.toId,
+                            label = edge.label,
+                            badgeText = if (editConnectionsMode) "✏️ 🤝" else "🤝",
+                            accentColor = TreeGreen,
+                            alwaysVisible = !sharedParentExists
+                        )
+                    )
+                }
+                TreeEdgeKind.EXTENDED -> {
+                    badges.add(
+                        TreeBadgeHotspot(
+                            key = "ext_${edge.personAId}_${edge.personBId}",
+                            centerX = (nA.centerX + nB.centerX) / 2f,
+                            centerY = (nA.centerY + nB.centerY) / 2f,
+                            personAId = edge.personAId,
+                            personBId = edge.personBId,
+                            fromId = edge.fromId,
+                            toId = edge.toId,
+                            label = edge.label,
+                            badgeText = if (editConnectionsMode) "✏️ ${shortRelationName(edge.label)}" else shortRelationName(edge.label),
+                            accentColor = ExtendedFamilyViolet,
+                            alwaysVisible = true
+                        )
+                    )
+                }
+            }
+        }
+
+        Triple(normalizedNodes, totalW to totalH, badges)
+    }
+
+    val (positionedNodes, canvasDims, badgeHotspots) = layoutResult
+    val (canvasWidthDp, canvasHeightDp) = canvasDims
+    val nodeCoordsById = remember(positionedNodes) { positionedNodes.associateBy { it.person.id } }
+    val levelCount = remember(positionedNodes) { positionedNodes.map { it.genLevel }.distinct().size.coerceAtLeast(1) }
+    val maxRowCount = remember(positionedNodes) {
+        positionedNodes.groupBy { it.genLevel }.values.maxOfOrNull { it.size } ?: 1
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        // Obere Steuerleiste: Kontakt-Auswahl per Dropdown mit ABCD-Schnellwahl (nach Nachname sortiert) + Zoom-Funktion
+        // 1. Aufgewertete Stammbaum-Steuerkarte
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(CardSlate, RoundedCornerShape(8.dp))
-                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            AccentSteel.copy(alpha = if (isLightMode) 0.08f else 0.14f),
+                            CardSlate
+                        )
+                    ),
+                    RoundedCornerShape(14.dp)
+                )
+                .border(1.dp, BorderSlate, RoundedCornerShape(14.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = "Fokus-Kontakt im Stammbaum (Nachname, Vorname):",
-                color = TextSecondary,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(TreeGreen.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+                            .border(1.dp, TreeGreen.copy(alpha = 0.45f), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🌳", fontSize = 14.sp, style = CenteredPillTextStyle)
+                    }
+                    Column {
+                        Text(
+                            text = "Familien-Stammbaum",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Text(
+                            text = "${positionedNodes.size} Personen · $levelCount ${if (levelCount == 1) "Ebene" else "Generationen"} · ${treeEdges.size} Verbindungen",
+                            color = TextSecondary,
+                            fontSize = 10.5.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+
             ContactSearchDropdown(
                 persons = sortedPersons,
                 selectedPersonId = rootPerson.id,
-                onSelectPerson = { p -> onSelectRoot(p.id) },
+                onSelectPerson = { p ->
+                    onSelectRoot(p.id)
+                    treePanX = 0f
+                    treePanY = 0f
+                },
                 showInlineAlphabet = true
             )
 
+            // Manuelle Verbindungs-Werkzeuge direkt im Stammbaum
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            if (editConnectionsMode) AccentSteel else BtnBg,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .border(
+                            1.dp,
+                            if (editConnectionsMode) AccentSteel else BorderSlate,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            editConnectionsMode = !editConnectionsMode
+                            firstPickedPersonId = null
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (editConnectionsMode) "✓ Bearbeiten aktiv" else "✏️ Verbindungen ändern",
+                        color = if (editConnectionsMode) Color.White else TextPrimary,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        style = CenteredPillTextStyle,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+
+                CompactButton("➕ Verknüpfen") {
+                    val defaultOther = sortedPersons.firstOrNull { it.id != rootPerson.id }?.id ?: -1L
+                    if (defaultOther > 0L) {
+                        openConnectionEditorForPair(rootPerson.id, defaultOther)
+                    }
+                }
+
+                if (treeEdges.isNotEmpty()) {
+                    CompactButton("📋 Alle Linien (${treeEdges.size})") {
+                        showAllEdgesDialog = true
+                    }
+                }
+            }
+
+            // Zoom- & Ausrichtungs-Leiste
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "🔍 Zoom & ✋ Ziehen:",
+                    text = "🔍 Zoom & Ziehen:",
                     color = TextMuted,
-                    fontSize = 11.sp
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CompactButton("➖") {
-                        treeZoom = (treeZoom - 0.15f).coerceIn(0.35f, 2.2f)
+                        treeZoom = (treeZoom - 0.15f).coerceIn(0.35f, 2.0f)
                     }
                     CompactButton("$zoomPct%") {
                         treeZoom = 1.0f
@@ -7575,27 +8500,84 @@ fun FamilyTreeScreen(
                         treePanY = 0f
                     }
                     CompactButton("➕") {
-                        treeZoom = (treeZoom + 0.15f).coerceIn(0.35f, 2.2f)
+                        treeZoom = (treeZoom + 0.15f).coerceIn(0.35f, 2.0f)
                     }
                     CompactButton("⛶ Passend") {
-                        val widthScale = if (maxRowCount > 2) 2.9f / maxRowCount else 1.0f
-                        val heightScale = if (levelCount > 4) 4.0f / levelCount else 1.0f
-                        treeZoom = minOf(1.0f, widthScale, heightScale).coerceIn(0.4f, 1.0f)
+                        val widthScale = if (maxRowCount > 2) 2.35f / maxRowCount else 0.95f
+                        val heightScale = if (levelCount > 3) 3.2f / levelCount else 1.0f
+                        treeZoom = minOf(1.0f, widthScale, heightScale).coerceIn(0.42f, 1.0f)
                         treePanX = 0f
                         treePanY = 0f
                     }
                 }
             }
+
+            // Farb-Legende der direkten Beziehungslinien
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(
+                    Triple("Eltern ↔ Kind", AccentSteel, "━━"),
+                    Triple("Partner / Ehe", PartnerRose, "━❤️━"),
+                    Triple("Geschwister", TreeGreen, "━🤝━"),
+                    Triple("Weitere Familie", ExtendedFamilyViolet, "╌╌")
+                ).forEach { (lbl, col, sym) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(sym, color = col, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                        Text(lbl, color = TextSecondary, fontSize = 10.5.sp, maxLines = 1, softWrap = false)
+                    }
+                }
+            }
         }
 
-        // Zoombarer & frei verschiebbarer (2D-Pan) visueller Stammbaum
+        if (editConnectionsMode) {
+            val pickedFirst = firstPickedPersonId?.let { personMap[it] }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(AccentSteel.copy(alpha = 0.14f), RoundedCornerShape(10.dp))
+                    .border(1.dp, AccentSteel, RoundedCornerShape(10.dp))
+                    .padding(horizontal = 11.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (pickedFirst == null) {
+                        "✏️ Tippe auf ein ✏️-Badge einer Linie ODER tippe nacheinander 2 Personen an, um ihre Verbindung zu ändern."
+                    } else {
+                        "1. Person: ${pickedFirst.name} gewählt — tippe jetzt auf die 2. Person!"
+                    },
+                    color = TextPrimary,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                if (pickedFirst != null) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    CompactButton("Auswahl ✕") { firstPickedPersonId = null }
+                }
+            }
+        }
+
+        // 2. Zoombarer & frei verschiebbarer 2D-Stammbaum mit Vektor-Canvas & echten Direkt-Linien
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 190.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(CardSlate, RoundedCornerShape(10.dp))
-                .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                .heightIn(min = 250.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(CardSlate, RoundedCornerShape(14.dp))
+                .border(
+                    width = if (editConnectionsMode) 1.5.dp else 1.dp,
+                    color = if (editConnectionsMode) AccentSteel else BorderSlate,
+                    shape = RoundedCornerShape(14.dp)
+                )
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         do {
@@ -7605,7 +8587,7 @@ fun FamilyTreeScreen(
                                 val zoomChange = event.calculateZoom()
                                 val panChange = event.calculatePan()
                                 if (zoomChange != 1f || panChange != Offset.Zero) {
-                                    treeZoom = (treeZoom * zoomChange).coerceIn(0.35f, 2.2f)
+                                    treeZoom = (treeZoom * zoomChange).coerceIn(0.35f, 2.0f)
                                     treePanX += panChange.x
                                     treePanY += panChange.y
                                     event.changes.forEach { it.consume() }
@@ -7619,140 +8601,552 @@ fun FamilyTreeScreen(
                             }
                         } while (event.changes.any { it.pressed })
                     }
-                }
-                .padding(horizontal = 8.dp, vertical = 12.dp),
+                },
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                modifier = Modifier.graphicsLayer(
-                    translationX = treePanX,
-                    translationY = treePanY
-                ),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+            val dotColor = BorderSlate.copy(alpha = if (isLightMode) 0.55f else 0.35f)
+            Canvas(modifier = Modifier.matchParentSize()) {
+                val stepPx = 22.dp.toPx()
+                val rPx = 1.2.dp.toPx()
+                var gx = stepPx / 2f
+                while (gx < size.width) {
+                    var gy = stepPx / 2f
+                    while (gy < size.height) {
+                        drawCircle(color = dotColor, radius = rPx, center = Offset(gx, gy))
+                        gy += stepPx
+                    }
+                    gx += stepPx
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 8.dp)
+                    .graphicsLayer(
+                        translationX = treePanX,
+                        translationY = treePanY
+                    )
+                    .width(canvasWidthDp.dp)
+                    .height(canvasHeightDp.dp)
             ) {
-                val levelKeys = levels.keys.toList()
                 val z = treeZoom
-                val nodeMinW = (76f * z).coerceAtLeast(32f).dp
-                val nodeMaxW = (155f * z).coerceAtLeast(64f).dp
-                val padH = (8f * z).coerceAtLeast(3f).dp
-                val padV = (5f * z).coerceAtLeast(2f).dp
-                val nameFontSize = (12f * z).coerceIn(6.5f, 24f).sp
-                val nameLineHeight = (14f * z).coerceIn(7.5f, 28f).sp
-                val roleFontSize = (10f * z).coerceIn(5.5f, 20f).sp
-                val roleLineHeight = (12f * z).coerceIn(6.5f, 24f).sp
-                val connFontSize = (11f * z).coerceIn(6f, 22f).sp
-                val rowSpacing = (4f * z).coerceAtLeast(2f).dp
-                val cornerRad = (6f * z).coerceAtLeast(3f).dp
 
-                levelKeys.forEachIndexed { idx, genLevel ->
-                    val members = levels[genLevel].orEmpty()
+                // 2A. Vektor-Beziehungslinien exakt gemäß den gespeicherten Beziehungen zeichnen
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    val strokeMain = (2.5f * z).coerceIn(1.4f, 4.5f).dp.toPx()
+                    val strokeSubtle = (2.0f * z).coerceIn(1.2f, 3.8f).dp.toPx()
+                    val dotRadius = (3.4f * z).coerceIn(2.0f, 6.0f).dp.toPx()
+                    val dashEffect = PathEffect.dashPathEffect(
+                        floatArrayOf((7f * z).coerceAtLeast(4f).dp.toPx(), (5f * z).coerceAtLeast(3f).dp.toPx()),
+                        0f
+                    )
 
-                    // Knoten dieser Generation nebeneinander
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(rowSpacing, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.CenterVertically
+                    fun drawRoundedOrthogonalDrop(
+                        startX: Float,
+                        startY: Float,
+                        endX: Float,
+                        endY: Float,
+                        midY: Float,
+                        lineColor: Color,
+                        strokePx: Float
                     ) {
-                        members.forEachIndexed { mIdx, member ->
-                            val isRoot = member.id == rootPerson.id
-                            val roleText = roleRelativeToRoot(member, genLevel)
-                            val isPartner = isPartnerRelation(roleText)
+                        val sx = startX.dp.toPx()
+                        val sy = startY.dp.toPx()
+                        val ex = endX.dp.toPx()
+                        val ey = endY.dp.toPx()
+                        val my = midY.dp.toPx()
 
-                            Column(
-                                modifier = Modifier
-                                    .widthIn(min = nodeMinW, max = nodeMaxW)
-                                    .background(
-                                        if (isRoot) RootNodeBg else BgSlate,
-                                        RoundedCornerShape(cornerRad)
-                                    )
-                                    .border(
-                                        width = if (isRoot) 1.5.dp else 1.dp,
-                                        color = when {
-                                            isRoot -> AccentSteel
-                                            isPartner -> PartnerRose
-                                            else -> BorderSlate
-                                        },
-                                        shape = RoundedCornerShape(cornerRad)
-                                    )
-                                    .clickable { onOpenDetails(member) }
-                                    .padding(horizontal = padH, vertical = padV),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                if (member.photoBase64.isNotBlank()) {
-                                    PersonAvatar(
-                                        name = member.name,
-                                        photoBase64 = member.photoBase64,
-                                        sizeDp = (22f * z).roundToInt().coerceAtLeast(14)
-                                    )
-                                    Spacer(modifier = Modifier.height((2f * z).coerceAtLeast(1f).dp))
+                        if (abs(sx - ex) < 1.5f) {
+                            drawLine(
+                                color = lineColor,
+                                start = Offset(sx, sy),
+                                end = Offset(ex, ey),
+                                strokeWidth = strokePx,
+                                cap = StrokeCap.Round
+                            )
+                            return
+                        }
+
+                        val maxR = minOf(
+                            abs(ex - sx) / 2f,
+                            abs(my - sy) / 2f,
+                            abs(ey - my) / 2f,
+                            (10f * z).coerceAtLeast(4f).dp.toPx()
+                        )
+                        val dirX = if (ex > sx) 1f else -1f
+                        val dirY1 = if (my >= sy) 1f else -1f
+                        val dirY2 = if (ey >= my) 1f else -1f
+
+                        val path = Path().apply {
+                            moveTo(sx, sy)
+                            lineTo(sx, my - dirY1 * maxR)
+                            cubicTo(sx, my, sx, my, sx + dirX * maxR, my)
+                            lineTo(ex - dirX * maxR, my)
+                            cubicTo(ex, my, ex, my, ex, my + dirY2 * maxR)
+                            lineTo(ex, ey)
+                        }
+                        drawPath(
+                            path = path,
+                            color = lineColor,
+                            style = Stroke(width = strokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
+                    }
+
+                    // 1) PARTNER-Linien
+                    for (edge in treeEdges.filter { it.kind == TreeEdgeKind.PARTNER }) {
+                        val nA = nodeCoordsById[edge.personAId] ?: continue
+                        val nB = nodeCoordsById[edge.personBId] ?: continue
+                        val leftN = if (nA.centerX <= nB.centerX) nA else nB
+                        val rightN = if (leftN.person.id == nA.person.id) nB else nA
+                        val betweenExists = leftN.genLevel == rightN.genLevel && positionedNodes.any {
+                            it.genLevel == leftN.genLevel &&
+                                it.person.id != leftN.person.id &&
+                                it.person.id != rightN.person.id &&
+                                it.centerX > leftN.centerX && it.centerX < rightN.centerX
+                        }
+                        if (leftN.genLevel == rightN.genLevel && !betweenExists) {
+                            val p1 = Offset(leftN.right.dp.toPx(), leftN.centerY.dp.toPx())
+                            val p2 = Offset(rightN.left.dp.toPx(), rightN.centerY.dp.toPx())
+                            drawLine(
+                                color = PartnerRose,
+                                start = p1,
+                                end = p2,
+                                strokeWidth = strokeMain,
+                                cap = StrokeCap.Round
+                            )
+                            drawCircle(PartnerRose, radius = dotRadius, center = p1)
+                            drawCircle(PartnerRose, radius = dotRadius, center = p2)
+                        } else {
+                            val archY = (maxOf(leftN.bottom, rightN.bottom) + 14f * z).dp.toPx()
+                            val sx = leftN.centerX.dp.toPx()
+                            val sy = leftN.bottom.dp.toPx()
+                            val ex = rightN.centerX.dp.toPx()
+                            val ey = rightN.bottom.dp.toPx()
+                            val p = Path().apply {
+                                moveTo(sx, sy)
+                                lineTo(sx, archY)
+                                lineTo(ex, archY)
+                                lineTo(ex, ey)
+                            }
+                            drawPath(p, PartnerRose, style = Stroke(width = strokeMain, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                        }
+                    }
+
+                    // 2) ELTERN -> KIND Linien (exakt gruppiert nach tatsächlichem Eltern-Set jedes Kindes!)
+                    val childIdsWithParents = positionedNodes
+                        .map { it.person.id }
+                        .filter { directParentsOf(it).any { pId -> nodeCoordsById.containsKey(pId) } }
+
+                    val childrenByParentKey = childIdsWithParents.groupBy { cId ->
+                        directParentsOf(cId)
+                            .filter { nodeCoordsById.containsKey(it) }
+                            .sorted()
+                            .joinToString(",")
+                    }
+
+                    val groupList = childrenByParentKey.entries.toList()
+                    groupList.forEachIndexed { groupIdx, (_, groupChildren) ->
+                        val cNodes = groupChildren.mapNotNull { nodeCoordsById[it] }.sortedBy { it.centerX }
+                        if (cNodes.isEmpty()) return@forEachIndexed
+                        val pNodes = directParentsOf(groupChildren.first())
+                            .mapNotNull { nodeCoordsById[it] }
+                            .sortedBy { it.centerX }
+                        if (pNodes.isEmpty()) return@forEachIndexed
+
+                        val laneShift = ((groupIdx % 3) - 1) * (5f * z)
+
+                        if (pNodes.size == 2 && pNodes[0].genLevel == pNodes[1].genLevel) {
+                            val pLeft = pNodes[0]
+                            val pRight = pNodes[1]
+                            val areAdjacentPartners = explicitPartners(pLeft.person.id, pRight.person.id) &&
+                                !positionedNodes.any {
+                                    it.genLevel == pLeft.genLevel &&
+                                        it.person.id != pLeft.person.id &&
+                                        it.person.id != pRight.person.id &&
+                                        it.centerX > pLeft.centerX && it.centerX < pRight.centerX
                                 }
-                                Text(
-                                    text = member.name,
-                                    color = TextPrimary,
-                                    fontSize = nameFontSize,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = nameLineHeight
+
+                            val originX: Float
+                            val originY: Float
+                            if (areAdjacentPartners) {
+                                originX = (pLeft.right + pRight.left) / 2f
+                                originY = pLeft.centerY
+                                drawCircle(
+                                    color = AccentSteel,
+                                    radius = dotRadius,
+                                    center = Offset(originX.dp.toPx(), originY.dp.toPx())
                                 )
-                                Text(
-                                    text = roleText,
-                                    color = when {
-                                        isRoot -> AccentSteel
-                                        isPartner -> PartnerRose
-                                        else -> TreeGreen
-                                    },
-                                    fontSize = roleFontSize,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = roleLineHeight
-                                )
+                            } else {
+                                originX = (pLeft.centerX + pRight.centerX) / 2f
+                                originY = pLeft.bottom + 11f * z
+                                val joinY = originY.dp.toPx()
+                                listOf(pLeft, pRight).forEach { pn ->
+                                    val px = pn.centerX.dp.toPx()
+                                    val py = pn.bottom.dp.toPx()
+                                    val pPath = Path().apply {
+                                        moveTo(px, py)
+                                        lineTo(px, joinY)
+                                        lineTo(originX.dp.toPx(), joinY)
+                                    }
+                                    drawPath(pPath, AccentSteel, style = Stroke(width = strokeSubtle, cap = StrokeCap.Round))
+                                    drawCircle(AccentSteel, radius = dotRadius, center = Offset(px, py))
+                                }
                             }
 
-                            // Horizontale Verbindung zwischen Eltern / Ehe-Partnern nebeneinander
-                            if (mIdx < members.size - 1) {
-                                val nextMember = members[mIdx + 1]
-                                val coupled = arePartnersOrCoParents(member.id, nextMember.id)
-                                if (coupled) {
-                                    Text(
-                                        text = "─❤️─",
-                                        color = PartnerRose,
-                                        fontSize = connFontSize,
-                                        fontWeight = FontWeight.Bold
+                            val targetMinTop = cNodes.minOf { it.top }
+                            val channelY = ((pLeft.bottom + targetMinTop) / 2f + laneShift)
+                                .coerceIn(pLeft.bottom + 10f * z, (targetMinTop - 10f * z).coerceAtLeast(pLeft.bottom + 10f * z))
+
+                            for (cn in cNodes) {
+                                drawRoundedOrthogonalDrop(
+                                    startX = originX,
+                                    startY = originY,
+                                    endX = cn.centerX,
+                                    endY = cn.top,
+                                    midY = channelY,
+                                    lineColor = AccentSteel,
+                                    strokePx = strokeMain
+                                )
+                                drawCircle(
+                                    color = AccentSteel,
+                                    radius = dotRadius,
+                                    center = Offset(cn.centerX.dp.toPx(), cn.top.dp.toPx())
+                                )
+                            }
+                        } else {
+                            for (pn in pNodes) {
+                                val targetMinTop = cNodes.minOf { it.top }
+                                val channelY = ((pn.bottom + targetMinTop) / 2f + laneShift)
+                                    .coerceIn(pn.bottom + 8f * z, (targetMinTop - 8f * z).coerceAtLeast(pn.bottom + 8f * z))
+
+                                drawCircle(
+                                    color = AccentSteel,
+                                    radius = dotRadius,
+                                    center = Offset(pn.centerX.dp.toPx(), pn.bottom.dp.toPx())
+                                )
+                                for (cn in cNodes) {
+                                    drawRoundedOrthogonalDrop(
+                                        startX = pn.centerX,
+                                        startY = pn.bottom,
+                                        endX = cn.centerX,
+                                        endY = cn.top,
+                                        midY = channelY,
+                                        lineColor = AccentSteel,
+                                        strokePx = strokeMain
                                     )
-                                } else {
-                                    Spacer(modifier = Modifier.width((2f * z).coerceAtLeast(1f).dp))
+                                    drawCircle(
+                                        color = AccentSteel,
+                                        radius = dotRadius,
+                                        center = Offset(cn.centerX.dp.toPx(), cn.top.dp.toPx())
+                                    )
                                 }
                             }
                         }
                     }
 
-                    // Vertikale Stammbaum-Verbindungslinie zu den Kindern darunter
-                    if (idx < levelKeys.size - 1) {
-                        val nextMembers = levels[levelKeys[idx + 1]].orEmpty()
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(vertical = (2f * z).coerceAtLeast(1f).dp)
-                        ) {
+                    // 3) GESCHWISTER-Linien
+                    for (edge in treeEdges.filter { it.kind == TreeEdgeKind.SIBLING }) {
+                        val sharedParentExists = directParentsOf(edge.personAId).any { it in directParentsOf(edge.personBId) }
+                        if (sharedParentExists && !editConnectionsMode) continue
+                        val nA = nodeCoordsById[edge.personAId] ?: continue
+                        val nB = nodeCoordsById[edge.personBId] ?: continue
+                        val leftN = if (nA.centerX <= nB.centerX) nA else nB
+                        val rightN = if (leftN.person.id == nA.person.id) nB else nA
+                        val betweenExists = leftN.genLevel == rightN.genLevel && positionedNodes.any {
+                            it.genLevel == leftN.genLevel &&
+                                it.person.id != leftN.person.id &&
+                                it.person.id != rightN.person.id &&
+                                it.centerX > leftN.centerX && it.centerX < rightN.centerX
+                        }
+                        if (leftN.genLevel == rightN.genLevel && !betweenExists) {
+                            val lineY = (leftN.centerY - 14f * z).dp.toPx()
+                            val p1 = Offset(leftN.right.dp.toPx(), lineY)
+                            val p2 = Offset(rightN.left.dp.toPx(), lineY)
+                            drawLine(
+                                color = TreeGreen,
+                                start = p1,
+                                end = p2,
+                                strokeWidth = strokeSubtle,
+                                cap = StrokeCap.Round,
+                                pathEffect = if (sharedParentExists) dashEffect else null
+                            )
+                            drawCircle(TreeGreen, radius = dotRadius * 0.85f, center = p1)
+                            drawCircle(TreeGreen, radius = dotRadius * 0.85f, center = p2)
+                        } else {
+                            val archTopY = (minOf(leftN.top, rightN.top) - 13f * z).dp.toPx()
+                            val sx = leftN.centerX.dp.toPx()
+                            val sy = leftN.top.dp.toPx()
+                            val ex = rightN.centerX.dp.toPx()
+                            val ey = rightN.top.dp.toPx()
+                            val sibPath = Path().apply {
+                                moveTo(sx, sy)
+                                lineTo(sx, archTopY)
+                                lineTo(ex, archTopY)
+                                lineTo(ex, ey)
+                            }
+                            drawPath(
+                                path = sibPath,
+                                color = TreeGreen,
+                                style = Stroke(
+                                    width = strokeSubtle,
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round,
+                                    pathEffect = dashEffect
+                                )
+                            )
+                        }
+                    }
+
+                    // 4) WEITERE DIREKTE FAMILIEN-VERBINDUNGEN
+                    for (edge in treeEdges.filter { it.kind == TreeEdgeKind.EXTENDED }) {
+                        val nA = nodeCoordsById[edge.personAId] ?: continue
+                        val nB = nodeCoordsById[edge.personBId] ?: continue
+                        val upper = if (nA.centerY <= nB.centerY) nA else nB
+                        val lower = if (upper.person.id == nA.person.id) nB else nA
+
+                        val start = if (upper.genLevel == lower.genLevel) {
+                            Offset(
+                                if (upper.centerX <= lower.centerX) upper.right.dp.toPx() else upper.left.dp.toPx(),
+                                upper.centerY.dp.toPx()
+                            )
+                        } else {
+                            Offset(upper.centerX.dp.toPx(), upper.bottom.dp.toPx())
+                        }
+                        val end = if (upper.genLevel == lower.genLevel) {
+                            Offset(
+                                if (upper.centerX <= lower.centerX) lower.left.dp.toPx() else lower.right.dp.toPx(),
+                                lower.centerY.dp.toPx()
+                            )
+                        } else {
+                            Offset(lower.centerX.dp.toPx(), lower.top.dp.toPx())
+                        }
+
+                        val midY = (start.y + end.y) / 2f
+                        val curve = Path().apply {
+                            moveTo(start.x, start.y)
+                            cubicTo(start.x, midY, end.x, midY, end.x, end.y)
+                        }
+                        drawPath(
+                            path = curve,
+                            color = ExtendedFamilyViolet,
+                            style = Stroke(width = strokeSubtle, cap = StrokeCap.Round, pathEffect = dashEffect)
+                        )
+                        drawCircle(ExtendedFamilyViolet, radius = dotRadius * 0.85f, center = start)
+                        drawCircle(ExtendedFamilyViolet, radius = dotRadius * 0.85f, center = end)
+                    }
+                }
+
+                // 2B. Aufgewertete Genealogie-Knotenkarten
+                val cornerRad = (12f * z).coerceAtLeast(5f).dp
+                val padH = (7f * z).coerceAtLeast(3f).dp
+                val padV = (5f * z).coerceAtLeast(2f).dp
+                val avatarSize = (24f * z).roundToInt().coerceIn(13, 42)
+                val nameFontSize = (11.5f * z).coerceIn(6.5f, 21f).sp
+                val nameLineHeight = (13.2f * z).coerceIn(7.5f, 24f).sp
+                val roleFontSize = (9.5f * z).coerceIn(5.5f, 17f).sp
+                val subDateFontSize = (8.8f * z).coerceIn(5f, 15f).sp
+
+                for (node in positionedNodes) {
+                    val member = node.person
+                    val isRoot = member.id == rootPerson.id
+                    val isPickedFirst = firstPickedPersonId == member.id
+                    val roleText = node.roleText
+                    val isPartnerCard = isPartnerRelation(roleText) || roleText == "Schwiegereltern" || roleText == "Schwager/in" || roleText == "Schwiegerkind"
+
+                    val accentCol = when {
+                        isPickedFirst -> WarnAmber
+                        isRoot -> AccentSteel
+                        isPartnerRelation(roleText) -> PartnerRose
+                        roleText == "Mutter" || roleText == "Vater" || roleText == "Elternteil" || roleText == "Oma/Opa" -> AccentSteel
+                        isPartnerCard -> PartnerRose.copy(alpha = 0.85f)
+                        else -> TreeGreen
+                    }
+
+                    val birthYearLabel = remember(member.birthdayIso) {
+                        val b = member.birthdayIso?.trim().orEmpty()
+                        when {
+                            b.isBlank() || b.startsWith("WEEKLY:") || b.startsWith("REPEAT:") -> null
+                            b.startsWith("--") && b.length >= 7 -> {
+                                val mm = b.substring(2, 4)
+                                val dd = b.substring(5, 7)
+                                "* $dd.$mm."
+                            }
+                            b.length >= 10 -> {
+                                val yyyy = b.substring(0, 4)
+                                val mm = b.substring(5, 7)
+                                val dd = b.substring(8, 10)
+                                "$dd.$mm.$yyyy"
+                            }
+                            else -> null
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .offset(x = node.left.dp, y = node.top.dp)
+                            .width(node.width.dp)
+                            .height(node.height.dp)
+                            .clip(RoundedCornerShape(cornerRad))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        if (isRoot) RootNodeBg else BgSlate,
+                                        CardSlate
+                                    )
+                                ),
+                                RoundedCornerShape(cornerRad)
+                            )
+                            .border(
+                                width = if (isRoot || isPickedFirst) (2f * z).coerceAtLeast(1.2f).dp else (1.1f * z).coerceAtLeast(0.8f).dp,
+                                color = if (isRoot || isPickedFirst || isPartnerRelation(roleText)) accentCol else BorderSlate,
+                                shape = RoundedCornerShape(cornerRad)
+                            )
+                            .clickable {
+                                if (editConnectionsMode) {
+                                    val first = firstPickedPersonId
+                                    when {
+                                        first == null -> firstPickedPersonId = member.id
+                                        first == member.id -> firstPickedPersonId = null
+                                        else -> {
+                                            openConnectionEditorForPair(first, member.id)
+                                            firstPickedPersonId = null
+                                        }
+                                    }
+                                } else {
+                                    onOpenDetails(member)
+                                }
+                            }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height((3.2f * z).coerceAtLeast(2f).dp)
+                                .background(accentCol)
+                                .align(Alignment.TopCenter)
+                        )
+
+                        if (!isRoot && !editConnectionsMode && z >= 0.65f) {
                             Box(
                                 modifier = Modifier
-                                    .width((2f * z).coerceAtLeast(1.5f).dp)
-                                    .height((14f * z).coerceAtLeast(6f).dp)
-                                    .background(AccentSteel)
-                            )
-                            if (nextMembers.size > 1) {
-                                Box(
-                                    modifier = Modifier
-                                        .width((96f * z).coerceAtLeast(40f).dp)
-                                        .height((2f * z).coerceAtLeast(1.5f).dp)
-                                        .background(AccentSteel)
+                                    .align(Alignment.TopEnd)
+                                    .padding(top = (4f * z).dp, end = (4f * z).dp)
+                                    .size((18f * z).coerceAtLeast(13f).dp)
+                                    .clip(CircleShape)
+                                    .background(BtnBg.copy(alpha = 0.85f), CircleShape)
+                                    .clickable {
+                                        onSelectRoot(member.id)
+                                        treePanX = 0f
+                                        treePanY = 0f
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "🎯",
+                                    fontSize = (8.5f * z).coerceAtLeast(6f).sp,
+                                    style = CenteredPillTextStyle,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = padH, vertical = padV),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            PersonAvatar(
+                                name = member.name,
+                                photoBase64 = member.photoBase64,
+                                sizeDp = avatarSize
+                            )
+                            Spacer(modifier = Modifier.height((2.5f * z).coerceAtLeast(1f).dp))
+
+                            Text(
+                                text = member.name,
+                                color = TextPrimary,
+                                fontSize = nameFontSize,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                lineHeight = nameLineHeight,
+                                maxLines = 2
+                            )
+
+                            if (birthYearLabel != null && z >= 0.6f) {
+                                Text(
+                                    text = birthYearLabel,
+                                    color = TextMuted,
+                                    fontSize = subDateFontSize,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height((2f * z).coerceAtLeast(1f).dp))
+                            Box(
+                                modifier = Modifier
+                                    .background(accentCol.copy(alpha = 0.14f), RoundedCornerShape((6f * z).coerceAtLeast(3f).dp))
+                                    .padding(horizontal = (6f * z).coerceAtLeast(3f).dp, vertical = (1.5f * z).coerceAtLeast(1f).dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isRoot) "⭐ Fokus" else roleText,
+                                    color = accentCol,
+                                    fontSize = roleFontSize,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    style = CenteredPillTextStyle,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 2C. Antippbare Verbindungs-Badges direkt auf den Linien
+                val visibleBadges = badgeHotspots.filter { it.alwaysVisible || editConnectionsMode }
+                for (badge in visibleBadges) {
+                    val pillW = (if (badge.badgeText.length > 3) 68f else 28f) * z
+                    val pillH = 20f * z
+                    Box(
+                        modifier = Modifier
+                            .offset(
+                                x = (badge.centerX - pillW / 2f).dp,
+                                y = (badge.centerY - pillH / 2f).dp
+                            )
+                            .widthIn(min = (24f * z).dp)
+                            .height(pillH.dp)
+                            .clip(RoundedCornerShape((10f * z).coerceAtLeast(5f).dp))
+                            .background(CardSlate, RoundedCornerShape((10f * z).coerceAtLeast(5f).dp))
+                            .border(
+                                width = (1.2f * z).coerceAtLeast(0.9f).dp,
+                                color = badge.accentColor,
+                                shape = RoundedCornerShape((10f * z).coerceAtLeast(5f).dp)
+                            )
+                            .clickable {
+                                openConnectionEditorForPair(badge.fromId, badge.toId)
+                            }
+                            .padding(horizontal = (5f * z).coerceAtLeast(2f).dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = badge.badgeText,
+                            color = badge.accentColor,
+                            fontSize = (9.5f * z).coerceIn(6f, 16f).sp,
+                            fontWeight = FontWeight.Bold,
+                            style = CenteredPillTextStyle,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                 }
             }
         }
 
-        // Nicht verbundene Kontakte anzeigen, falls vorhanden (nach Nachname sortiert + Dropdown mit ABCD)
+        // 3. Nicht verbundene Kontakte anzeigen (1-Tipp zum Verknüpfen)
         val unconnected = remember(sortedPersons, generationByPersonId) {
             sortedPersons.filter { !generationByPersonId.containsKey(it.id) }
         }
@@ -7760,10 +9154,10 @@ fun FamilyTreeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(CardSlate, RoundedCornerShape(8.dp))
-                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                    .padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .background(CardSlate, RoundedCornerShape(12.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(12.dp))
+                    .padding(11.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 Text(
                     "Weitere Kontakte (${unconnected.size}, noch nicht mit ${formatLastNameFirst(rootPerson.name)} verknüpft):",
@@ -7772,29 +9166,30 @@ fun FamilyTreeScreen(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "Wähle per Dropdown-Liste (ABCD) oder tippe auf einen Namen, um eine Beziehung hinzuzufügen:",
+                    "Tippe auf einen Kontakt, um ihn direkt mit ${rootPerson.name} im Stammbaum zu verknüpfen:",
                     color = TextMuted,
                     fontSize = 11.sp
                 )
                 ContactSearchDropdown(
                     persons = unconnected,
                     selectedPersonId = null,
-                    onSelectPerson = { up -> onOpenDetails(up) },
-                    placeholderText = "🔎 Nicht verknüpften Kontakt auswählen",
+                    onSelectPerson = { up -> openConnectionEditorForPair(up.id, rootPerson.id) },
+                    placeholderText = "🔗 Kontakt direkt mit ${extractFirstName(rootPerson.name)} verknüpfen",
                     showInlineAlphabet = true
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(unconnected, key = { it.id }) { up ->
                         Box(
                             modifier = Modifier
-                                .background(BgSlate, RoundedCornerShape(6.dp))
-                                .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
-                                .clickable { onOpenDetails(up) }
+                                .background(BgSlate, RoundedCornerShape(8.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { openConnectionEditorForPair(up.id, rootPerson.id) }
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                formatLastNameFirst(up.name),
+                                "➕ ${formatLastNameFirst(up.name)}",
                                 color = AccentSteel,
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center,
@@ -7804,6 +9199,247 @@ fun FamilyTreeScreen(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // Dialog A: Manuelle Verbindungs-Bearbeitung direkt im Stammbaum
+    editModalState?.let { modal ->
+        var selFromId by remember(modal) { mutableStateOf(modal.fromId) }
+        var selToId by remember(modal) { mutableStateOf(modal.toId) }
+        var selLabel by remember(modal) { mutableStateOf(modal.label) }
+        val fromPerson = personMap[selFromId]
+        val toPerson = personMap[selToId]
+
+        Dialog(
+            onDismissRequest = { editModalState = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .widthIn(max = 420.dp)
+                    .background(CardSlate, RoundedCornerShape(16.dp))
+                    .border(1.5.dp, AccentSteel, RoundedCornerShape(16.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (modal.isExisting) "✏️ Verbindung im Stammbaum ändern" else "➕ Neue Stammbaum-Verbindung",
+                        color = TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(rememberScrollState())
+                    )
+                    CompactButton("✕") { editModalState = null }
+                }
+                HorizontalDivider(color = BorderSlate)
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                ) {
+                    Text("1. Person:", color = TextSecondary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                    ContactSearchDropdown(
+                        persons = sortedPersons,
+                        selectedPersonId = selFromId,
+                        onSelectPerson = { p ->
+                            if (p.id == selToId) selToId = selFromId
+                            selFromId = p.id
+                        },
+                        showInlineAlphabet = false
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Beziehungsart (1. ➔ 2. Person):", color = TextSecondary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                        CompactButton("⇄ Richtung tauschen") {
+                            val tmp = selFromId
+                            selFromId = selToId
+                            selToId = tmp
+                        }
+                    }
+
+                    RelationPresetDropdownBox(
+                        selectedLabel = selLabel,
+                        onSelectLabel = { selLabel = it }
+                    )
+
+                    Text("2. Person:", color = TextSecondary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                    ContactSearchDropdown(
+                        persons = sortedPersons.filter { it.id != selFromId },
+                        selectedPersonId = selToId,
+                        onSelectPerson = { p -> selToId = p.id },
+                        showInlineAlphabet = false
+                    )
+
+                    if (fromPerson != null && toPerson != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(AccentSteel.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
+                                .border(1.dp, AccentSteel.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Vorschau: ${fromPerson.name} ist „$selLabel“ ${toPerson.name}",
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = BorderSlate)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (modal.isExisting && modal.originalAId > 0L && modal.originalBId > 0L) {
+                        DangerActionButton("🗑️ Trennen") {
+                            onDeleteRelationPair(modal.originalAId, modal.originalBId)
+                            editModalState = null
+                        }
+                    } else {
+                        CompactButton("Abbrechen") { editModalState = null }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    PrimaryActionButton("✓ Verbindung speichern") {
+                        if (selFromId > 0L && selToId > 0L && selFromId != selToId) {
+                            if (modal.isExisting && modal.originalAId > 0L && modal.originalBId > 0L) {
+                                onReplaceRelation(modal.originalAId, modal.originalBId, selFromId, selToId, selLabel)
+                            } else {
+                                onUpsertRelation(selFromId, selToId, selLabel)
+                            }
+                            editModalState = null
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog B: Übersicht aller Linien im aktuellen Stammbaum zum schnellen Ändern oder Trennen
+    if (showAllEdgesDialog) {
+        Dialog(
+            onDismissRequest = { showAllEdgesDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.94f)
+                    .widthIn(max = 430.dp)
+                    .heightIn(max = 520.dp)
+                    .background(CardSlate, RoundedCornerShape(16.dp))
+                    .border(1.5.dp, BorderSlate, RoundedCornerShape(16.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "📋 Alle Stammbaum-Verbindungen (${treeEdges.size})",
+                        color = TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier
+                            .weight(1f)
+                            .horizontalScroll(rememberScrollState())
+                    )
+                    CompactButton("✕") { showAllEdgesDialog = false }
+                }
+                HorizontalDivider(color = BorderSlate)
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    treeEdges.forEach { edge ->
+                        val pFrom = personMap[edge.fromId]
+                        val pTo = personMap[edge.toId]
+                        if (pFrom != null && pTo != null) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(BgSlate, RoundedCornerShape(9.dp))
+                                    .border(1.dp, BorderSlate, RoundedCornerShape(9.dp))
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${pFrom.name} ➔ ${edge.label} ${pTo.name}",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .horizontalScroll(rememberScrollState())
+                                )
+                                CompactButton("✏️") {
+                                    showAllEdgesDialog = false
+                                    openConnectionEditorForPair(edge.fromId, edge.toId)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .background(PartnerRose.copy(alpha = 0.14f), RoundedCornerShape(6.dp))
+                                        .border(1.dp, PartnerRose.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable {
+                                            onDeleteRelationPair(edge.personAId, edge.personBId)
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("🗑️", fontSize = 11.sp, style = CenteredPillTextStyle, maxLines = 1, softWrap = false)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = BorderSlate)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CompactButton("➕ Neue Verbindung") {
+                        showAllEdgesDialog = false
+                        val defaultOther = sortedPersons.firstOrNull { it.id != rootPerson.id }?.id ?: -1L
+                        if (defaultOther > 0L) {
+                            openConnectionEditorForPair(rootPerson.id, defaultOther)
+                        }
+                    }
+                    PrimaryActionButton("Fertig") { showAllEdgesDialog = false }
                 }
             }
         }

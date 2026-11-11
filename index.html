@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.40 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.41 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -448,67 +448,97 @@
     .meta-accent { color: var(--accent-steel); }
     .meta-secondary { color: var(--text-secondary); }
 
-    /* Stammbaum Styles */
+    /* Stammbaum Styles (v1.0.41 Optik-Upgrade & Direkt-Linien) */
     .tree-container {
-      background: var(--card-slate);
+      background-color: var(--card-slate);
+      background-image: radial-gradient(var(--border-slate) 1.2px, transparent 1.2px);
+      background-size: 22px 22px;
       border: 1px solid var(--border-slate);
-      border-radius: 10px;
-      padding: 10px 8px;
+      border-radius: 14px;
+      padding: 8px;
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
+      position: relative;
     }
 
-    .tree-row {
-      display: flex;
-      flex-wrap: nowrap;
-      justify-content: center;
-      align-items: center;
-      gap: 4px;
-      width: 100%;
-      overflow-x: auto;
-      padding: 2px 0;
+    .tree-container.edit-active {
+      border: 1.5px solid var(--accent-steel);
+      box-shadow: 0 0 0 2px rgba(59, 130, 196, 0.14);
     }
 
     .tree-node {
-      background: var(--bg-slate);
+      background: linear-gradient(180deg, var(--bg-slate) 0%, var(--card-slate) 100%);
       border: 1px solid var(--border-slate);
-      border-radius: 6px;
-      padding: 5px 8px;
-      min-width: 72px;
-      max-width: 118px;
+      border-radius: 12px;
       text-align: center;
       cursor: pointer;
-      flex-shrink: 0;
-      transition: transform 0.12s, border-color 0.12s;
+      box-sizing: border-box;
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+      transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
     }
 
     .tree-node:hover {
-      transform: translateY(-1px);
+      transform: translateY(-1.5px);
       border-color: var(--accent-steel);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.15);
+      z-index: 5;
     }
 
     .tree-node.root {
-      background: var(--root-node-bg);
-      border: 1.5px solid var(--accent-steel);
+      background: linear-gradient(180deg, var(--root-node-bg) 0%, var(--card-slate) 100%);
+      border: 2px solid var(--accent-steel);
     }
 
     .tree-node.partner {
       border-color: var(--partner-rose);
     }
 
-    .tree-line-vertical {
-      width: 2px;
-      height: 14px;
-      background: var(--accent-steel);
-      margin: 2px 0;
+    .tree-node.picked-first {
+      border: 2px solid var(--warn-amber) !important;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
     }
 
-    .tree-branch-bar {
-      height: 2px;
-      background: var(--accent-steel);
-      min-width: 90px;
-      margin-bottom: 2px;
+    .tree-edge-badge {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      background: var(--card-slate);
+      border-radius: 999px;
+      padding: 2px 7px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 6;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.14);
+      transition: transform 0.12s;
+    }
+
+    .tree-edge-badge:hover {
+      transform: translate(-50%, -50%) scale(1.08);
+    }
+
+    .tree-focus-pin {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      border-radius: 50%;
+      background: var(--btn-bg);
+      border: 1px solid var(--border-slate);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 4;
     }
 
     .side-panel {
@@ -995,23 +1025,24 @@
   <script>
     const RELATION_PRESETS = [
       "Kind von",
+      "Mutter von",
+      "Vater von",
+      "Elternteil von",
       "Ehe-Partner von",
       "Partner von",
       "Bruder von",
       "Schwester von",
-      "Mutter von",
-      "Vater von",
-      "Elternteil von",
       "Oma/Opa von",
       "Enkelkind von",
       "Onkel/Tante von",
+      "Neffe/Nichte von",
       "Cousin/Cousine von"
     ];
 
     function inverseRelationLabel(label) {
       const l = (label || "").trim().toLowerCase();
       if (l.startsWith("kind") || l.startsWith("sohn") || l.startsWith("tochter")) return "Elternteil von";
-      if (l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil")) return "Kind von";
+      if (l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil") || l.startsWith("eltern")) return "Kind von";
       if (l.startsWith("ehe-partner") || l.startsWith("ehepartner")) return "Ehe-Partner von";
       if (l.startsWith("partner")) return "Partner von";
       if (l.startsWith("bruder") || l.startsWith("schwester") || l.startsWith("geschwister")) return "Geschwister von";
@@ -1021,6 +1052,16 @@
       if (l.startsWith("neffe") || l.startsWith("nichte")) return "Onkel/Tante von";
       if (l.startsWith("cousin")) return "Cousin/Cousine von";
       return "Verknüpft mit";
+    }
+
+    function isDirectParentLabel(label) {
+      const l = (label || "").trim().toLowerCase();
+      return l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil") || l.startsWith("eltern");
+    }
+
+    function isDirectChildLabel(label) {
+      const l = (label || "").trim().toLowerCase();
+      return l.startsWith("kind") || l.startsWith("sohn") || l.startsWith("tochter");
     }
 
     function relationGenerationStep(label) {
@@ -1251,9 +1292,42 @@
         state.relations.push({ id: state.nextId++, fromPersonId: fromId, toPersonId: toId, relationLabel: clean, isFallbackContact: true });
       }
       const rev = inverseRelationLabel(clean);
-      const existsRev = state.relations.some(r => r.fromPersonId === toId && r.toPersonId === fromId);
+      const existsRev = state.relations.some(r => r.fromPersonId === toId && r.toPersonId === fromId && r.relationLabel.toLowerCase() === rev.toLowerCase());
       if (!existsRev) {
-        state.relations.push({ id: state.nextId++, fromPersonId: toId, toPersonId: fromId, relationLabel: rev, isFallbackContact: isPartnerRelation(clean) });
+        state.relations.push({
+          id: state.nextId++,
+          fromPersonId: toId,
+          toPersonId: fromId,
+          relationLabel: rev,
+          isFallbackContact: isDirectParentLabel(clean) || isPartnerRelation(clean)
+        });
+      }
+    }
+
+    function deleteBidirectionalRelationPair(personAId, personBId, specificRel = null) {
+      if (specificRel) {
+        const inv = inverseRelationLabel(specificRel.relationLabel).toLowerCase();
+        const fwdCount = state.relations.filter(r => r.fromPersonId === specificRel.fromPersonId && r.toPersonId === specificRel.toPersonId).length;
+        state.relations = state.relations.filter(r => {
+          if (r.id === specificRel.id) return false;
+          if (r.fromPersonId === specificRel.fromPersonId && r.toPersonId === specificRel.toPersonId && r.relationLabel.toLowerCase() === specificRel.relationLabel.toLowerCase()) return false;
+          if (r.fromPersonId === specificRel.toPersonId && r.toPersonId === specificRel.fromPersonId && (r.relationLabel.toLowerCase() === inv || fwdCount <= 1)) return false;
+          return true;
+        });
+      } else {
+        state.relations = state.relations.filter(r =>
+          !((r.fromPersonId === personAId && r.toPersonId === personBId) || (r.fromPersonId === personBId && r.toPersonId === personAId))
+        );
+      }
+    }
+
+    function replaceBidirectionalRelation(oldAId, oldBId, newFromId, newToId, newLabel) {
+      if (oldAId > 0 && oldBId > 0) {
+        deleteBidirectionalRelationPair(oldAId, oldBId, null);
+      }
+      if (newFromId > 0 && newToId > 0 && newFromId !== newToId) {
+        deleteBidirectionalRelationPair(newFromId, newToId, null);
+        addBidirectionalRelation(newFromId, newToId, newLabel);
       }
     }
 
@@ -2098,7 +2172,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.40</div>
+            <div class="app-title">Remember Me v1.0.41</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -3705,9 +3779,15 @@
     let treeDragStartX = 0;
     let treeDragStartY = 0;
     let lastTreePinchDist = null;
+    let treeEditConnectionsMode = false;
+    let treeFirstPickedPersonId = null;
+    let treeRelationModalState = null; // { originalAId, originalBId, fromId, toId, label, isExisting }
+    let showAllTreeEdgesModal = false;
+    let createPendingRelations = [{ label: "Kind von", targetId: -1 }];
+    let detailPendingRelations = [{ label: "Kind von", targetId: -1 }];
 
     function setTreeZoom(val) {
-      treeZoom = Math.min(2.2, Math.max(0.35, Math.round(val * 100) / 100));
+      treeZoom = Math.min(2.0, Math.max(0.35, Math.round(val * 100) / 100));
       renderPhoneApp();
     }
 
@@ -3723,16 +3803,118 @@
     }
 
     function fitTreeZoom(maxRowCount, levelCount) {
-      const widthScale = maxRowCount > 2 ? (2.9 / maxRowCount) : 1.0;
-      const heightScale = levelCount > 4 ? (4.0 / levelCount) : 1.0;
+      const widthScale = maxRowCount > 2 ? (2.35 / maxRowCount) : 0.95;
+      const heightScale = levelCount > 3 ? (3.2 / levelCount) : 1.0;
       const fit = Math.min(1.0, widthScale, heightScale);
       treePanX = 0;
       treePanY = 0;
-      setTreeZoom(Math.max(0.4, fit));
+      setTreeZoom(Math.max(0.42, fit));
+    }
+
+    function toggleTreeEditConnectionsMode() {
+      treeEditConnectionsMode = !treeEditConnectionsMode;
+      treeFirstPickedPersonId = null;
+      renderPhoneApp();
+    }
+
+    function openTreeConnectionModal(person1Id, person2Id) {
+      if (!person1Id || !person2Id || person1Id === person2Id) return;
+      const existing = state.relations.find(r =>
+        r.fromPersonId === person1Id && r.toPersonId === person2Id &&
+        !/^elternteil/i.test(r.relationLabel) && !/^geschwister/i.test(r.relationLabel)
+      ) || state.relations.find(r =>
+        r.fromPersonId === person1Id && r.toPersonId === person2Id
+      ) || state.relations.find(r =>
+        r.fromPersonId === person2Id && r.toPersonId === person1Id
+      );
+
+      if (existing) {
+        treeRelationModalState = {
+          originalAId: person1Id,
+          originalBId: person2Id,
+          fromId: existing.fromPersonId,
+          toId: existing.toPersonId,
+          label: existing.relationLabel,
+          isExisting: true
+        };
+      } else {
+        treeRelationModalState = {
+          originalAId: 0,
+          originalBId: 0,
+          fromId: person1Id,
+          toId: person2Id,
+          label: "Kind von",
+          isExisting: false
+        };
+      }
+      renderModals();
+    }
+
+    function handleTreeNodeClick(personId, event) {
+      if (event) event.stopPropagation();
+      if (treeEditConnectionsMode) {
+        if (!treeFirstPickedPersonId) {
+          treeFirstPickedPersonId = personId;
+          renderPhoneApp();
+        } else if (treeFirstPickedPersonId === personId) {
+          treeFirstPickedPersonId = null;
+          renderPhoneApp();
+        } else {
+          const first = treeFirstPickedPersonId;
+          treeFirstPickedPersonId = null;
+          renderPhoneApp();
+          openTreeConnectionModal(first, personId);
+        }
+      } else {
+        openDetailModal(personId);
+      }
+    }
+
+    function swapTreeModalDirection() {
+      if (!treeRelationModalState) return;
+      const tmp = treeRelationModalState.fromId;
+      treeRelationModalState.fromId = treeRelationModalState.toId;
+      treeRelationModalState.toId = tmp;
+      renderModals();
+    }
+
+    function saveTreeModalConnection() {
+      if (!treeRelationModalState) return;
+      const { originalAId, originalBId, fromId, toId, label, isExisting } = treeRelationModalState;
+      if (!fromId || !toId || fromId === toId) return;
+      if (isExisting && originalAId > 0 && originalBId > 0) {
+        replaceBidirectionalRelation(originalAId, originalBId, fromId, toId, label);
+        addLog(`Stammbaum-Verbindung aktualisiert: "${label}".`);
+      } else {
+        addBidirectionalRelation(fromId, toId, label);
+        addLog(`Neue Stammbaum-Verbindung angelegt: "${label}".`);
+      }
+      treeRelationModalState = null;
+      saveState();
+      renderModals();
+    }
+
+    function disconnectTreeModalConnection() {
+      if (!treeRelationModalState) return;
+      const { originalAId, originalBId } = treeRelationModalState;
+      if (originalAId > 0 && originalBId > 0) {
+        deleteBidirectionalRelationPair(originalAId, originalBId, null);
+        addLog("Stammbaum-Verbindung getrennt.");
+      }
+      treeRelationModalState = null;
+      saveState();
+      renderModals();
+    }
+
+    function disconnectTreeEdgeQuick(aId, bId) {
+      deleteBidirectionalRelationPair(aId, bId, null);
+      addLog("Stammbaum-Verbindung getrennt.");
+      saveState();
+      renderModals();
     }
 
     function handleTreeMouseDown(e) {
-      if (e.target.closest(".tree-node")) return;
+      if (e.target.closest(".tree-node") || e.target.closest(".tree-edge-badge")) return;
       isTreeDragging = true;
       treeDragStartX = e.clientX - treePanX;
       treeDragStartY = e.clientY - treePanY;
@@ -3763,7 +3945,7 @@
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         lastTreePinchDist = Math.hypot(dx, dy);
-      } else if (e.touches && e.touches.length === 1 && !e.target.closest(".tree-node")) {
+      } else if (e.touches && e.touches.length === 1 && !e.target.closest(".tree-node") && !e.target.closest(".tree-edge-badge")) {
         isTreeDragging = true;
         treeDragStartX = e.touches[0].clientX - treePanX;
         treeDragStartY = e.touches[0].clientY - treePanY;
@@ -3798,13 +3980,78 @@
       isTreeDragging = false;
     }
 
+    function extractCanonicalTreeEdges(validPersonIds) {
+      const pairMap = new Map();
+      for (const r of state.relations) {
+        if (!validPersonIds.has(r.fromPersonId) || !validPersonIds.has(r.toPersonId) || r.fromPersonId === r.toPersonId) continue;
+        const idA = Math.min(r.fromPersonId, r.toPersonId);
+        const idB = Math.max(r.fromPersonId, r.toPersonId);
+        const key = `${idA}_${idB}`;
+        if (!pairMap.has(key)) pairMap.set(key, { idA, idB, rels: [] });
+        pairMap.get(key).rels.push(r);
+      }
+
+      const edges = [];
+      for (const { idA, idB, rels } of pairMap.values()) {
+        const parentRel = rels.find(r => isDirectParentLabel(r.relationLabel));
+        const childRel = rels.find(r => isDirectChildLabel(r.relationLabel));
+        const partnerRel = rels.find(r => isPartnerRelation(r.relationLabel));
+        const siblingRel = rels.find(r => isSiblingRelation(r.relationLabel));
+
+        if (parentRel) {
+          const pId = parentRel.fromPersonId;
+          const cId = parentRel.toPersonId;
+          const spec = rels.find(r => r.fromPersonId === pId && (/^mutter/i.test(r.relationLabel) || /^vater/i.test(r.relationLabel))) || parentRel;
+          edges.push({ personAId: idA, personBId: idB, fromId: spec.fromPersonId, toId: spec.toPersonId, label: spec.relationLabel, kind: "PARENT_CHILD", parentId: pId, childId: cId });
+        } else if (childRel) {
+          const cId = childRel.fromPersonId;
+          const pId = childRel.toPersonId;
+          edges.push({ personAId: idA, personBId: idB, fromId: childRel.fromPersonId, toId: childRel.toPersonId, label: childRel.relationLabel, kind: "PARENT_CHILD", parentId: pId, childId: cId });
+        } else if (partnerRel) {
+          const ehe = rels.find(r => /^ehe/i.test(r.relationLabel)) || partnerRel;
+          edges.push({ personAId: idA, personBId: idB, fromId: ehe.fromPersonId, toId: ehe.toPersonId, label: ehe.relationLabel, kind: "PARTNER" });
+        } else if (siblingRel) {
+          const specSib = rels.find(r => /^bruder/i.test(r.relationLabel) || /^schwester/i.test(r.relationLabel)) || siblingRel;
+          edges.push({ personAId: idA, personBId: idB, fromId: specSib.fromPersonId, toId: specSib.toPersonId, label: specSib.relationLabel, kind: "SIBLING" });
+        } else {
+          const chosen = rels[0];
+          edges.push({ personAId: idA, personBId: idB, fromId: chosen.fromPersonId, toId: chosen.toPersonId, label: chosen.relationLabel, kind: "EXTENDED" });
+        }
+      }
+      return edges;
+    }
+
+    function shortTreeRelationName(rawLabel) {
+      const l = (rawLabel || "").trim().toLowerCase();
+      if (l.startsWith("mutter")) return "Mutter";
+      if (l.startsWith("vater")) return "Vater";
+      if (l.startsWith("elternteil") || l.startsWith("eltern")) return "Elternteil";
+      if (l.startsWith("ehe-partner") || l.startsWith("ehepartner")) return "Ehe-Partner";
+      if (l.startsWith("partner")) return "Partner";
+      if (l.startsWith("bruder")) return "Bruder";
+      if (l.startsWith("schwester")) return "Schwester";
+      if (l.startsWith("geschwister")) return "Geschwister";
+      if (l.startsWith("kind")) return "Kind";
+      if (l.startsWith("oma") || l.startsWith("opa") || l.startsWith("großelter")) return "Oma/Opa";
+      if (l.startsWith("enkel")) return "Enkelkind";
+      if (l.startsWith("onkel") || l.startsWith("tante")) return "Onkel/Tante";
+      if (l.startsWith("neffe") || l.startsWith("nichte")) return "Neffe/Nichte";
+      if (l.startsWith("cousin")) return "Cousin/Cousine";
+      return String(rawLabel || "").replace(/\s+von$/i, "").trim() || "Familie";
+    }
+
     function renderFamilyTreeTab() {
       const visiblePersons = sortPersonsByLastName(state.persons.filter(p => !p.isHidden));
-      if (visiblePersons.length === 0) return "";
+      if (visiblePersons.length === 0) {
+        return `<div class="card"><div style="font-size:12.5px; color:var(--text-secondary);">Lege Kontakte und Beziehungen an, um den Stammbaum zu sehen.</div></div>`;
+      }
       const rootPerson = visiblePersons.find(p => p.id === selectedTreeRootId) || visiblePersons[0];
       const personMap = new Map(visiblePersons.map(p => [p.id, p]));
+      const allCanonicalEdges = extractCanonicalTreeEdges(new Set(personMap.keys()));
 
-      // BFS generation calculation
+      // Priorisierte Breitensuche ab Fokus-Person
+      const kindPrio = { PARENT_CHILD: 0, PARTNER: 1, SIBLING: 2, EXTENDED: 3 };
+      const prioritizedEdges = [...allCanonicalEdges].sort((a, b) => (kindPrio[a.kind] ?? 9) - (kindPrio[b.kind] ?? 9));
       const genMap = new Map();
       const queue = [rootPerson.id];
       genMap.set(rootPerson.id, 0);
@@ -3812,243 +4059,681 @@
       while (queue.length > 0) {
         const currId = queue.shift();
         const currGen = genMap.get(currId) || 0;
-
-        state.relations.filter(r => r.fromPersonId === currId).forEach(rel => {
-          if (!genMap.has(rel.toPersonId) && personMap.has(rel.toPersonId)) {
-            genMap.set(rel.toPersonId, currGen + relationGenerationStep(rel.relationLabel));
-            queue.push(rel.toPersonId);
+        for (const edge of prioritizedEdges) {
+          if (edge.fromId === currId && !genMap.has(edge.toId)) {
+            const step = edge.kind === "PARENT_CHILD"
+              ? (edge.parentId === currId ? 1 : -1)
+              : (edge.kind === "PARTNER" || edge.kind === "SIBLING" ? 0 : relationGenerationStep(edge.label));
+            genMap.set(edge.toId, currGen + step);
+            queue.push(edge.toId);
+          } else if (edge.toId === currId && !genMap.has(edge.fromId)) {
+            const step = edge.kind === "PARENT_CHILD"
+              ? (edge.parentId === currId ? 1 : -1)
+              : (edge.kind === "PARTNER" || edge.kind === "SIBLING" ? 0 : -relationGenerationStep(edge.label));
+            genMap.set(edge.fromId, currGen + step);
+            queue.push(edge.fromId);
           }
-        });
-        state.relations.filter(r => r.toPersonId === currId).forEach(rel => {
-          if (!genMap.has(rel.fromPersonId) && personMap.has(rel.fromPersonId)) {
-            genMap.set(rel.fromPersonId, currGen - relationGenerationStep(rel.relationLabel));
-            queue.push(rel.fromPersonId);
-          }
-        });
+        }
       }
 
-      function shortRelationName(rawLabel) {
-        const l = (rawLabel || "").trim().toLowerCase();
-        if (l.startsWith("mutter")) return "Mutter";
-        if (l.startsWith("vater")) return "Vater";
-        if (l.startsWith("elternteil") || l.startsWith("eltern")) return "Eltern";
-        if (l.startsWith("ehe-partner") || l.startsWith("ehepartner")) return "Ehe-Partner";
-        if (l.startsWith("partner")) return "Partner";
-        if (l.startsWith("bruder")) return "Bruder";
-        if (l.startsWith("schwester")) return "Schwester";
-        if (l.startsWith("geschwister")) return "Geschwister";
-        if (l.startsWith("kind")) return "Kind";
-        if (l.startsWith("oma") || l.startsWith("opa") || l.startsWith("großelter")) return "Oma/Opa";
-        if (l.startsWith("enkel")) return "Enkelkind";
-        if (l.startsWith("onkel") || l.startsWith("tante")) return "Onkel/Tante";
-        if (l.startsWith("neffe") || l.startsWith("nichte")) return "Neffe/Nichte";
-        if (l.startsWith("cousin")) return "Cousin/Cousine";
-        return rawLabel.replace(/\s+von$/i, "").trim() || "Familie";
+      const treeEdges = allCanonicalEdges.filter(e => genMap.has(e.personAId) && genMap.has(e.personBId));
+
+      function explicitPartners(idA, idB) {
+        return treeEdges.some(e => e.kind === "PARTNER" && ((e.personAId === idA && e.personBId === idB) || (e.personAId === idB && e.personBId === idA)));
+      }
+      function explicitSiblings(idA, idB) {
+        return treeEdges.some(e => e.kind === "SIBLING" && ((e.personAId === idA && e.personBId === idB) || (e.personAId === idB && e.personBId === idA)));
+      }
+      function directParentsOf(childId) {
+        return treeEdges.filter(e => e.kind === "PARENT_CHILD" && e.childId === childId).map(e => e.parentId);
+      }
+      function directChildrenOf(parentId) {
+        return treeEdges.filter(e => e.kind === "PARENT_CHILD" && e.parentId === parentId).map(e => e.childId);
       }
 
-      function roleRelativeToRoot(p, genLevel) {
+      function roleRelativeToRoot(p) {
         if (p.id === rootPerson.id) return "Fokus";
-        const directOut = state.relations.find(r => r.fromPersonId === p.id && r.toPersonId === rootPerson.id);
-        if (directOut) return shortRelationName(directOut.relationLabel);
-        const directIn = state.relations.find(r => r.fromPersonId === rootPerson.id && r.toPersonId === p.id);
-        if (directIn) return shortRelationName(inverseRelationLabel(directIn.relationLabel));
+        const directPairRels = state.relations.filter(r =>
+          (r.fromPersonId === p.id && r.toPersonId === rootPerson.id) ||
+          (r.fromPersonId === rootPerson.id && r.toPersonId === p.id)
+        );
+        if (directPairRels.length > 0) {
+          const outRel = directPairRels.find(r => r.fromPersonId === p.id && !/^elternteil/i.test(r.relationLabel) && !/^geschwister/i.test(r.relationLabel))
+            || directPairRels.find(r => r.fromPersonId === p.id);
+          if (outRel) return shortTreeRelationName(outRel.relationLabel);
+          return shortTreeRelationName(inverseRelationLabel(directPairRels[0].relationLabel));
+        }
 
-        if (genLevel <= -2) return "Oma/Opa";
-        if (genLevel >= 2) return "Enkelkind";
-        if (genLevel === -1) {
-          const relToParent = state.relations.find(r =>
-            r.fromPersonId === p.id && genMap.get(r.toPersonId) === -1 &&
-            state.relations.some(pr =>
-              (pr.fromPersonId === r.toPersonId && pr.toPersonId === rootPerson.id && relationGenerationStep(pr.relationLabel) === 1) ||
-              (pr.fromPersonId === rootPerson.id && pr.toPersonId === r.toPersonId && relationGenerationStep(pr.relationLabel) === -1)
-            )
-          );
-          if (relToParent && isPartnerRelation(relToParent.relationLabel)) return "Eltern";
-          if (relToParent && isSiblingRelation(relToParent.relationLabel)) return "Onkel/Tante";
-          return "Eltern";
-        }
-        if (genLevel === 1) {
-          return "Kind";
-        }
-        const anyRel = state.relations.find(r => r.fromPersonId === p.id);
-        if (anyRel) return shortRelationName(anyRel.relationLabel);
+        const rootParents = directParentsOf(rootPerson.id);
+        const rootChildren = directChildrenOf(rootPerson.id);
+        const rootPartners = treeEdges
+          .filter(e => e.kind === "PARTNER" && (e.personAId === rootPerson.id || e.personBId === rootPerson.id))
+          .map(e => e.personAId === rootPerson.id ? e.personBId : e.personAId);
+        const rootSiblings = [
+          ...new Set([
+            ...treeEdges.filter(e => e.kind === "SIBLING" && (e.personAId === rootPerson.id || e.personBId === rootPerson.id))
+              .map(e => e.personAId === rootPerson.id ? e.personBId : e.personAId),
+            ...rootParents.flatMap(pid => directChildrenOf(pid)).filter(cid => cid !== rootPerson.id)
+          ])
+        ];
+
+        if (rootPartners.some(rp => directParentsOf(rp).includes(p.id))) return "Schwiegereltern";
+        if (rootParents.some(par => directParentsOf(par).includes(p.id))) return "Oma/Opa";
+        if (rootParents.some(par => explicitSiblings(p.id, par) || directParentsOf(par).some(gp => directChildrenOf(gp).includes(p.id) && p.id !== par))) return "Onkel/Tante";
+        if (rootParents.some(par => explicitPartners(p.id, par))) return "Partner v. Eltern";
+        if (rootPartners.some(rp => explicitSiblings(p.id, rp)) || rootSiblings.some(rs => explicitPartners(p.id, rs))) return "Schwager/in";
+        if (rootSiblings.some(rs => directChildrenOf(rs).includes(p.id))) return "Neffe/Nichte";
+        if (rootChildren.some(rc => explicitPartners(p.id, rc))) return "Schwiegerkind";
+        if (rootChildren.some(rc => directChildrenOf(rc).includes(p.id))) return "Enkelkind";
         return "Familie";
       }
 
-      function arePartnersOrCoParents(idA, idB) {
-        const directRel = state.relations.find(r =>
-          (r.fromPersonId === idA && r.toPersonId === idB) ||
-          (r.fromPersonId === idB && r.toPersonId === idA)
-        );
-        if (directRel && isPartnerRelation(directRel.relationLabel)) return true;
-        const childrenOfA = state.relations
-          .filter(r => r.toPersonId === idA && relationGenerationStep(r.relationLabel) === -1)
-          .map(r => r.fromPersonId);
-        return childrenOfA.some(cid =>
-          state.relations.some(r => r.fromPersonId === cid && r.toPersonId === idB && relationGenerationStep(r.relationLabel) === -1)
-        );
+      // 2D-Koordinaten-Layout berechnen (Eltern exakt über eigenen Kindern, Partner nebeneinander)
+      const z = treeZoom;
+      const nodeW = 142 * z;
+      const nodeH = 92 * z;
+      const partnerGap = 44 * z;
+      const siblingGap = 24 * z;
+      const groupGap = 42 * z;
+      const levelStepY = 142 * z;
+      const canvasPadX = 24 * z;
+      const canvasPadY = 22 * z;
+
+      const rawMembersByGen = new Map();
+      for (const [pid, g] of genMap.entries()) {
+        if (!rawMembersByGen.has(g)) rawMembersByGen.set(g, []);
+        rawMembersByGen.get(g).push(personMap.get(pid));
       }
 
-      function orderRowMembers(members, genLevel) {
-        if (genLevel === 0 && members.some(m => m.id === rootPerson.id)) {
-          const others = members.filter(m => m.id !== rootPerson.id);
-          const partners = others.filter(m => arePartnersOrCoParents(rootPerson.id, m.id));
-          const nonPartners = others.filter(m => !arePartnersOrCoParents(rootPerson.id, m.id));
-          if (partners.length > 0) {
-            return [...nonPartners, rootPerson, ...partners];
-          } else {
-            const half = Math.ceil(nonPartners.length / 2);
-            return [...nonPartners.slice(0, half), rootPerson, ...nonPartners.slice(half)];
+      const xCenter = new Map();
+
+      function parentFootprintHalfWidth(personId) {
+        const g = genMap.get(personId);
+        const parentsUpper = directParentsOf(personId).filter(pid => genMap.get(pid) === g - 1);
+        if (parentsUpper.length >= 2) return (2 * nodeW + partnerGap) / 2;
+        if (parentsUpper.length === 1) {
+          const p = parentsUpper[0];
+          const hasPartner = (rawMembersByGen.get(g - 1) || []).some(m => m.id !== p && explicitPartners(p, m.id));
+          return hasPartner ? (2 * nodeW + partnerGap) / 2 : nodeW / 2;
+        }
+        return nodeW / 2;
+      }
+
+      // A) Ebene 0 strukturieren
+      const gen0Members = rawMembersByGen.get(0) || [];
+      if (gen0Members.length > 0) {
+        const placedGen0 = new Set();
+        const orderedGen0 = [];
+        const rootPartners = gen0Members.filter(m => m.id !== rootPerson.id && explicitPartners(rootPerson.id, m.id)).sort(comparePersonsByLastName);
+        const rootSibs = gen0Members.filter(m =>
+          m.id !== rootPerson.id && !explicitPartners(rootPerson.id, m.id) &&
+          (explicitSiblings(rootPerson.id, m.id) || directParentsOf(rootPerson.id).some(pid => directParentsOf(m.id).includes(pid)))
+        ).sort(comparePersonsByLastName);
+
+        for (const sib of rootSibs) {
+          const sibPartners = gen0Members.filter(m => m.id !== rootPerson.id && m.id !== sib.id && explicitPartners(sib.id, m.id) && !placedGen0.has(m.id));
+          for (const sp of sibPartners) { placedGen0.add(sp.id); orderedGen0.push(sp); }
+          if (!placedGen0.has(sib.id)) { placedGen0.add(sib.id); orderedGen0.push(sib); }
+        }
+        if (!placedGen0.has(rootPerson.id)) { placedGen0.add(rootPerson.id); orderedGen0.push(rootPerson); }
+        for (const rp of rootPartners) {
+          if (!placedGen0.has(rp.id)) { placedGen0.add(rp.id); orderedGen0.push(rp); }
+          const rpSibs = gen0Members.filter(m => !placedGen0.has(m.id) && (explicitSiblings(rp.id, m.id) || directParentsOf(rp.id).some(pid => directParentsOf(m.id).includes(pid)))).sort(comparePersonsByLastName);
+          for (const rps of rpSibs) { placedGen0.add(rps.id); orderedGen0.push(rps); }
+        }
+        for (const rem of [...gen0Members].sort(comparePersonsByLastName)) {
+          if (!placedGen0.has(rem.id)) { placedGen0.add(rem.id); orderedGen0.push(rem); }
+          for (const rmp of gen0Members.filter(m => !placedGen0.has(m.id) && explicitPartners(rem.id, m.id))) {
+            placedGen0.add(rmp.id); orderedGen0.push(rmp);
           }
         }
 
-        const visited = new Set();
-        const ordered = [];
-        const sortedSeed = [...members].sort((a, b) => {
-          const aRole = roleRelativeToRoot(a, genLevel);
-          const bRole = roleRelativeToRoot(b, genLevel);
-          const aIsParent = aRole === "Eltern" || aRole === "Mutter" || aRole === "Vater";
-          const bIsParent = bRole === "Eltern" || bRole === "Mutter" || bRole === "Vater";
-          if (aIsParent && !bIsParent) return -1;
-          if (!aIsParent && bIsParent) return 1;
-          return comparePersonsByLastName(a, b);
+        let cursorX = 0;
+        orderedGen0.forEach((p, idx) => {
+          if (idx === 0) {
+            xCenter.set(p.id, 0);
+            cursorX = 0;
+          } else {
+            const prev = orderedGen0[idx - 1];
+            const baseGap = explicitPartners(prev.id, p.id)
+              ? partnerGap
+              : ((explicitSiblings(prev.id, p.id) || directParentsOf(prev.id).some(pid => directParentsOf(p.id).includes(pid))) ? siblingGap : groupGap);
+            const shareParent = directParentsOf(prev.id).some(pid => directParentsOf(p.id).includes(pid));
+            const minDist = (!shareParent && directParentsOf(prev.id).length > 0 && directParentsOf(p.id).length > 0)
+              ? Math.max(nodeW + baseGap, parentFootprintHalfWidth(prev.id) + parentFootprintHalfWidth(p.id) + groupGap)
+              : (nodeW + baseGap);
+            cursorX += minDist;
+            xCenter.set(p.id, cursorX);
+          }
         });
+        const rootShift = xCenter.get(rootPerson.id) || 0;
+        orderedGen0.forEach(p => xCenter.set(p.id, (xCenter.get(p.id) || 0) - rootShift));
+        rawMembersByGen.set(0, orderedGen0);
+      }
 
-        for (const m of sortedSeed) {
-          if (visited.has(m.id)) continue;
-          visited.add(m.id);
-          ordered.push(m);
-          for (const candidate of members) {
-            if (!visited.has(candidate.id) && arePartnersOrCoParents(m.id, candidate.id)) {
-              visited.add(candidate.id);
-              ordered.push(candidate);
+      function resolveUnitOverlaps(units, minGap) {
+        if (units.length <= 1) return;
+        for (let pass = 0; pass < 4; pass++) {
+          for (let i = 0; i < units.length - 1; i++) {
+            const leftU = units[i];
+            const rightU = units[i + 1];
+            const overlap = (leftU.centerX + leftU.halfW + minGap) - (rightU.centerX - rightU.halfW);
+            if (overlap > 0.1) {
+              if (leftU.hasVerticalAnchor && !rightU.hasVerticalAnchor) rightU.centerX += overlap;
+              else if (!leftU.hasVerticalAnchor && rightU.hasVerticalAnchor) leftU.centerX -= overlap;
+              else { leftU.centerX -= overlap / 2; rightU.centerX += overlap / 2; }
             }
           }
         }
-        return ordered;
       }
 
-      const levelsMap = new Map();
-      for (const [pid, gen] of genMap.entries()) {
-        if (!levelsMap.has(gen)) levelsMap.set(gen, []);
-        levelsMap.get(gen).push(personMap.get(pid));
+      // B) Aufwärts-Pass (Eltern strikt über ihren eigenen Kindern)
+      const upperGens = [...rawMembersByGen.keys()].filter(g => g < 0).sort((a, b) => b - a);
+      for (const g of upperGens) {
+        const rowMembers = [...(rawMembersByGen.get(g) || [])].sort(comparePersonsByLastName);
+        const used = new Set();
+        const rawUnits = [];
+        for (const m of rowMembers) {
+          if (used.has(m.id)) continue;
+          used.add(m.id);
+          const partner = rowMembers.find(c => !used.has(c.id) && explicitPartners(m.id, c.id));
+          if (partner) { used.add(partner.id); rawUnits.push([m, partner]); }
+          else rawUnits.push([m]);
+        }
+
+        const unitAnchors = new Map();
+        rawUnits.forEach((uMembers, idx) => {
+          const childXs = [...new Set(uMembers.flatMap(pm => directChildrenOf(pm.id)))].filter(cid => xCenter.has(cid)).map(cid => xCenter.get(cid));
+          if (childXs.length > 0) {
+            unitAnchors.set(idx, { x: childXs.reduce((a, b) => a + b, 0) / childXs.length, anchored: true });
+          } else {
+            const jumpXs = treeEdges.filter(e => uMembers.some(um => e.personAId === um.id || e.personBId === um.id))
+              .map(e => uMembers.some(um => um.id === e.personAId) ? e.personBId : e.personAId)
+              .filter(tid => (genMap.get(tid) ?? g) > g && xCenter.has(tid))
+              .map(tid => xCenter.get(tid));
+            if (jumpXs.length > 0) {
+              unitAnchors.set(idx, { x: jumpXs.reduce((a, b) => a + b, 0) / jumpXs.length, anchored: false });
+            }
+          }
+        });
+
+        rawUnits.forEach((uMembers, idx) => {
+          if (!unitAnchors.has(idx)) {
+            const sibUnitIdx = rawUnits.findIndex((otherM, oIdx) => oIdx !== idx && unitAnchors.has(oIdx) && uMembers.some(um => otherM.some(om => explicitSiblings(um.id, om.id))));
+            if (sibUnitIdx >= 0) {
+              const refX = unitAnchors.get(sibUnitIdx).x;
+              unitAnchors.set(idx, { x: refX + (refX <= 0 ? -(nodeW + siblingGap) : (nodeW + siblingGap)), anchored: false });
+            } else {
+              unitAnchors.set(idx, { x: 0, anchored: false });
+            }
+          }
+        });
+
+        const positionedUnits = rawUnits.map((members, idx) => {
+          const anc = unitAnchors.get(idx) || { x: 0, anchored: false };
+          const w = members.length === 2 ? (2 * nodeW + partnerGap) : nodeW;
+          return { members, centerX: anc.x, hasVerticalAnchor: anc.anchored, width: w, halfW: w / 2 };
+        }).sort((a, b) => a.centerX - b.centerX);
+
+        resolveUnitOverlaps(positionedUnits, groupGap);
+        const finalOrder = [];
+        for (const u of positionedUnits) {
+          if (u.members.length === 2) {
+            xCenter.set(u.members[0].id, u.centerX - (nodeW + partnerGap) / 2);
+            xCenter.set(u.members[1].id, u.centerX + (nodeW + partnerGap) / 2);
+            finalOrder.push(u.members[0], u.members[1]);
+          } else {
+            xCenter.set(u.members[0].id, u.centerX);
+            finalOrder.push(u.members[0]);
+          }
+        }
+        rawMembersByGen.set(g, finalOrder);
       }
-      const sortedLevels = [...levelsMap.keys()].sort((a, b) => a - b);
+
+      // C) Abwärts-Pass (Kinder strikt unter ihren eigenen Eltern)
+      const lowerGens = [...rawMembersByGen.keys()].filter(g => g > 0).sort((a, b) => a - b);
+      for (const g of lowerGens) {
+        const rowMembers = [...(rawMembersByGen.get(g) || [])].sort((a, b) => {
+          const pa = directParentsOf(a.id).filter(pid => genMap.get(pid) === g - 1).length;
+          const pb = directParentsOf(b.id).filter(pid => genMap.get(pid) === g - 1).length;
+          if (pb !== pa) return pb - pa;
+          return comparePersonsByLastName(a, b);
+        });
+        const used = new Set();
+        const childUnits = [];
+        for (const m of rowMembers) {
+          if (used.has(m.id)) continue;
+          used.add(m.id);
+          const mParents = directParentsOf(m.id).filter(pid => xCenter.has(pid)).sort((a, b) => a - b);
+          const partner = rowMembers.find(c => !used.has(c.id) && explicitPartners(m.id, c.id));
+          if (partner) {
+            used.add(partner.id);
+            const combined = [...new Set([...mParents, ...directParentsOf(partner.id).filter(pid => xCenter.has(pid))])].sort((a, b) => a - b);
+            childUnits.push({ members: [m, partner], parentIds: combined });
+          } else {
+            childUnits.push({ members: [m], parentIds: mParents });
+          }
+        }
+
+        const grouped = new Map();
+        childUnits.forEach((cu, idx) => {
+          const key = cu.parentIds.length > 0 ? `P:${cu.parentIds.join(",")}` : `OTHER:${idx}`;
+          if (!grouped.has(key)) grouped.set(key, []);
+          grouped.get(key).push(cu);
+        });
+
+        const positionedUnits = [];
+        for (const groupList of grouped.values()) {
+          const pIds = groupList[0].parentIds;
+          let anchorX = 0;
+          if (pIds.length > 0) {
+            const pxs = pIds.map(pid => xCenter.get(pid)).filter(v => v !== undefined);
+            anchorX = pxs.length > 0 ? pxs.reduce((a, b) => a + b, 0) / pxs.length : 0;
+          } else {
+            const sampleMembers = groupList.flatMap(x => x.members);
+            const connXs = treeEdges.filter(e => sampleMembers.some(sm => e.personAId === sm.id || e.personBId === sm.id))
+              .map(e => sampleMembers.some(sm => sm.id === e.personAId) ? e.personBId : e.personAId)
+              .filter(tid => xCenter.has(tid)).map(tid => xCenter.get(tid));
+            anchorX = connXs.length > 0 ? connXs.reduce((a, b) => a + b, 0) / connXs.length : 0;
+          }
+
+          const widths = groupList.map(cu => cu.members.length === 2 ? (2 * nodeW + partnerGap) : nodeW);
+          const totalW = widths.reduce((a, b) => a + b, 0) + siblingGap * Math.max(0, groupList.length - 1);
+          let curLeft = anchorX - totalW / 2;
+          groupList.forEach((cu, i) => {
+            const w = widths[i];
+            positionedUnits.push({ members: cu.members, centerX: curLeft + w / 2, hasVerticalAnchor: cu.parentIds.length > 0, width: w, halfW: w / 2 });
+            curLeft += w + siblingGap;
+          });
+        }
+
+        positionedUnits.sort((a, b) => a.centerX - b.centerX);
+        resolveUnitOverlaps(positionedUnits, siblingGap);
+        const finalOrder = [];
+        for (const u of positionedUnits) {
+          if (u.members.length === 2) {
+            xCenter.set(u.members[0].id, u.centerX - (nodeW + partnerGap) / 2);
+            xCenter.set(u.members[1].id, u.centerX + (nodeW + partnerGap) / 2);
+            finalOrder.push(u.members[0], u.members[1]);
+          } else {
+            xCenter.set(u.members[0].id, u.centerX);
+            finalOrder.push(u.members[0]);
+          }
+        }
+        rawMembersByGen.set(g, finalOrder);
+      }
+
+      const sortedLevels = [...rawMembersByGen.keys()].sort((a, b) => a - b);
       let maxRowCount = 1;
-      for (const lvl of sortedLevels) {
-        const len = (levelsMap.get(lvl) || []).length;
-        if (len > maxRowCount) maxRowCount = len;
+      const rawNodes = [];
+      sortedLevels.forEach((genLevel, rowIdx) => {
+        const list = rawMembersByGen.get(genLevel) || [];
+        if (list.length > maxRowCount) maxRowCount = list.length;
+        const topY = canvasPadY + rowIdx * levelStepY;
+        for (const p of list) {
+          const cx = xCenter.get(p.id) || 0;
+          rawNodes.push({
+            person: p,
+            genLevel,
+            left: cx - nodeW / 2,
+            top: topY,
+            width: nodeW,
+            height: nodeH,
+            roleText: roleRelativeToRoot(p)
+          });
+        }
+      });
+
+      const minLeft = rawNodes.length > 0 ? Math.min(...rawNodes.map(n => n.left)) : 0;
+      const shiftX = canvasPadX - minLeft;
+      const positionedNodes = rawNodes.map(n => {
+        const left = n.left + shiftX;
+        return {
+          ...n,
+          left,
+          right: left + n.width,
+          bottom: n.top + n.height,
+          centerX: left + n.width / 2,
+          centerY: n.top + n.height / 2
+        };
+      });
+      const nodeCoordsById = new Map(positionedNodes.map(n => [n.person.id, n]));
+      const totalCanvasW = Math.max(260 * z, (positionedNodes.length > 0 ? Math.max(...positionedNodes.map(n => n.right)) : nodeW) + canvasPadX);
+      const totalCanvasH = Math.max(155 * z, (positionedNodes.length > 0 ? Math.max(...positionedNodes.map(n => n.bottom)) : nodeH) + canvasPadY);
+
+      // SVG-Pfade für direkte Beziehungslinien generieren
+      const strokeMain = Math.max(1.5, +(2.5 * z).toFixed(1));
+      const strokeSubtle = Math.max(1.3, +(2.0 * z).toFixed(1));
+      const dotR = Math.max(2.2, +(3.3 * z).toFixed(1));
+      const dashSpec = `${Math.max(4, Math.round(7 * z))} ${Math.max(3, Math.round(5 * z))}`;
+      const svgParts = [];
+      const badgeParts = [];
+
+      function buildRoundedDropPath(sx, sy, ex, ey, my) {
+        if (Math.abs(sx - ex) < 1.5) return `M ${sx.toFixed(1)} ${sy.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+        const maxR = Math.min(Math.abs(ex - sx) / 2, Math.abs(my - sy) / 2, Math.abs(ey - my) / 2, Math.max(4, 10 * z));
+        const dirX = ex > sx ? 1 : -1;
+        const dirY1 = my >= sy ? 1 : -1;
+        const dirY2 = ey >= my ? 1 : -1;
+        return [
+          `M ${sx.toFixed(1)} ${sy.toFixed(1)}`,
+          `L ${sx.toFixed(1)} ${(my - dirY1 * maxR).toFixed(1)}`,
+          `Q ${sx.toFixed(1)} ${my.toFixed(1)} ${(sx + dirX * maxR).toFixed(1)} ${my.toFixed(1)}`,
+          `L ${(ex - dirX * maxR).toFixed(1)} ${my.toFixed(1)}`,
+          `Q ${ex.toFixed(1)} ${my.toFixed(1)} ${ex.toFixed(1)} ${(my + dirY2 * maxR).toFixed(1)}`,
+          `L ${ex.toFixed(1)} ${ey.toFixed(1)}`
+        ].join(" ");
       }
+
+      // 1. Partner-Linien
+      for (const edge of treeEdges.filter(e => e.kind === "PARTNER")) {
+        const nA = nodeCoordsById.get(edge.personAId);
+        const nB = nodeCoordsById.get(edge.personBId);
+        if (!nA || !nB) continue;
+        const leftN = nA.centerX <= nB.centerX ? nA : nB;
+        const rightN = leftN.person.id === nA.person.id ? nB : nA;
+        const betweenExists = leftN.genLevel === rightN.genLevel && positionedNodes.some(n =>
+          n.genLevel === leftN.genLevel && n.person.id !== leftN.person.id && n.person.id !== rightN.person.id &&
+          n.centerX > leftN.centerX && n.centerX < rightN.centerX
+        );
+        let bx, by;
+        if (leftN.genLevel === rightN.genLevel && !betweenExists) {
+          svgParts.push(`<line x1="${leftN.right.toFixed(1)}" y1="${leftN.centerY.toFixed(1)}" x2="${rightN.left.toFixed(1)}" y2="${rightN.centerY.toFixed(1)}" stroke="var(--partner-rose)" stroke-width="${strokeMain}" stroke-linecap="round" />`);
+          svgParts.push(`<circle cx="${leftN.right.toFixed(1)}" cy="${leftN.centerY.toFixed(1)}" r="${dotR}" fill="var(--partner-rose)" />`);
+          svgParts.push(`<circle cx="${rightN.left.toFixed(1)}" cy="${rightN.centerY.toFixed(1)}" r="${dotR}" fill="var(--partner-rose)" />`);
+          bx = (leftN.right + rightN.left) / 2;
+          by = leftN.centerY;
+        } else {
+          const archY = Math.max(leftN.bottom, rightN.bottom) + 14 * z;
+          svgParts.push(`<path d="M ${leftN.centerX.toFixed(1)} ${leftN.bottom.toFixed(1)} L ${leftN.centerX.toFixed(1)} ${archY.toFixed(1)} L ${rightN.centerX.toFixed(1)} ${archY.toFixed(1)} L ${rightN.centerX.toFixed(1)} ${rightN.bottom.toFixed(1)}" fill="none" stroke="var(--partner-rose)" stroke-width="${strokeMain}" stroke-linecap="round" stroke-linejoin="round" />`);
+          bx = (leftN.centerX + rightN.centerX) / 2;
+          by = archY;
+        }
+        badgeParts.push({
+          x: bx, y: by, fromId: edge.fromId, toId: edge.toId,
+          text: treeEditConnectionsMode ? "✏️ ❤️" : "❤️",
+          borderColor: "var(--partner-rose)", textColor: "var(--partner-rose)"
+        });
+      }
+
+      // 2. Eltern -> Kind Linien (nur zu den tatsächlichen Kindern!)
+      const childrenByParentSet = new Map();
+      for (const n of positionedNodes) {
+        const pIds = directParentsOf(n.person.id).filter(pid => nodeCoordsById.has(pid)).sort((a, b) => a - b);
+        if (pIds.length === 0) continue;
+        const key = pIds.join(",");
+        if (!childrenByParentSet.has(key)) childrenByParentSet.set(key, []);
+        childrenByParentSet.get(key).push(n);
+      }
+
+      let groupIdx = 0;
+      for (const [pKey, cNodesRaw] of childrenByParentSet.entries()) {
+        const cNodes = [...cNodesRaw].sort((a, b) => a.centerX - b.centerX);
+        const pNodes = pKey.split(",").map(id => nodeCoordsById.get(Number(id))).filter(Boolean).sort((a, b) => a.centerX - b.centerX);
+        if (pNodes.length === 0 || cNodes.length === 0) continue;
+        const laneShift = ((groupIdx % 3) - 1) * (5 * z);
+        groupIdx++;
+
+        if (pNodes.length === 2 && pNodes[0].genLevel === pNodes[1].genLevel) {
+          const [pLeft, pRight] = pNodes;
+          const areAdjPartners = explicitPartners(pLeft.person.id, pRight.person.id) &&
+            !positionedNodes.some(n => n.genLevel === pLeft.genLevel && n.person.id !== pLeft.person.id && n.person.id !== pRight.person.id && n.centerX > pLeft.centerX && n.centerX < pRight.centerX);
+          let originX, originY;
+          if (areAdjPartners) {
+            originX = (pLeft.right + pRight.left) / 2;
+            originY = pLeft.centerY;
+            svgParts.push(`<circle cx="${originX.toFixed(1)}" cy="${originY.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+          } else {
+            originX = (pLeft.centerX + pRight.centerX) / 2;
+            originY = pLeft.bottom + 11 * z;
+            for (const pn of [pLeft, pRight]) {
+              svgParts.push(`<path d="M ${pn.centerX.toFixed(1)} ${pn.bottom.toFixed(1)} L ${pn.centerX.toFixed(1)} ${originY.toFixed(1)} L ${originX.toFixed(1)} ${originY.toFixed(1)}" fill="none" stroke="var(--accent-steel)" stroke-width="${strokeSubtle}" stroke-linecap="round" />`);
+              svgParts.push(`<circle cx="${pn.centerX.toFixed(1)}" cy="${pn.bottom.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+            }
+          }
+          const minTop = Math.min(...cNodes.map(c => c.top));
+          const channelY = Math.min(Math.max((pLeft.bottom + minTop) / 2 + laneShift, pLeft.bottom + 10 * z), Math.max(pLeft.bottom + 10 * z, minTop - 10 * z));
+          for (const cn of cNodes) {
+            svgParts.push(`<path d="${buildRoundedDropPath(originX, originY, cn.centerX, cn.top, channelY)}" fill="none" stroke="var(--accent-steel)" stroke-width="${strokeMain}" stroke-linecap="round" stroke-linejoin="round" />`);
+            svgParts.push(`<circle cx="${cn.centerX.toFixed(1)}" cy="${cn.top.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+          }
+        } else {
+          for (const pn of pNodes) {
+            const minTop = Math.min(...cNodes.map(c => c.top));
+            const channelY = Math.min(Math.max((pn.bottom + minTop) / 2 + laneShift, pn.bottom + 8 * z), Math.max(pn.bottom + 8 * z, minTop - 8 * z));
+            svgParts.push(`<circle cx="${pn.centerX.toFixed(1)}" cy="${pn.bottom.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+            for (const cn of cNodes) {
+              svgParts.push(`<path d="${buildRoundedDropPath(pn.centerX, pn.bottom, cn.centerX, cn.top, channelY)}" fill="none" stroke="var(--accent-steel)" stroke-width="${strokeMain}" stroke-linecap="round" stroke-linejoin="round" />`);
+              svgParts.push(`<circle cx="${cn.centerX.toFixed(1)}" cy="${cn.top.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+            }
+          }
+        }
+      }
+
+      if (treeEditConnectionsMode) {
+        for (const edge of treeEdges.filter(e => e.kind === "PARENT_CHILD")) {
+          const pNode = nodeCoordsById.get(edge.parentId);
+          const cNode = nodeCoordsById.get(edge.childId);
+          if (!pNode || !cNode) continue;
+          const others = directParentsOf(cNode.person.id).filter(pid => pid !== pNode.person.id);
+          let xOff = 0;
+          if (others.length > 0 && nodeCoordsById.has(others[0])) {
+            xOff = pNode.centerX < nodeCoordsById.get(others[0]).centerX ? (-14 * z) : (14 * z);
+          }
+          badgeParts.push({
+            x: cNode.centerX + xOff, y: cNode.top - 14 * z,
+            fromId: edge.fromId, toId: edge.toId,
+            text: `✏️ ${shortTreeRelationName(edge.label)}`,
+            borderColor: "var(--accent-steel)", textColor: "var(--accent-steel)"
+          });
+        }
+      }
+
+      // 3. Geschwister-Linien
+      for (const edge of treeEdges.filter(e => e.kind === "SIBLING")) {
+        const sharedParent = directParentsOf(edge.personAId).some(pid => directParentsOf(edge.personBId).includes(pid));
+        if (sharedParent && !treeEditConnectionsMode) continue;
+        const nA = nodeCoordsById.get(edge.personAId);
+        const nB = nodeCoordsById.get(edge.personBId);
+        if (!nA || !nB) continue;
+        const leftN = nA.centerX <= nB.centerX ? nA : nB;
+        const rightN = leftN.person.id === nA.person.id ? nB : nA;
+        const betweenExists = leftN.genLevel === rightN.genLevel && positionedNodes.some(n =>
+          n.genLevel === leftN.genLevel && n.person.id !== leftN.person.id && n.person.id !== rightN.person.id &&
+          n.centerX > leftN.centerX && n.centerX < rightN.centerX
+        );
+        let bx, by;
+        if (leftN.genLevel === rightN.genLevel && !betweenExists) {
+          const ly = leftN.centerY - 14 * z;
+          svgParts.push(`<line x1="${leftN.right.toFixed(1)}" y1="${ly.toFixed(1)}" x2="${rightN.left.toFixed(1)}" y2="${ly.toFixed(1)}" stroke="var(--tree-green)" stroke-width="${strokeSubtle}" ${sharedParent ? `stroke-dasharray="${dashSpec}"` : ""} stroke-linecap="round" />`);
+          bx = (leftN.right + rightN.left) / 2;
+          by = ly;
+        } else {
+          const archY = Math.min(leftN.top, rightN.top) - 13 * z;
+          svgParts.push(`<path d="M ${leftN.centerX.toFixed(1)} ${leftN.top.toFixed(1)} L ${leftN.centerX.toFixed(1)} ${archY.toFixed(1)} L ${rightN.centerX.toFixed(1)} ${archY.toFixed(1)} L ${rightN.centerX.toFixed(1)} ${rightN.top.toFixed(1)}" fill="none" stroke="var(--tree-green)" stroke-width="${strokeSubtle}" stroke-dasharray="${dashSpec}" stroke-linecap="round" stroke-linejoin="round" />`);
+          bx = (leftN.centerX + rightN.centerX) / 2;
+          by = archY;
+        }
+        badgeParts.push({
+          x: bx, y: by, fromId: edge.fromId, toId: edge.toId,
+          text: treeEditConnectionsMode ? "✏️ 🤝" : "🤝",
+          borderColor: "var(--tree-green)", textColor: "var(--tree-green)"
+        });
+      }
+
+      // 4. Weitere Familien-Verbindungen (Oma/Opa direkt, Onkel/Tante, Cousin/Cousine)
+      const violetColor = "#8B5CF6";
+      for (const edge of treeEdges.filter(e => e.kind === "EXTENDED")) {
+        const nA = nodeCoordsById.get(edge.personAId);
+        const nB = nodeCoordsById.get(edge.personBId);
+        if (!nA || !nB) continue;
+        const upper = nA.centerY <= nB.centerY ? nA : nB;
+        const lower = upper.person.id === nA.person.id ? nB : nA;
+        const sx = upper.genLevel === lower.genLevel ? (upper.centerX <= lower.centerX ? upper.right : upper.left) : upper.centerX;
+        const sy = upper.genLevel === lower.genLevel ? upper.centerY : upper.bottom;
+        const ex = upper.genLevel === lower.genLevel ? (upper.centerX <= lower.centerX ? lower.left : lower.right) : lower.centerX;
+        const ey = upper.genLevel === lower.genLevel ? lower.centerY : lower.top;
+        const my = (sy + ey) / 2;
+        svgParts.push(`<path d="M ${sx.toFixed(1)} ${sy.toFixed(1)} C ${sx.toFixed(1)} ${my.toFixed(1)}, ${ex.toFixed(1)} ${my.toFixed(1)}, ${ex.toFixed(1)} ${ey.toFixed(1)}" fill="none" stroke="${violetColor}" stroke-width="${strokeSubtle}" stroke-dasharray="${dashSpec}" stroke-linecap="round" />`);
+        badgeParts.push({
+          x: (sx + ex) / 2, y: (sy + ey) / 2,
+          fromId: edge.fromId, toId: edge.toId,
+          text: treeEditConnectionsMode ? `✏️ ${shortTreeRelationName(edge.label)}` : shortTreeRelationName(edge.label),
+          borderColor: violetColor, textColor: violetColor
+        });
+      }
+
+      const avatarSize = Math.max(15, Math.round(24 * z));
+      const nameFont = Math.max(7, +(11.5 * z).toFixed(1));
+      const roleFont = Math.max(6, +(9.5 * z).toFixed(1));
+      const subFont = Math.max(5.5, +(8.8 * z).toFixed(1));
+      const badgeFont = Math.max(6.5, +(9.5 * z).toFixed(1));
+
+      const cardsHtml = positionedNodes.map(node => {
+        const m = node.person;
+        const isRoot = m.id === rootPerson.id;
+        const isPicked = treeFirstPickedPersonId === m.id;
+        const role = node.roleText;
+        const isPartnerRole = isPartnerRelation(role) || role === "Schwiegereltern" || role === "Schwager/in" || role === "Schwiegerkind";
+        const accentColor = isPicked
+          ? "var(--warn-amber)"
+          : (isRoot ? "var(--accent-steel)" : (isPartnerRole ? "var(--partner-rose)" : ((role === "Mutter" || role === "Vater" || role === "Elternteil" || role === "Oma/Opa") ? "var(--accent-steel)" : "var(--tree-green)")));
+
+        let birthText = "";
+        const b = (m.birthdayIso || "").trim();
+        if (b && !b.startsWith("WEEKLY:") && !b.startsWith("REPEAT:")) {
+          if (b.startsWith("--") && b.length >= 7) birthText = `* ${b.slice(5, 7)}.${b.slice(2, 4)}.`;
+          else if (b.length >= 10) birthText = `${b.slice(8, 10)}.${b.slice(5, 7)}.${b.slice(0, 4)}`;
+        }
+
+        const focusPinHtml = (!isRoot && !treeEditConnectionsMode && z >= 0.65)
+          ? `<span class="tree-focus-pin" style="width:${Math.max(14, Math.round(18 * z))}px; height:${Math.max(14, Math.round(18 * z))}px; font-size:${Math.max(7, +(8.5 * z).toFixed(1))}px;" title="Als Fokus im Stammbaum zentrieren" onclick="event.stopPropagation(); selectedTreeRootId=${m.id}; treePanX=0; treePanY=0; renderPhoneApp();">🎯</span>`
+          : "";
+
+        return `
+          <div class="tree-node ${isRoot ? 'root' : ''} ${isPartnerRelation(role) ? 'partner' : ''} ${isPicked ? 'picked-first' : ''}"
+               style="left:${node.left.toFixed(1)}px; top:${node.top.toFixed(1)}px; width:${node.width.toFixed(1)}px; height:${node.height.toFixed(1)}px; border-radius:${Math.max(6, Math.round(12 * z))}px; padding:${Math.max(3, Math.round(5 * z))}px ${Math.max(4, Math.round(7 * z))}px;"
+               onclick="handleTreeNodeClick(${m.id}, event)">
+            <div style="position:absolute; top:0; left:0; right:0; height:${Math.max(2, Math.round(3.2 * z))}px; background:${accentColor};"></div>
+            ${focusPinHtml}
+            <div style="margin-bottom:${Math.max(1, Math.round(2 * z))}px;">${renderPersonAvatarHtml(m.name, m.photoBase64, avatarSize)}</div>
+            <div style="font-size:${nameFont}px; font-weight:700; color:var(--text-primary); line-height:1.15; max-width:100%; overflow-wrap:anywhere;">${escapeHtml(m.name)}</div>
+            ${(birthText && z >= 0.6) ? `<div style="font-size:${subFont}px; color:var(--text-muted); line-height:1.1; margin-top:1px; white-space:nowrap;">${escapeHtml(birthText)}</div>` : ""}
+            <div style="margin-top:${Math.max(1, Math.round(2 * z))}px; background:rgba(59,130,196,0.11); border-radius:${Math.max(4, Math.round(6 * z))}px; padding:1px ${Math.max(4, Math.round(6 * z))}px; font-size:${roleFont}px; font-weight:700; color:${accentColor}; white-space:nowrap;">
+              ${escapeHtml(isRoot ? "⭐ Fokus" : role)}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      const badgesHtml = badgeParts.map(b => `
+        <div class="tree-edge-badge"
+             style="left:${b.x.toFixed(1)}px; top:${b.y.toFixed(1)}px; border:1.2px solid ${b.borderColor}; color:${b.textColor}; font-size:${badgeFont}px;"
+             title="Verbindung bearbeiten oder trennen"
+             onclick="event.stopPropagation(); openTreeConnectionModal(${b.fromId}, ${b.toId});">
+          ${escapeHtml(b.text)}
+        </div>
+      `).join("");
 
       const focusDropdownHtml = renderContactSearchDropdownHtml({
         key: "tab_family_tree_focus",
         persons: visiblePersons,
         selectedPersonId: rootPerson.id,
         placeholder: "🌳 Fokus-Kontakt (Nachname) wählen...",
-        onSelectPersonJs: (pid) => `selectedTreeRootId=${pid}; renderPhoneApp()`,
+        onSelectPersonJs: (pid) => `selectedTreeRootId=${pid}; treePanX=0; treePanY=0; renderPhoneApp()`,
         showInlineAlphabet: true,
         inModal: false
       });
 
       const unconnected = visiblePersons.filter(p => !genMap.has(p.id));
       const unconnectedHtml = unconnected.length > 0 ? `
-        <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
+        <div class="card" style="padding:10px 11px; display:flex; flex-direction:column; gap:7px; border-radius:12px;">
           <div style="font-size:12px; font-weight:600; color:var(--text-secondary);">
             Weitere Kontakte (${unconnected.length}, noch nicht mit ${escapeHtml(formatLastNameFirst(rootPerson.name))} verknüpft):
+          </div>
+          <div style="font-size:11px; color:var(--text-muted);">
+            Tippe auf einen Kontakt, um ihn direkt mit ${escapeHtml(rootPerson.name)} im Stammbaum zu verknüpfen:
           </div>
           ${renderContactSearchDropdownHtml({
             key: "tab_family_tree_unconnected",
             persons: unconnected,
             selectedPersonId: null,
-            placeholder: `🔎 Nicht verknüpften Kontakt auswählen (${unconnected.length})...`,
-            onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
+            placeholder: `🔗 Kontakt direkt mit ${rootPerson.name.split(" ")[0]} verknüpfen (${unconnected.length})...`,
+            onSelectPersonJs: (pid) => `openTreeConnectionModal(${pid}, ${rootPerson.id})`,
             showInlineAlphabet: true,
             inModal: false
           })}
-          <div style="display:flex; flex-wrap:wrap; gap:5px; margin-top:2px;">
+          <div style="display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px; padding-bottom:2px;">
             ${unconnected.map(up => `
-              <button class="compact-btn" style="padding:4px 8px; font-size:11.5px;" onclick="openDetailModal(${up.id})">
-                ${escapeHtml(formatLastNameFirst(up.name))}
+              <button class="compact-btn" style="padding:5px 10px; font-size:11.5px; color:var(--accent-steel); flex-shrink:0;" onclick="openTreeConnectionModal(${up.id}, ${rootPerson.id})">
+                ➕ ${escapeHtml(formatLastNameFirst(up.name))}
               </button>
             `).join("")}
           </div>
         </div>
       ` : "";
 
-      const z = treeZoom;
-      const nodeMinW = Math.round(74 * z);
-      const nodeMaxW = Math.round(122 * z);
-      const nodePadV = Math.max(2, Math.round(6 * z));
-      const nodePadH = Math.max(3, Math.round(9 * z));
-      const nameFont = Math.max(6.5, +(11.5 * z).toFixed(1));
-      const roleFont = Math.max(5.5, +(10 * z).toFixed(1));
-      const connFont = Math.max(6, +(12 * z).toFixed(1));
-      const vLineH = Math.max(6, Math.round(14 * z));
-      const branchMinW = Math.max(40, Math.round(90 * z));
-      const rowGap = Math.max(2, Math.round(4 * z));
-
-      const levelsHtml = sortedLevels.map((lvl, idx) => {
-        const members = orderRowMembers(levelsMap.get(lvl) || [], lvl);
-        const nodesHtml = members.map((m, mIdx) => {
-          const isRoot = m.id === rootPerson.id;
-          const role = roleRelativeToRoot(m, lvl);
-          const isPartner = isPartnerRelation(role);
-          let connector = "";
-          if (mIdx < members.length - 1) {
-            const nextM = members[mIdx + 1];
-            const coupled = arePartnersOrCoParents(m.id, nextM.id);
-            connector = coupled
-              ? `<span style="color:var(--partner-rose); font-size:${connFont}px; font-weight:700; padding:0 2px;">❤️</span>`
-              : `<span style="width:${Math.max(2, Math.round(4 * z))}px; display:inline-block;"></span>`;
-          }
-          const avatarSize = Math.max(16, Math.round(24 * z));
-          const photoHtml = m.photoBase64
-            ? `<div style="display:flex; justify-content:center; margin-bottom:${Math.max(1, Math.round(2 * z))}px;">${renderPersonAvatarHtml(m.name, m.photoBase64, avatarSize)}</div>`
-            : "";
-          return `
-            <div class="tree-node ${isRoot ? 'root' : ''} ${isPartner ? 'partner' : ''}"
-                 style="min-width:${nodeMinW}px; max-width:${nodeMaxW}px; padding:${nodePadV}px ${nodePadH}px; border-radius:10px;"
-                 onclick="openDetailModal(${m.id})">
-              ${photoHtml}
-              <div style="font-size:${nameFont}px; font-weight:700; color:var(--text-primary); line-height:1.2;">${escapeHtml(m.name)}</div>
-              <div style="font-size:${roleFont}px; color:${isRoot ? 'var(--accent-steel)' : (isPartner ? 'var(--partner-rose)' : 'var(--tree-green)')}; margin-top:2px; line-height:1.1; font-weight:600;">
-                ${escapeHtml(role)}
-              </div>
-            </div>
-            ${connector}
-          `;
-        }).join("");
-
-        const nextMembers = idx < sortedLevels.length - 1 ? (levelsMap.get(sortedLevels[idx + 1]) || []) : [];
-        const connectorDown = idx < sortedLevels.length - 1 ? `
-          <div class="tree-line-vertical" style="height:${vLineH}px;"></div>
-          ${nextMembers.length > 1 ? `<div class="tree-branch-bar" style="min-width:${branchMinW}px;"></div>` : ""}
-        ` : "";
-
-        return `
-          <div class="tree-row" style="gap:${rowGap}px; width:max-content; overflow:visible;">${nodesHtml}</div>
-          ${connectorDown}
-        `;
-      }).join("");
-
       const zoomPct = Math.round(treeZoom * 100);
+      const defaultOtherId = (visiblePersons.find(p => p.id !== rootPerson.id) || {}).id || 0;
+      const pickedFirstObj = treeFirstPickedPersonId ? personMap.get(treeFirstPickedPersonId) : null;
 
       return `
-        <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:7px;">
-          <div style="font-size:11.5px; font-weight:600; color:var(--text-secondary);">🌳 Fokus-Kontakt im Stammbaum (Nachname, Vorname):</div>
+        <div class="card" style="padding:10px 12px; display:flex; flex-direction:column; gap:8px; border-radius:14px; background:linear-gradient(180deg, rgba(59,130,196,0.08) 0%, var(--card-slate) 100%);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="section-icon-badge" style="border-color:var(--tree-green); background:rgba(21,128,61,0.14);">🌳</span>
+            <div style="min-width:0; flex:1;">
+              <div style="font-size:14px; font-weight:700; color:var(--text-primary); white-space:nowrap;">Familien-Stammbaum</div>
+              <div style="font-size:10.5px; color:var(--text-secondary); white-space:nowrap; overflow-x:auto;">
+                ${positionedNodes.length} Personen · ${sortedLevels.length} ${sortedLevels.length === 1 ? 'Ebene' : 'Generationen'} · ${treeEdges.length} Verbindungen
+              </div>
+            </div>
+          </div>
+
           ${focusDropdownHtml}
+
+          <div style="display:flex; gap:6px; align-items:center; overflow-x:auto; white-space:nowrap;">
+            <button class="compact-btn ${treeEditConnectionsMode ? 'primary' : ''}" style="font-weight:700; padding:5px 10px;" onclick="toggleTreeEditConnectionsMode()">
+              ${treeEditConnectionsMode ? '✓ Bearbeiten aktiv' : '✏️ Verbindungen ändern'}
+            </button>
+            ${defaultOtherId > 0 ? `
+              <button class="compact-btn" style="padding:5px 10px; font-weight:600;" onclick="openTreeConnectionModal(${rootPerson.id}, ${defaultOtherId})">
+                ➕ Verknüpfen
+              </button>
+            ` : ""}
+            ${treeEdges.length > 0 ? `
+              <button class="compact-btn" style="padding:5px 10px; font-weight:600;" onclick="showAllTreeEdgesModal=true; renderModals();">
+                📋 Alle Linien (${treeEdges.length})
+              </button>
+            ` : ""}
+          </div>
+
           <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
-            <span style="font-size:11px; color:var(--text-muted);">✋ Ziehen & 🔍 Zoomen:</span>
+            <span style="font-size:11px; color:var(--text-muted);">🔍 Zoom & ✋ Ziehen:</span>
             <div class="btn-row" style="gap:4px;">
               <button class="compact-btn" style="padding:3px 8px; font-weight:700;" onclick="zoomTreeBy(-0.15)" title="Rauszoomen">➖</button>
               <button class="compact-btn ${zoomPct === 100 && treePanX === 0 && treePanY === 0 ? 'primary' : ''}" style="padding:3px 8px; font-size:11px;" onclick="resetTreeZoom()" title="Auf 100% & Mitte zurücksetzen">${zoomPct}%</button>
               <button class="compact-btn" style="padding:3px 8px; font-weight:700;" onclick="zoomTreeBy(0.15)" title="Reinzoomen">➕</button>
-              <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="fitTreeZoom(${maxRowCount}, ${sortedLevels.length})" title="Großen Stammbaum komplett einpassen">⛶ Passend</button>
+              <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="fitTreeZoom(${maxRowCount}, ${sortedLevels.length})" title="Stammbaum komplett einpassen">⛶ Passend</button>
             </div>
           </div>
+
+          <div style="display:flex; gap:10px; align-items:center; overflow-x:auto; white-space:nowrap; font-size:10.5px; color:var(--text-secondary);">
+            <span><b style="color:var(--accent-steel);">━━</b> Eltern ↔ Kind</span>
+            <span><b style="color:var(--partner-rose);">━❤️━</b> Partner / Ehe</span>
+            <span><b style="color:var(--tree-green);">━🤝━</b> Geschwister</span>
+            <span><b style="color:#8B5CF6;">╌╌</b> Weitere Familie</span>
+          </div>
         </div>
-        <div class="tree-container"
-             style="min-height:210px; overflow:hidden; align-items: stretch; cursor:grab; user-select:none;"
+
+        ${treeEditConnectionsMode ? `
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; background:rgba(59,130,196,0.14); border:1px solid var(--accent-steel); border-radius:10px; padding:8px 11px; font-size:11.5px; color:var(--text-primary);">
+            <span>${pickedFirstObj ? `1. Person: <b>${escapeHtml(pickedFirstObj.name)}</b> gewählt — tippe jetzt auf die 2. Person!` : '✏️ Tippe auf ein ✏️-Badge einer Linie ODER tippe nacheinander 2 Personen an, um ihre Verbindung zu ändern.'}</span>
+            ${pickedFirstObj ? `<button class="compact-btn" onclick="treeFirstPickedPersonId=null; renderPhoneApp();">Auswahl ✕</button>` : ""}
+          </div>
+        ` : ""}
+
+        <div class="tree-container ${treeEditConnectionsMode ? 'edit-active' : ''}"
+             style="min-height:250px; overflow:hidden; cursor:grab; user-select:none;"
              onmousedown="handleTreeMouseDown(event)"
              onmousemove="handleTreeMouseMove(event)"
              onmouseup="handleTreeMouseUp()"
@@ -4057,8 +4742,12 @@
              ontouchstart="handleTreeTouchStart(event)"
              ontouchmove="handleTreeTouchMove(event)"
              ontouchend="handleTreeTouchEnd()">
-          <div id="tree-pan-inner" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:max-content; margin:0 auto; padding:8px; transform:translate(${treePanX}px, ${treePanY}px);">
-            ${levelsHtml}
+          <div id="tree-pan-inner" style="position:relative; width:${totalCanvasW.toFixed(1)}px; height:${totalCanvasH.toFixed(1)}px; flex-shrink:0; transform:translate(${treePanX}px, ${treePanY}px);">
+            <svg width="${totalCanvasW.toFixed(1)}" height="${totalCanvasH.toFixed(1)}" style="position:absolute; left:0; top:0; pointer-events:none; overflow:visible;">
+              ${svgParts.join("")}
+            </svg>
+            ${cardsHtml}
+            ${badgesHtml}
           </div>
         </div>
         ${unconnectedHtml}
@@ -4767,6 +5456,65 @@
       `).join("");
     }
 
+    function renderMultiRelationRowsHtml(mode, candidatePersons, detailOwnerId) {
+      const rows = mode === "create" ? createPendingRelations : detailPendingRelations;
+      const syncJsPrefix = mode === "detail" ? "syncDetailDraftBeforeRerender(); " : "";
+      const readyCount = rows.filter(r => r.targetId > 0).length;
+
+      const rowsHtml = rows.map((row, idx) => {
+        const dropdownHtml = renderContactSearchDropdownHtml({
+          key: `${mode}_multi_rel_${idx}`,
+          persons: candidatePersons,
+          selectedPersonId: row.targetId ?? -1,
+          placeholder: "🔎 Verknüpften Kontakt wählen (Nachname)...",
+          allowNone: true,
+          noneLabel: "-- Kontakt auswählen --",
+          onSelectNoneJs: `${syncJsPrefix}setPendingRelationTarget('${mode}', ${idx}, -1)`,
+          onSelectPersonJs: (pid) => `${syncJsPrefix}setPendingRelationTarget('${mode}', ${idx}, ${pid})`,
+          showInlineAlphabet: true,
+          inModal: true
+        });
+        const customOpt = (row.label && !RELATION_PRESETS.includes(row.label))
+          ? `<option value="${escapeHtml(row.label)}" selected>${escapeHtml(row.label)}</option>`
+          : "";
+
+        return `
+          <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:9px; padding:7px 8px; display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; flex-wrap:nowrap; gap:6px; align-items:center;">
+              <span style="font-size:10.5px; font-weight:700; color:var(--accent-steel); background:rgba(59,130,196,0.12); border-radius:6px; padding:3px 6px; white-space:nowrap; flex-shrink:0;">#${idx + 1}</span>
+              <select class="field-select" style="flex:1; min-width:0; padding:5px 7px; font-size:12px;" onchange="${syncJsPrefix}setPendingRelationLabel('${mode}', ${idx}, this.value)">
+                ${customOpt}
+                ${RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}" ${(row.label || 'Kind von') === r ? 'selected' : ''}>${escapeHtml(r)}</option>`).join("")}
+              </select>
+              ${(rows.length > 1 || row.targetId > 0) ? `
+                <span class="extra-delete-btn" style="width:26px; height:26px;" onclick="${syncJsPrefix}removePendingRelationRow('${mode}', ${idx})" title="Beziehungszeile entfernen">✕</span>
+              ` : ""}
+            </div>
+            ${dropdownHtml}
+          </div>
+        `;
+      }).join("");
+
+      return `
+        <div style="display:flex; flex-direction:column; gap:7px; width:100%; background:var(--card-slate); border:1px solid var(--border-slate); border-radius:10px; padding:9px;">
+          <div style="font-size:11px; color:var(--text-secondary); line-height:1.3;">
+            Mehrere Beziehungen gleichzeitig verknüpfen (z. B. <b>Kind von …</b> und <b>Bruder von …</b>):
+          </div>
+          ${rowsHtml}
+          <div style="display:flex; flex-wrap:nowrap; justify-content:space-between; align-items:center; gap:6px; overflow-x:auto;">
+            <button type="button" class="compact-btn" style="padding:5px 10px; font-weight:600; white-space:nowrap; flex-shrink:0;" onclick="${syncJsPrefix}addPendingRelationRow('${mode}')">
+              ➕ Weitere Beziehung hinzufügen
+            </button>
+            ${mode === "detail" && readyCount > 0 ? `
+              <button type="button" class="compact-btn primary" style="padding:5px 10px; font-weight:700; white-space:nowrap; flex-shrink:0;" onclick="saveDetailPendingRelationsNow(${detailOwnerId})">
+                ✓ ${readyCount} speichern
+              </button>
+            ` : ""}
+          </div>
+        </div>
+      `;
+    }
+
     function renderModals() {
       const modalRoot = document.getElementById("modal-root");
       const relPresetOptions = RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
@@ -4783,6 +5531,141 @@
               <div class="modal-footer" style="justify-content:flex-end;">
                 <button class="compact-btn" onclick="cancelDeleteConfirm()">Abbrechen</button>
                 <button class="compact-btn danger" onclick="executeDeleteConfirm()">Ja, löschen</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (treeRelationModalState !== null) {
+        const tm = treeRelationModalState;
+        const visiblePersons = sortPersonsByLastName(state.persons.filter(p => !p.isHidden));
+        const fromPerson = visiblePersons.find(p => p.id === tm.fromId) || visiblePersons[0];
+        const toCandidates = visiblePersons.filter(p => !fromPerson || p.id !== fromPerson.id);
+        const toPerson = toCandidates.find(p => p.id === tm.toId) || toCandidates[0];
+        if (fromPerson && tm.fromId !== fromPerson.id) tm.fromId = fromPerson.id;
+        if (toPerson && tm.toId !== toPerson.id) tm.toId = toPerson.id;
+
+        const fromPickerHtml = renderContactSearchDropdownHtml({
+          key: "tree_modal_from_person",
+          persons: visiblePersons,
+          selectedPersonId: tm.fromId,
+          placeholder: "🔎 1. Person wählen...",
+          onSelectPersonJs: (pid) => `if (pid === treeRelationModalState.toId) { treeRelationModalState.toId = treeRelationModalState.fromId; } treeRelationModalState.fromId = ${pid}; renderModals()`,
+          showInlineAlphabet: true,
+          inModal: true
+        });
+        const toPickerHtml = renderContactSearchDropdownHtml({
+          key: "tree_modal_to_person",
+          persons: toCandidates,
+          selectedPersonId: tm.toId,
+          placeholder: "🔎 2. Person wählen...",
+          onSelectPersonJs: (pid) => `treeRelationModalState.toId = ${pid}; renderModals()`,
+          showInlineAlphabet: true,
+          inModal: true
+        });
+        const customOpt = (tm.label && !RELATION_PRESETS.includes(tm.label))
+          ? `<option value="${escapeHtml(tm.label)}" selected>${escapeHtml(tm.label)}</option>`
+          : "";
+
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" style="max-width:365px;" onclick="event.stopPropagation()">
+              <div class="modal-header-sticky">
+                <div class="modal-title" style="flex:1; min-width:0; white-space:nowrap; overflow-x:auto;">
+                  ${tm.isExisting ? "✏️ Stammbaum-Verbindung ändern" : "➕ Stammbaum-Verbindung anlegen"}
+                </div>
+                <button class="compact-btn" onclick="treeRelationModalState=null; renderModals();">✕</button>
+              </div>
+
+              <div class="field-group">
+                <label class="field-label" style="font-weight:700;">1. Person A</label>
+                ${fromPickerHtml}
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                <span style="font-size:11px; font-weight:700; color:var(--accent-steel);">ist …</span>
+                <button type="button" class="compact-btn" style="padding:3px 9px; font-size:11px;" onclick="swapTreeModalDirection()">⇄ Richtung tauschen</button>
+              </div>
+
+              <div class="field-group">
+                <label class="field-label" style="font-weight:700;">Beziehungsart</label>
+                <select class="field-select" onchange="treeRelationModalState.label=this.value; renderModals();">
+                  ${customOpt}
+                  ${RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}" ${(tm.label || 'Kind von') === r ? 'selected' : ''}>${escapeHtml(r)}</option>`).join("")}
+                </select>
+              </div>
+
+              <div class="field-group">
+                <label class="field-label" style="font-weight:700;">2. Person B</label>
+                ${toPickerHtml}
+              </div>
+
+              ${(fromPerson && toPerson) ? `
+                <div style="background:rgba(59,130,196,0.10); border:1px solid var(--accent-steel); border-radius:9px; padding:8px 10px; font-size:11.5px; color:var(--text-primary); line-height:1.35;">
+                  <b>${escapeHtml(fromPerson.name)}</b> ist <b>${escapeHtml(tm.label)}</b> <b>${escapeHtml(toPerson.name)}</b><br/>
+                  <span style="font-size:10.5px; color:var(--text-secondary);">↳ Gegenrichtung wird automatisch synchronisiert (${escapeHtml(toPerson.name)} = ${escapeHtml(inverseRelationLabel(tm.label))} ${escapeHtml(fromPerson.name)})</span>
+                </div>
+              ` : ""}
+
+              <div class="modal-footer" style="justify-content:space-between;">
+                ${tm.isExisting ? `
+                  <button class="compact-btn danger" onclick="disconnectTreeModalConnection()">🗑️ Trennen</button>
+                ` : `<span></span>`}
+                <div class="btn-row">
+                  <button class="compact-btn" onclick="treeRelationModalState=null; renderModals();">Abbrechen</button>
+                  <button class="compact-btn primary" style="font-weight:700;" onclick="saveTreeModalConnection()">✓ Speichern</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (showAllTreeEdgesModal) {
+        const visiblePersons = sortPersonsByLastName(state.persons.filter(p => !p.isHidden));
+        const personMap = new Map(visiblePersons.map(p => [p.id, p]));
+        const allEdges = extractCanonicalTreeEdges(new Set(personMap.keys()));
+        const rootPerson = visiblePersons.find(p => p.id === selectedTreeRootId) || visiblePersons[0];
+        const defaultOther = visiblePersons.find(p => rootPerson && p.id !== rootPerson.id);
+
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" style="max-width:380px;" onclick="event.stopPropagation()">
+              <div class="modal-header-sticky">
+                <div class="modal-title" style="flex:1; min-width:0; white-space:nowrap;">📋 Alle Verbindungen (${allEdges.length})</div>
+                <button class="compact-btn primary" onclick="showAllTreeEdgesModal=false; renderModals();">✓ Fertig</button>
+              </div>
+              <div style="font-size:11px; color:var(--text-secondary);">
+                Tippe auf ✏️ zum Ändern oder auf 🗑️ zum Trennen einer Stammbaum-Linie:
+              </div>
+              <div style="display:flex; flex-direction:column; gap:6px; max-height:55vh; overflow-y:auto; padding-right:2px;">
+                ${allEdges.length === 0 ? `<div style="font-size:12px; color:var(--text-muted); padding:8px;">Noch keine Verbindungen vorhanden.</div>` :
+                  allEdges.map(edge => {
+                    const pFrom = personMap.get(edge.fromId);
+                    const pTo = personMap.get(edge.toId);
+                    if (!pFrom || !pTo) return "";
+                    return `
+                      <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:9px; padding:7px 9px;">
+                        <div style="min-width:0; flex:1;">
+                          <div style="font-size:12px; font-weight:700; color:var(--text-primary); overflow-x:auto; white-space:nowrap;">${escapeHtml(pFrom.name)}</div>
+                          <div style="font-size:11px; font-weight:600; color:var(--accent-steel); overflow-x:auto; white-space:nowrap;">↳ ${escapeHtml(edge.label)} ${escapeHtml(pTo.name)}</div>
+                        </div>
+                        <div class="btn-row" style="flex-shrink:0;">
+                          <button class="compact-btn" style="padding:4px 8px;" onclick="showAllTreeEdgesModal=false; openTreeConnectionModal(${edge.fromId}, ${edge.toId});" title="Bearbeiten">✏️</button>
+                          <button class="compact-btn danger" style="padding:4px 8px;" onclick="disconnectTreeEdgeQuick(${edge.personAId}, ${edge.personBId})" title="Trennen">🗑️</button>
+                        </div>
+                      </div>
+                    `;
+                  }).join("")}
+              </div>
+              <div class="modal-footer" style="justify-content:space-between;">
+                ${(rootPerson && defaultOther) ? `
+                  <button class="compact-btn" onclick="showAllTreeEdgesModal=false; openTreeConnectionModal(${rootPerson.id}, ${defaultOther.id});">➕ Neue Verbindung</button>
+                ` : `<span></span>`}
+                <button class="compact-btn primary" onclick="showAllTreeEdgesModal=false; renderModals();">Schließen</button>
               </div>
             </div>
           </div>
@@ -5536,17 +6419,11 @@
                     <div style="display:flex; align-items:center; gap:7px;">
                       <span class="section-icon-badge">🌳</span>
                       <span style="font-size:12.5px; font-weight:700; color:var(--text-primary);">Beziehungen</span>
+                      ${createPendingRelations.filter(r => r.targetId > 0).length > 0 ? `<span class="section-count-pill">${createPendingRelations.filter(r => r.targetId > 0).length}</span>` : ""}
                     </div>
                     <span class="compact-btn" style="padding:2px 8px; font-size:11px; color:var(--accent-steel); font-weight:600;">${createRelationsExpanded ? '▼ Einklappen' : '▶ Ausklappen'}</span>
                   </div>
-                  ${createRelationsExpanded ? `
-                    <div class="field-group" style="margin-top:2px;">
-                      <label class="field-label">1. Beziehungsart</label>
-                      <select id="c-rellabel" class="field-select" onchange="createDraft.relLabel=this.value">${RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}" ${(createDraft.relLabel || 'Kind von') === r ? 'selected' : ''}>${escapeHtml(r)}</option>`).join("")}</select>
-                      <label class="field-label" style="margin-top:4px;">2. Verknüpfter Kontakt (Nachname, Vorname + ABCD)</label>
-                      ${createRelDropdownHtml}
-                    </div>
-                  ` : ""}
+                  ${createRelationsExpanded ? renderMultiRelationRowsHtml("create", sortedPersons, -1) : ""}
                 </div>
               ` : ""}
               <div class="modal-footer">
@@ -5749,26 +6626,27 @@
                     <span class="compact-btn" style="padding:2px 8px; font-size:11px; color:var(--accent-steel); font-weight:600;">${detailRelationsExpanded ? '▼ Einklappen' : '▶ Ausklappen'}</span>
                   </div>
                   ${detailRelationsExpanded ? `
-                    ${otherPersons.length > 0 ? `
-                      <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:var(--card-slate); border:1px solid var(--border-slate); border-radius:10px; padding:9px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                          <span style="font-size:11px; font-weight:600; color:var(--text-secondary);">Beziehung zuordnen:</span>
-                          <button class="compact-btn primary" style="padding:4px 9px; font-size:11px; font-weight:700;" onclick="addRelationFromDetail(${dp.id})">✓ + Speichern</button>
-                        </div>
-                        <select id="d-rellabel" class="field-select" style="background:var(--bg-slate);" onchange="detailDraftRelLabel=this.value">
-                          ${RELATION_PRESETS.map(r => `<option value="${escapeHtml(r)}" ${(detailDraftRelLabel || 'Kind von') === r ? 'selected' : ''}>${escapeHtml(r)}</option>`).join("")}
-                        </select>
-                        ${detailRelDropdownHtml}
-                      </div>
-                    ` : ""}
+                    ${otherPersons.length > 0 ? renderMultiRelationRowsHtml("detail", otherPersons, dp.id) : ""}
                     <div style="display:flex; flex-direction:column; gap:5px; margin-top:2px;">
                       ${currentRels.length === 0 ? `<div style="font-size:11px; color:var(--text-muted);">Noch keine Beziehungen verknüpft.</div>` :
-                        currentRels.map(r => `
-                          <div class="rel-item-row" style="background:var(--card-slate); border-radius:8px;">
-                            <span>🔗 ${escapeHtml(r.rel.relationLabel)} <b>${escapeHtml(formatLastNameFirst(r.target.name))}</b></span>
-                            <span class="extra-delete-btn" style="width:24px; height:24px;" onclick="removeRelation(${r.rel.id})">✕</span>
-                          </div>
-                        `).join("")}
+                        currentRels.map(r => {
+                          const customExistingOpt = !RELATION_PRESETS.includes(r.rel.relationLabel)
+                            ? `<option value="${escapeHtml(r.rel.relationLabel)}" selected>${escapeHtml(r.rel.relationLabel)}</option>`
+                            : "";
+                          return `
+                            <div class="rel-item-row" style="background:var(--card-slate); border-radius:8px; gap:6px; flex-wrap:nowrap;">
+                              <div style="display:flex; align-items:center; gap:5px; min-width:0; flex:1; overflow-x:auto; white-space:nowrap;">
+                                <span>🔗</span>
+                                <select class="field-select" style="width:auto; max-width:145px; padding:3px 6px; font-size:11.5px; background:var(--bg-slate);" onchange="changeExistingRelationType(${dp.id}, ${r.target.id}, this.value)" title="Beziehungsart ändern">
+                                  ${customExistingOpt}
+                                  ${RELATION_PRESETS.map(pr => `<option value="${escapeHtml(pr)}" ${r.rel.relationLabel === pr ? 'selected' : ''}>${escapeHtml(pr)}</option>`).join("")}
+                                </select>
+                                <b>${escapeHtml(formatLastNameFirst(r.target.name))}</b>
+                              </div>
+                              <span class="extra-delete-btn" style="width:24px; height:24px;" onclick="removeRelation(${r.rel.id})" title="Verbindung beidseitig löschen">✕</span>
+                            </div>
+                          `;
+                        }).join("")}
                     </div>
                   ` : ""}
                 </div>
@@ -7413,6 +8291,7 @@
       showCreateDialog = true;
       createRelationsExpanded = false;
       createExtraInfos = [];
+      createPendingRelations = [{ label: "Kind von", targetId: -1 }];
       createDraft = {
         firstName: "",
         lastName: "",
@@ -7435,6 +8314,7 @@
       detailPersonId = id;
       detailRelationsExpanded = false;
       detailDraftRelLabel = "Kind von";
+      detailPendingRelations = [{ label: "Kind von", targetId: -1 }];
       const others = sortPersonsByLastName(state.persons.filter(p => p.id !== id));
       detailDraftRelTargetId = others[0] ? others[0].id : -1;
       const dp = state.persons.find(p => p.id === id);
@@ -7581,6 +8461,8 @@
           renderModals();
           return;
         }
+        treeRelationModalState = null;
+        showAllTreeEdgesModal = false;
         showOptionsDialog = false;
         showGreetingsEditorModal = false;
         mergeContactsModalState = null;
@@ -7597,21 +8479,74 @@
       }
     }
 
-    function addRelationFromDetail(fromId) {
+    function setPendingRelationLabel(mode, idx, label) {
+      const list = mode === "create" ? createPendingRelations : detailPendingRelations;
+      if (list[idx]) list[idx].label = label;
+    }
+
+    function setPendingRelationTarget(mode, idx, targetId) {
+      const list = mode === "create" ? createPendingRelations : detailPendingRelations;
+      if (list[idx]) {
+        list[idx].targetId = parseInt(targetId, 10) || -1;
+        renderModals();
+      }
+    }
+
+    function addPendingRelationRow(mode) {
+      const list = mode === "create" ? createPendingRelations : detailPendingRelations;
+      const nextDefault = list.length === 1 ? "Bruder von" : "Kind von";
+      list.push({ label: nextDefault, targetId: -1 });
+      renderModals();
+    }
+
+    function removePendingRelationRow(mode, idx) {
+      const list = mode === "create" ? createPendingRelations : detailPendingRelations;
+      if (list.length > 1) {
+        list.splice(idx, 1);
+      } else if (list[0]) {
+        list[0].targetId = -1;
+      }
+      renderModals();
+    }
+
+    function saveDetailPendingRelationsNow(fromId) {
       syncDetailDraftBeforeRerender();
-      const labelEl = document.getElementById("d-rellabel");
-      const label = labelEl ? labelEl.value : (detailDraftRelLabel || "Kind von");
-      const targetId = parseInt(detailDraftRelTargetId, 10);
-      if (targetId > 0) {
-        addBidirectionalRelation(fromId, targetId, label);
-        addLog(`Beziehung "${label}" gespeichert.`);
+      let addedCount = 0;
+      for (const row of detailPendingRelations) {
+        const targetId = parseInt(row.targetId, 10);
+        const label = (row.label || "Kind von").trim();
+        if (targetId > 0 && targetId !== fromId && label) {
+          addBidirectionalRelation(fromId, targetId, label);
+          addedCount++;
+        }
+      }
+      if (addedCount > 0) {
+        detailPendingRelations = [{ label: "Kind von", targetId: -1 }];
+        addLog(`${addedCount} Beziehung(en) verknüpft.`);
         saveState();
       }
     }
 
+    function changeExistingRelationType(fromId, targetId, newLabel) {
+      syncDetailDraftBeforeRerender();
+      if (!fromId || !targetId || fromId === targetId || !newLabel) return;
+      replaceBidirectionalRelation(fromId, targetId, fromId, targetId, newLabel.trim());
+      addLog(`Beziehungsart auf "${newLabel.trim()}" geändert.`);
+      saveState();
+    }
+
+    function addRelationFromDetail(fromId) {
+      saveDetailPendingRelationsNow(fromId);
+    }
+
     function removeRelation(relId) {
-      askDeleteConfirm("Beziehung wirklich löschen?", () => {
-        state.relations = state.relations.filter(r => r.id !== relId);
+      askDeleteConfirm("Beziehung wirklich beidseitig löschen?", () => {
+        const rel = state.relations.find(r => r.id === relId);
+        if (rel) {
+          deleteBidirectionalRelationPair(rel.fromPersonId, rel.toPersonId, rel);
+        } else {
+          state.relations = state.relations.filter(r => r.id !== relId);
+        }
         saveState();
       });
     }
@@ -7656,12 +8591,14 @@
         lastContactedIso: todayIso()
       });
 
-      const relLabelEl = document.getElementById("c-rellabel");
-      const targetId = parseInt(createDraft.relTargetId ?? -1, 10);
-      const relLabel = (relLabelEl ? relLabelEl.value : (createDraft.relLabel || "Kind von")).trim();
-      if (targetId > 0 && relLabel) {
-        addBidirectionalRelation(newId, targetId, relLabel);
+      for (const row of createPendingRelations) {
+        const targetId = parseInt(row.targetId ?? -1, 10);
+        const relLabel = (row.label || "Kind von").trim();
+        if (targetId > 0 && targetId !== newId && relLabel) {
+          addBidirectionalRelation(newId, targetId, relLabel);
+        }
       }
+      createPendingRelations = [{ label: "Kind von", targetId: -1 }];
 
       selectedTreeRootId = newId;
       showCreateDialog = false;
@@ -7704,6 +8641,15 @@
       const hiddenEl = document.getElementById("d-hidden");
       if (hiddenEl) dp.isHidden = hiddenEl.checked;
       dp.extraInfos = detailExtraInfos.filter(x => (x.label && x.label.trim()) || (x.value && x.value.trim()));
+
+      for (const row of detailPendingRelations) {
+        const targetId = parseInt(row.targetId ?? -1, 10);
+        const relLabel = (row.label || "Kind von").trim();
+        if (targetId > 0 && targetId !== dp.id && relLabel) {
+          addBidirectionalRelation(dp.id, targetId, relLabel);
+        }
+      }
+      detailPendingRelations = [{ label: "Kind von", targetId: -1 }];
 
       const evTitle = document.getElementById("d-evtitle").value.trim();
       const evCountEl = document.getElementById("d-evcount");
@@ -7887,7 +8833,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.40",
+        version: "1.0.41",
         createdAt: dateStr,
         state
       };
@@ -7905,7 +8851,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.40",
+        version: "1.0.41",
         createdAt: dateStr,
         state
       };
@@ -7980,7 +8926,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.40 gestartet.");
+    addLog("Remember Me v1.0.41 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>
