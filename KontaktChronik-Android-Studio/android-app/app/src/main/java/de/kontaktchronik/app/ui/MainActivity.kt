@@ -705,17 +705,62 @@ fun FirstAndLastNameFields(
     ) {
         OutlinedTextField(
             value = firstName,
-            onValueChange = onFirstNameChange,
-            label = { Text(firstLabel) },
+            onValueChange = { onFirstNameChange(it.replace("\n", " ").replace("\r", " ")) },
+            label = { Text(firstLabel, maxLines = 1, softWrap = false) },
             modifier = Modifier.weight(1f),
-            singleLine = true
+            singleLine = true,
+            maxLines = 1
         )
         OutlinedTextField(
             value = lastName,
-            onValueChange = onLastNameChange,
-            label = { Text(lastLabel) },
+            onValueChange = { onLastNameChange(it.replace("\n", " ").replace("\r", " ")) },
+            label = { Text(lastLabel, maxLines = 1, softWrap = false) },
             modifier = Modifier.weight(1f),
-            singleLine = true
+            singleLine = true,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+fun SingleLineExtraInfoRow(
+    infoLabel: String,
+    infoValue: String,
+    onLabelChange: (String) -> Unit,
+    onValueChange: (String) -> Unit,
+    onDeleteClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = infoLabel.replace("\n", " ").replace("\r", " "),
+            onValueChange = { onLabelChange(it.replace("\n", " ").replace("\r", " ")) },
+            label = { Text("Bezeichnung", maxLines = 1, softWrap = false, fontSize = 11.sp) },
+            modifier = Modifier.weight(0.82f),
+            singleLine = true,
+            maxLines = 1
+        )
+        OutlinedTextField(
+            value = infoValue.replace("\n", " ").replace("\r", " "),
+            onValueChange = { onValueChange(it.replace("\n", " ").replace("\r", " ")) },
+            label = { Text("Wert", maxLines = 1, softWrap = false, fontSize = 11.sp) },
+            modifier = Modifier.weight(1.18f),
+            singleLine = true,
+            maxLines = 1
+        )
+        Text(
+            "✕",
+            color = WarnAmber,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .clickable { onDeleteClick() }
+                .padding(horizontal = 4.dp)
         )
     }
 }
@@ -1956,23 +2001,27 @@ data class MergedContactPreview(
     val removedDuplicatesCount: Int
 )
 
+fun sanitizeSingleLineExtraText(raw: String): String =
+    raw.replace(Regex("\\s*\\r?\\n\\s*"), ", ").replace("\t", " ").trim()
+
 fun parseExtraInfosPref(raw: String?): List<Pair<String, String>> {
     if (raw.isNullOrBlank()) return emptyList()
     return raw.lines()
         .filter { it.isNotBlank() }
         .mapNotNull { line ->
             val parts = line.split("\t", limit = 2)
-            val label = parts.getOrNull(0)?.trim().orEmpty().ifBlank { "Info" }
-            val value = parts.getOrNull(1)?.trim().orEmpty()
+            val label = sanitizeSingleLineExtraText(parts.getOrNull(0).orEmpty()).ifBlank { "Info" }
+            val value = sanitizeSingleLineExtraText(parts.getOrNull(1).orEmpty())
             if (value.isBlank()) null else (label to value)
         }
 }
 
 fun serializeExtraInfosPref(extraInfos: List<Pair<String, String>>): String {
     return extraInfos
+        .map { (l, v) -> sanitizeSingleLineExtraText(l) to sanitizeSingleLineExtraText(v) }
         .filter { it.second.isNotBlank() }
         .joinToString("\n") { (label, value) ->
-            "${label.trim().ifBlank { "Info" }.replace("\t", " ")}\t${value.trim().replace("\t", " ")}"
+            "${label.ifBlank { "Info" }}\t$value"
         }
 }
 
@@ -2729,7 +2778,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.38", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.39", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -3659,7 +3708,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.38")
+                put("version", "1.0.39")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
@@ -4823,8 +4872,9 @@ fun KontaktChronikApp(
                         addBidirectionalRelation(newId, selectedRelTargetId, relLabel)
                     }
                     val serializedExtras = extraInfos
+                        .map { sanitizeSingleLineExtraText(it.first) to sanitizeSingleLineExtraText(it.second) }
                         .filter { it.first.isNotBlank() || it.second.isNotBlank() }
-                        .joinToString("\n") { "${it.first.replace("\t", " ")}\t${it.second.replace("\t", " ")}" }
+                        .joinToString("\n") { "${it.first}\t${it.second}" }
                     prefs.edit().putString("extra_infos_$newId", serializedExtras).apply()
                     selectedTreeRootId = newId
                     showCreateDialog = false
@@ -4912,49 +4962,29 @@ fun KontaktChronikApp(
                         Text("Keine eigene Nummer", color = TextSecondary, fontSize = 12.sp)
                     }
 
-                    OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("E-Mail") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = timerInterval, onValueChange = { timerInterval = it }, label = { Text("Melde-Timer (Tage)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Telefon", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("E-Mail", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = timerInterval, onValueChange = { timerInterval = it }, label = { Text("Melde-Timer (Tage)", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notiz", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
-                    // Zusätzliche Informationszeilen (nur + Button unten links)
+                    // Zusätzliche Informationszeilen (immer einzeilig ohne Textumbruch)
                     extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = infoLabel,
-                                onValueChange = { newL ->
-                                    extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
-                                },
-                                label = { Text("Bezeichnung") },
-                                modifier = Modifier.weight(0.9f)
-                            )
-                            OutlinedTextField(
-                                value = infoValue,
-                                onValueChange = { newV ->
-                                    extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
-                                },
-                                label = { Text("Wert") },
-                                modifier = Modifier.weight(1.1f)
-                            )
-                            Text(
-                                "✕",
-                                color = WarnAmber,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable {
-                                        pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
-                                        pendingConfirmAction = {
-                                            extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
-                                        }
-                                    }
-                                    .padding(horizontal = 4.dp)
-                            )
-                        }
+                        SingleLineExtraInfoRow(
+                            infoLabel = infoLabel,
+                            infoValue = infoValue,
+                            onLabelChange = { newL ->
+                                extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
+                            },
+                            onValueChange = { newV ->
+                                extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
+                            },
+                            onDeleteClick = {
+                                pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
+                                pendingConfirmAction = {
+                                    extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                }
+                            }
+                        )
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -5121,11 +5151,7 @@ fun KontaktChronikApp(
         }
         var extraInfos by remember(dp) {
             val raw = prefs.getString("extra_infos_${dp.id}", "").orEmpty()
-            val parsed = raw.lines().filter { it.isNotBlank() }.map { line ->
-                val parts = line.split("\t", limit = 2)
-                (parts.getOrNull(0) ?: "Info") to (parts.getOrNull(1) ?: "")
-            }
-            mutableStateOf(parsed)
+            mutableStateOf(parseExtraInfosPref(raw))
         }
         var newEvTitle by remember { mutableStateOf("") }
         var newEvCount by remember { mutableStateOf("1") }
@@ -5184,9 +5210,7 @@ fun KontaktChronikApp(
                 }
                 db.updatePerson(updated)
                 setPersonHidden(dp.id, isHiddenVal)
-                val serializedExtras = extraInfos
-                    .filter { it.first.isNotBlank() || it.second.isNotBlank() }
-                    .joinToString("\n") { "${it.first.replace("\t", " ")}\t${it.second.replace("\t", " ")}" }
+                val serializedExtras = serializeExtraInfosPref(extraInfos)
                 prefs.edit().putString("extra_infos_${dp.id}", serializedExtras).apply()
                 if (newEvTitle.isNotBlank()) {
                     val cCount = newEvCount.toIntOrNull()?.coerceAtLeast(1) ?: 1
@@ -5304,7 +5328,7 @@ fun KontaktChronikApp(
                         onLastNameChange = { lastNameVal = it }
                     )
                     DateInputWithCalendar(value = bdayVal, onValueChange = { bdayVal = it }, label = "Geburtsdatum (TT.MM.JJJJ)")
-                    OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = phoneVal, onValueChange = { phoneVal = it }, label = { Text("Telefon", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = saveInDeviceVal, onCheckedChange = { saveInDeviceVal = it })
                         Text("In Handykontakten speichern", color = TextSecondary, fontSize = 12.sp)
@@ -5326,47 +5350,27 @@ fun KontaktChronikApp(
                         Checkbox(checked = noPhoneVal, onCheckedChange = { noPhoneVal = it })
                         Text("Keine eigene Nummer", color = TextSecondary, fontSize = 12.sp)
                     }
-                    OutlinedTextField(value = emailVal, onValueChange = { emailVal = it }, label = { Text("E-Mail-Adresse") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = notesVal, onValueChange = { notesVal = it }, label = { Text("Notiz") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = emailVal, onValueChange = { emailVal = it }, label = { Text("E-Mail-Adresse", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(value = notesVal, onValueChange = { notesVal = it }, label = { Text("Notiz", maxLines = 1, softWrap = false) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
-                    // Zusätzliche Informationszeilen (nur + Button unten links)
+                    // Zusätzliche Informationszeilen (immer einzeilig ohne Textumbruch)
                     extraInfos.forEachIndexed { idx, (infoLabel, infoValue) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = infoLabel,
-                                onValueChange = { newL ->
-                                    extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
-                                },
-                                label = { Text("Bezeichnung") },
-                                modifier = Modifier.weight(0.9f)
-                            )
-                            OutlinedTextField(
-                                value = infoValue,
-                                onValueChange = { newV ->
-                                    extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
-                                },
-                                label = { Text("Wert") },
-                                modifier = Modifier.weight(1.1f)
-                            )
-                            Text(
-                                "✕",
-                                color = WarnAmber,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable {
-                                        pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
-                                        pendingConfirmAction = {
-                                            extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
-                                        }
-                                    }
-                                    .padding(horizontal = 4.dp)
-                            )
-                        }
+                        SingleLineExtraInfoRow(
+                            infoLabel = infoLabel,
+                            infoValue = infoValue,
+                            onLabelChange = { newL ->
+                                extraInfos = extraInfos.toMutableList().also { it[idx] = newL to infoValue }
+                            },
+                            onValueChange = { newV ->
+                                extraInfos = extraInfos.toMutableList().also { it[idx] = infoLabel to newV }
+                            },
+                            onDeleteClick = {
+                                pendingConfirmMessage = "Zusätzliche Info-Zeile wirklich löschen?"
+                                pendingConfirmAction = {
+                                    extraInfos = extraInfos.filterIndexed { i, _ -> i != idx }
+                                }
+                            }
+                        )
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -5546,7 +5550,11 @@ fun KontaktChronikApp(
                                             "${rel.relationLabel} ${formatLastNameFirst(targetPerson.name)}",
                                             color = TextPrimary,
                                             fontSize = 12.sp,
-                                            modifier = Modifier.weight(1f)
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .horizontalScroll(rememberScrollState())
                                         )
                                         Text(
                                             "✕",
@@ -5587,7 +5595,11 @@ fun KontaktChronikApp(
                                 "${ev.title} (${formatIsoToDdMmYyyy(ev.dateIso)})",
                                 color = TextPrimary,
                                 fontSize = 12.sp,
-                                modifier = Modifier.weight(1f)
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState())
                             )
                             Text(
                                 "✕",
@@ -6699,10 +6711,14 @@ fun KontaktChronikApp(
                                             ContactDeduplicator.isAddressLabel(lbl) -> "🏠"
                                             else -> "ℹ️"
                                         }
+                                        val cleanSingleLine = "$icon ${sanitizeSingleLineExtraText(lbl)}: ${sanitizeSingleLineExtraText(value)}"
                                         Text(
-                                            text = "$icon $lbl: $value",
+                                            text = cleanSingleLine,
                                             color = TextSecondary,
-                                            fontSize = 12.sp
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier.horizontalScroll(rememberScrollState())
                                         )
                                     }
                                     if (pv.notes.isNotBlank()) {
@@ -8926,12 +8942,14 @@ fun WichtelScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             OutlinedTextField(
-                                value = extraUrl,
+                                value = extraUrl.replace("\n", "").replace("\r", ""),
                                 onValueChange = { newVal ->
-                                    pExtraUrls = pExtraUrls.toMutableList().also { it[idx] = newVal }
+                                    pExtraUrls = pExtraUrls.toMutableList().also { it[idx] = newVal.replace("\n", "").replace("\r", "") }
                                 },
-                                label = { Text("🔗 Weiterer Wunsch-Link ${idx + 2}") },
-                                modifier = Modifier.weight(1f)
+                                label = { Text("🔗 Weiterer Wunsch-Link ${idx + 2}", maxLines = 1, softWrap = false, fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                maxLines = 1
                             )
                             Text(
                                 "✕",

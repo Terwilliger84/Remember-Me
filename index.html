@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.38 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.39 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -734,11 +734,20 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
+      white-space: nowrap;
       background: var(--bg-slate);
       border: 1px solid var(--border-slate);
       border-radius: 6px;
       padding: 6px 10px;
       font-size: 12px;
+    }
+
+    .rel-item-row > span:first-child {
+      flex: 1;
+      min-width: 0;
+      overflow-x: auto;
+      white-space: nowrap;
     }
   </style>
 </head>
@@ -1892,7 +1901,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.38</div>
+            <div class="app-title">Remember Me v1.0.39</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -4800,7 +4809,9 @@
                   ${preview.primaryEmail ? `<div style="font-size:12px; color:var(--text-primary);">✉️ Haupt-E-Mail: <b>${escapeHtml(preview.primaryEmail)}</b></div>` : ""}
                   ${preview.deduplicatedExtraInfos.map(info => {
                     const ic = isPhoneLike(info.value) ? "📞" : (isEmailLike(info.value) ? "✉️" : (isAddressLabel(info.label) ? "🏠" : "ℹ️"));
-                    return `<div style="font-size:11.5px; color:var(--text-secondary); word-break:break-word;">${ic} ${escapeHtml(info.label)}: ${escapeHtml(info.value)}</div>`;
+                    const cleanLabel = String(info.label || "").replace(/\s*\r?\n\s*/g, ", ");
+                    const cleanVal = String(info.value || "").replace(/\s*\r?\n\s*/g, ", ");
+                    return `<div style="font-size:11.5px; color:var(--text-secondary); white-space:nowrap; overflow-x:auto;">${ic} ${escapeHtml(cleanLabel)}: ${escapeHtml(cleanVal)}</div>`;
                   }).join("")}
                   ${preview.notes ? `<div style="font-size:11.5px; color:var(--text-secondary); word-break:break-word;">📝 Notiz: ${escapeHtml(preview.notes)}</div>` : ""}
                 </div>
@@ -5239,10 +5250,10 @@
               </div>
               <div id="c-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
                 ${createExtraInfos.map((info, idx) => `
-                  <div style="display:flex; gap:5px; align-items:center;">
-                    <input class="field-input" style="flex:0.85;" placeholder="Bezeichnung" value="${escapeHtml(info.label)}" oninput="createExtraInfos[${idx}].label = this.value" />
-                    <input class="field-input" style="flex:1.15;" placeholder="Wert" value="${escapeHtml(info.value)}" oninput="createExtraInfos[${idx}].value = this.value" />
-                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeCreateExtraInfoRow(${idx})">✕</span>
+                  <div style="display:flex; flex-wrap:nowrap; gap:5px; align-items:center;">
+                    <input class="field-input" style="flex:0.85; min-width:0; white-space:nowrap;" placeholder="Bezeichnung" value="${escapeHtml(String(info.label || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="createExtraInfos[${idx}].label = this.value.replace(/[\r\n]+/g, ' ')" />
+                    <input class="field-input" style="flex:1.15; min-width:0; white-space:nowrap;" placeholder="Wert" value="${escapeHtml(String(info.value || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="createExtraInfos[${idx}].value = this.value.replace(/[\r\n]+/g, ' ')" />
+                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px; flex-shrink:0; white-space:nowrap;" onclick="removeCreateExtraInfoRow(${idx})">✕</span>
                   </div>
                 `).join("")}
                 <div style="display:flex; justify-content:flex-start;">
@@ -5364,10 +5375,10 @@
 
               <div id="d-extra-rows" style="display:flex; flex-direction:column; gap:5px;">
                 ${detailExtraInfos.map((info, idx) => `
-                  <div style="display:flex; gap:5px; align-items:center;">
-                    <input class="field-input" style="flex:0.85;" placeholder="Bezeichnung" value="${escapeHtml(info.label)}" oninput="detailExtraInfos[${idx}].label = this.value" />
-                    <input class="field-input" style="flex:1.15;" placeholder="Wert" value="${escapeHtml(info.value)}" oninput="detailExtraInfos[${idx}].value = this.value" />
-                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeDetailExtraInfoRow(${idx})">✕</span>
+                  <div style="display:flex; flex-wrap:nowrap; gap:5px; align-items:center;">
+                    <input class="field-input" style="flex:0.85; min-width:0; white-space:nowrap;" placeholder="Bezeichnung" value="${escapeHtml(String(info.label || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="detailExtraInfos[${idx}].label = this.value.replace(/[\r\n]+/g, ' ')" />
+                    <input class="field-input" style="flex:1.15; min-width:0; white-space:nowrap;" placeholder="Wert" value="${escapeHtml(String(info.value || '').replace(/\s*\r?\n\s*/g, ', '))}" oninput="detailExtraInfos[${idx}].value = this.value.replace(/[\r\n]+/g, ' ')" />
+                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px; flex-shrink:0; white-space:nowrap;" onclick="removeDetailExtraInfoRow(${idx})">✕</span>
                   </div>
                 `).join("")}
                 <div style="display:flex; justify-content:flex-start;">
@@ -5793,9 +5804,9 @@
               <div style="display:flex; flex-direction:column; gap:5px;">
                 <label class="field-label">🔗 Weitere Wunsch-Links (Etsy, Thalia, Otto, Produkt-Links …)</label>
                 ${extraLinks.map((u, idx) => `
-                  <div style="display:flex; gap:5px; align-items:center;">
-                    <input class="field-input" style="flex:1;" placeholder="https://..." value="${escapeHtml(u)}" oninput="wichtelParticipantModalState.extraWishUrls[${idx}] = this.value" />
-                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="wichtelParticipantModalState.extraWishUrls.splice(${idx}, 1); renderModals();">✕</span>
+                  <div style="display:flex; flex-wrap:nowrap; gap:5px; align-items:center;">
+                    <input class="field-input" style="flex:1; min-width:0; white-space:nowrap;" placeholder="https://..." value="${escapeHtml(String(u || '').replace(/\s*\r?\n\s*/g, ' '))}" oninput="wichtelParticipantModalState.extraWishUrls[${idx}] = this.value.replace(/[\r\n]+/g, '')" />
+                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px; flex-shrink:0; white-space:nowrap;" onclick="wichtelParticipantModalState.extraWishUrls.splice(${idx}, 1); renderModals();">✕</span>
                   </div>
                 `).join("")}
                 <div>
@@ -7461,7 +7472,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.38",
+        version: "1.0.39",
         createdAt: dateStr,
         state
       };
@@ -7479,7 +7490,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.38",
+        version: "1.0.39",
         createdAt: dateStr,
         state
       };
@@ -7554,7 +7565,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.38 gestartet.");
+    addLog("Remember Me v1.0.39 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>
