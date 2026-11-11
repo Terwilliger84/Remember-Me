@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.36 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.37 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1892,7 +1892,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.36</div>
+            <div class="app-title">Remember Me v1.0.37</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2473,19 +2473,128 @@
       return canonicalTextKey(formatLastNameFirst(reassembled));
     }
 
+    function makeDismissedMergePairKey(idA, idB) {
+      const a = Number(idA);
+      const b = Number(idB);
+      return a < b ? `${a}:${b}` : `${b}:${a}`;
+    }
+
+    function buildDismissedMergePairKeysForGroup(ids) {
+      const distinct = [...new Set((ids || []).map(Number).filter(n => !Number.isNaN(n)))].sort((a, b) => a - b);
+      const out = [];
+      for (let i = 0; i < distinct.length; i++) {
+        for (let j = i + 1; j < distinct.length; j++) {
+          out.push(makeDismissedMergePairKey(distinct[i], distinct[j]));
+        }
+      }
+      return out;
+    }
+
+    function getDismissedMergePairsSet() {
+      return new Set(Array.isArray(state.dismissedMergePairs) ? state.dismissedMergePairs : []);
+    }
+
+    function dismissMergeCombinationByIds(ids) {
+      const newPairs = buildDismissedMergePairKeysForGroup(ids);
+      if (newPairs.length === 0) return;
+      const set = getDismissedMergePairsSet();
+      newPairs.forEach(p => set.add(p));
+      state.dismissedMergePairs = [...set];
+      addLog(`🚫 Kombination wird nicht mehr zum Zusammenführen vorgeschlagen.`);
+      saveState();
+    }
+
+    function dismissDuplicateSuggestionGroup(groupKey) {
+      const grp = findDuplicateSuggestionGroups(state.persons).find(g => g.key === groupKey);
+      if (!grp) return;
+      dismissMergeCombinationByIds(grp.members.map(m => m.id));
+      if (mergeContactsModalState) {
+        mergeContactsModalState.notice = "🚫 Kombination wird nicht mehr vorgeschlagen.";
+      }
+      renderPhoneApp();
+      renderModals();
+    }
+
+    function dismissSelectedMergeContactsModal() {
+      if (!mergeContactsModalState) return;
+      const ids = mergeContactsModalState.selectedIds || [];
+      if (ids.length < 2) return;
+      dismissMergeCombinationByIds(ids);
+      const remaining = findDuplicateSuggestionGroups(state.persons);
+      if (remaining.length > 0) {
+        mergeContactsModalState.selectedIds = [];
+        mergeContactsModalState.primaryId = -1;
+        mergeContactsModalState.tab = "suggestions";
+        mergeContactsModalState.notice = "🚫 Kombination wird nicht mehr vorgeschlagen.";
+      } else {
+        mergeContactsModalState = null;
+      }
+      renderPhoneApp();
+      renderModals();
+    }
+
+    function resetDismissedMergeCombinations() {
+      state.dismissedMergePairs = [];
+      if (mergeContactsModalState) {
+        mergeContactsModalState.notice = "✓ Abgelehnte Vorschläge wurden wieder eingeblendet.";
+      }
+      addLog("✓ Abgelehnte Zusammenführungs-Vorschläge zurückgesetzt.");
+      saveState();
+      renderModals();
+    }
+
+    function splitCandidateBucketExcludingDismissedJs(rawGroup, dismissedSet) {
+      const byId = new Map();
+      (rawGroup || []).forEach(p => byId.set(p.id, p));
+      const distinct = [...byId.values()];
+      if (distinct.length < 2) return [];
+      if (!dismissedSet || dismissedSet.size === 0) {
+        return [sortPersonsByLastName(distinct)];
+      }
+      const remaining = distinct.filter(m =>
+        distinct.some(o => o.id !== m.id && !dismissedSet.has(makeDismissedMergePairKey(m.id, o.id)))
+      );
+      if (remaining.length < 2) return [];
+      const nameCounts = new Map();
+      remaining.forEach(p => {
+        const nk = canonicalPersonNameForMerge(p.name);
+        nameCounts.set(nk, (nameCounts.get(nk) || 0) + 1);
+      });
+      const ordered = [...remaining].sort((a, b) => {
+        const ca = nameCounts.get(canonicalPersonNameForMerge(a.name)) || 0;
+        const cb = nameCounts.get(canonicalPersonNameForMerge(b.name)) || 0;
+        if (cb !== ca) return cb - ca;
+        return comparePersonsByLastName(a, b);
+      });
+      const clusters = [];
+      for (const person of ordered) {
+        const pnk = canonicalPersonNameForMerge(person.name);
+        const compatible = clusters.filter(cl =>
+          cl.every(ex => !dismissedSet.has(makeDismissedMergePairKey(ex.id, person.id)))
+        );
+        const best = compatible.find(cl => canonicalPersonNameForMerge(cl[0].name) === pnk) || compatible[0];
+        if (best) best.push(person);
+        else clusters.push([person]);
+      }
+      return clusters.filter(cl => cl.length >= 2).map(cl => sortPersonsByLastName(cl));
+    }
+
     function findDuplicateSuggestionGroups(personsList) {
       const list = Array.isArray(personsList) ? personsList : [];
       if (list.length < 2) return [];
+      const dismissedSet = getDismissedMergePairsSet();
       const result = [];
       const seenSets = new Set();
 
-      const addGroup = (key, reasonBadge, priority, members) => {
-        const sortedMembers = sortPersonsByLastName(members);
-        const sig = sortedMembers.map(m => m.id).sort((a, b) => a - b).join(",");
-        if (!seenSets.has(sig)) {
-          seenSets.add(sig);
-          result.push({ key, reasonBadge, priority, members: sortedMembers });
-        }
+      const addGroup = (baseKey, reasonBadge, priority, members) => {
+        const subGroups = splitCandidateBucketExcludingDismissedJs(members, dismissedSet);
+        subGroups.forEach((sortedMembers, idx) => {
+          const sig = sortedMembers.map(m => m.id).sort((a, b) => a - b).join(",");
+          if (!seenSets.has(sig)) {
+            seenSets.add(sig);
+            result.push({ key: `${baseKey}:${idx}:${sig}`, reasonBadge, priority, members: sortedMembers });
+          }
+        });
       };
 
       const byName = new Map();
@@ -2790,6 +2899,20 @@
           return true;
         });
       });
+
+      if (Array.isArray(state.dismissedMergePairs) && state.dismissedMergePairs.length > 0) {
+        const remappedDismissed = new Set();
+        state.dismissedMergePairs.forEach(raw => {
+          const [aStr, bStr] = String(raw || "").split(":");
+          const a = Number(aStr);
+          const b = Number(bStr);
+          if (Number.isNaN(a) || Number.isNaN(b)) return;
+          const na = secondaryIds.has(a) ? target.id : a;
+          const nb = secondaryIds.has(b) ? target.id : b;
+          if (na !== nb) remappedDismissed.add(makeDismissedMergePairKey(na, nb));
+        });
+        state.dismissedMergePairs = [...remappedDismissed];
+      }
 
       state.persons = state.persons.filter(p => !secondaryIds.has(p.id));
       if (selectedTreeRootId && secondaryIds.has(selectedTreeRootId)) {
@@ -4490,6 +4613,14 @@
           checkedIds: ms.selectedIds || []
         });
 
+        const dismissedCount = getDismissedMergePairsSet().size;
+        const dismissedFooterHtml = dismissedCount > 0 ? `
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:6px 9px; margin-top:4px;">
+            <span style="font-size:11px; color:var(--text-secondary);">🚫 ${dismissedCount} abgelehnte Kombination(en) ausgeblendet</span>
+            <button class="compact-btn" style="padding:3px 8px; font-size:10.5px;" onclick="resetDismissedMergeCombinations()">Zurücksetzen</button>
+          </div>
+        ` : "";
+
         let bodyHtml = "";
         if (ms.tab === "suggestions") {
           if (groups.length === 0) {
@@ -4501,17 +4632,21 @@
                   <button class="compact-btn primary" onclick="mergeContactsModalState.tab='manual'; renderModals();">☑️ Beliebige Kontakte manuell auswählen</button>
                 </div>
               </div>
+              ${dismissedFooterHtml}
             `;
           } else {
             bodyHtml = `
-              <div style="font-size:11.5px; color:var(--text-secondary);">Tippe bei einer Gruppe auf „Prüfen →“, um die bereinigte Vorschau zu öffnen:</div>
+              <div style="font-size:11.5px; color:var(--text-secondary);">Tippe auf „Prüfen →“ für die Vorschau oder auf „Nicht zusammenführen“, damit diese Kombination nicht mehr vorgeschlagen wird:</div>
               <div style="display:flex; flex-direction:column; gap:7px; max-height:48vh; overflow-y:auto;">
                 ${groups.map(grp => `
                   <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:9px; padding:9px 10px; display:flex; flex-direction:column; gap:5px; cursor:pointer;"
                        onclick="selectDuplicateSuggestionGroup('${escapeHtml(grp.key)}')">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
                       <span style="font-size:11.5px; font-weight:700; color:var(--accent-steel);">${escapeHtml(grp.reasonBadge)} • ${grp.members.length} Kontakte</span>
-                      <button class="compact-btn primary" style="padding:3px 8px; font-size:11px;" onclick="event.stopPropagation(); selectDuplicateSuggestionGroup('${escapeHtml(grp.key)}')">Prüfen →</button>
+                      <div class="btn-row">
+                        <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="event.stopPropagation(); dismissDuplicateSuggestionGroup('${escapeHtml(grp.key)}')">✕ Nicht zusammenführen</button>
+                        <button class="compact-btn primary" style="padding:3px 8px; font-size:11px;" onclick="event.stopPropagation(); selectDuplicateSuggestionGroup('${escapeHtml(grp.key)}')">Prüfen →</button>
+                      </div>
                     </div>
                     ${grp.members.map(m => {
                       const sub = [
@@ -4531,6 +4666,7 @@
                     }).join("")}
                   </div>
                 `).join("")}
+                ${dismissedFooterHtml}
               </div>
             `;
           }
@@ -4636,7 +4772,12 @@
               ${bodyHtml}
               <div class="modal-footer">
                 <button class="compact-btn" onclick="mergeContactsModalState=null; renderModals();">Schließen</button>
-                ${preview ? `<button class="compact-btn primary" onclick="executeMergeContactsModal()">✓ ${selectedPersons.length} Kontakte zusammenführen</button>` : ""}
+                ${preview ? `
+                  <div class="btn-row">
+                    <button class="compact-btn" onclick="dismissSelectedMergeContactsModal()">✕ Nicht zusammenführen</button>
+                    <button class="compact-btn primary" onclick="executeMergeContactsModal()">✓ Zusammenführen (${selectedPersons.length})</button>
+                  </div>
+                ` : ""}
               </div>
             </div>
           </div>
@@ -7213,7 +7354,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.36",
+        version: "1.0.37",
         createdAt: dateStr,
         state
       };
@@ -7231,7 +7372,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.36",
+        version: "1.0.37",
         createdAt: dateStr,
         state
       };
@@ -7306,7 +7447,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.36 gestartet.");
+    addLog("Remember Me v1.0.37 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

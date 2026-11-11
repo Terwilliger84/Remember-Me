@@ -1914,27 +1914,94 @@ fun canonicalPersonNameForMerge(fullName: String): String {
     return ContactDeduplicator.canonicalTextKey(formatLastNameFirst(reassembled))
 }
 
-fun findDuplicateSuggestionGroups(persons: List<PersonEntity>): List<DuplicateSuggestionGroup> {
+fun makeDismissedMergePairKey(idA: Long, idB: Long): String {
+    val lo = minOf(idA, idB)
+    val hi = maxOf(idA, idB)
+    return "$lo:$hi"
+}
+
+fun buildDismissedMergePairKeysForGroup(ids: Collection<Long>): Set<String> {
+    val distinct = ids.distinct().sorted()
+    if (distinct.size < 2) return emptySet()
+    val out = mutableSetOf<String>()
+    for (i in distinct.indices) {
+        for (j in i + 1 until distinct.size) {
+            out.add(makeDismissedMergePairKey(distinct[i], distinct[j]))
+        }
+    }
+    return out
+}
+
+fun splitCandidateBucketExcludingDismissed(
+    rawGroup: List<PersonEntity>,
+    dismissedPairs: Set<String>
+): List<List<PersonEntity>> {
+    val distinct = rawGroup.distinctBy { it.id }
+    if (distinct.size < 2) return emptyList()
+    if (dismissedPairs.isEmpty()) {
+        return listOf(distinct.sortedWith(LastNamePersonComparator))
+    }
+    val remaining = distinct.filter { m ->
+        distinct.any { o -> o.id != m.id && !dismissedPairs.contains(makeDismissedMergePairKey(m.id, o.id)) }
+    }
+    if (remaining.size < 2) return emptyList()
+
+    val nameFreq = remaining.groupingBy { canonicalPersonNameForMerge(it.name) }.eachCount()
+    val ordered = remaining.sortedWith(
+        compareByDescending<PersonEntity> { nameFreq[canonicalPersonNameForMerge(it.name)] ?: 0 }
+            .thenComparator { a, b -> LastNamePersonComparator.compare(a, b) }
+    )
+    val clusters = mutableListOf<MutableList<PersonEntity>>()
+    for (person in ordered) {
+        val pNameKey = canonicalPersonNameForMerge(person.name)
+        val compatible = clusters.filter { cluster ->
+            cluster.all { existing -> !dismissedPairs.contains(makeDismissedMergePairKey(existing.id, person.id)) }
+        }
+        val bestCluster = compatible.firstOrNull { cluster ->
+            canonicalPersonNameForMerge(cluster.first().name) == pNameKey
+        } ?: compatible.firstOrNull()
+        if (bestCluster != null) {
+            bestCluster.add(person)
+        } else {
+            clusters.add(mutableListOf(person))
+        }
+    }
+    return clusters
+        .filter { it.size >= 2 }
+        .map { it.sortedWith(LastNamePersonComparator) }
+}
+
+fun findDuplicateSuggestionGroups(
+    persons: List<PersonEntity>,
+    dismissedPairs: Set<String> = emptySet()
+): List<DuplicateSuggestionGroup> {
     if (persons.size < 2) return emptyList()
     val result = mutableListOf<DuplicateSuggestionGroup>()
     val seenMemberSets = mutableSetOf<Set<Long>>()
+
+    fun addFilteredGroups(baseKey: String, reasonBadge: String, priority: Int, rawGroup: List<PersonEntity>) {
+        splitCandidateBucketExcludingDismissed(rawGroup, dismissedPairs).forEachIndexed { idx, subGroup ->
+            val idSet = subGroup.map { it.id }.toSet()
+            if (seenMemberSets.add(idSet)) {
+                val sig = subGroup.map { it.id }.sorted().joinToString(",")
+                result.add(
+                    DuplicateSuggestionGroup(
+                        key = "$baseKey:$idx:$sig",
+                        reasonBadge = reasonBadge,
+                        priority = priority,
+                        members = subGroup
+                    )
+                )
+            }
+        }
+    }
 
     // 1. Gleicher kanonischer Name (z. B. "Hans Müller", "Müller, Hans", "Hans Müller (Mobil)")
     persons
         .groupBy { canonicalPersonNameForMerge(it.name) }
         .forEach { (nameKey, group) ->
             if (nameKey.isNotBlank() && group.size >= 2) {
-                val idSet = group.map { it.id }.toSet()
-                if (seenMemberSets.add(idSet)) {
-                    result.add(
-                        DuplicateSuggestionGroup(
-                            key = "name:$nameKey",
-                            reasonBadge = "👤 Gleicher Name",
-                            priority = 1,
-                            members = group.sortedWith(LastNamePersonComparator)
-                        )
-                    )
-                }
+                addFilteredGroups("name:$nameKey", "👤 Gleicher Name", 1, group)
             }
         }
 
@@ -1946,19 +2013,8 @@ fun findDuplicateSuggestionGroups(persons: List<PersonEntity>): List<DuplicateSu
         }
         .groupBy({ it.first }, { it.second })
         .forEach { (emailKey, group) ->
-            val distinctGroup = group.distinctBy { it.id }
-            if (distinctGroup.size >= 2) {
-                val idSet = distinctGroup.map { it.id }.toSet()
-                if (seenMemberSets.add(idSet)) {
-                    result.add(
-                        DuplicateSuggestionGroup(
-                            key = "mail:$emailKey",
-                            reasonBadge = "✉️ Gleiche E-Mail",
-                            priority = 2,
-                            members = distinctGroup.sortedWith(LastNamePersonComparator)
-                        )
-                    )
-                }
+            if (group.size >= 2) {
+                addFilteredGroups("mail:$emailKey", "✉️ Gleiche E-Mail", 2, group)
             }
         }
 
@@ -1970,19 +2026,8 @@ fun findDuplicateSuggestionGroups(persons: List<PersonEntity>): List<DuplicateSu
         }
         .groupBy({ it.first }, { it.second })
         .forEach { (phoneKey, group) ->
-            val distinctGroup = group.distinctBy { it.id }
-            if (distinctGroup.size >= 2) {
-                val idSet = distinctGroup.map { it.id }.toSet()
-                if (seenMemberSets.add(idSet)) {
-                    result.add(
-                        DuplicateSuggestionGroup(
-                            key = "phone:$phoneKey",
-                            reasonBadge = "📞 Gleiche Nummer",
-                            priority = 3,
-                            members = distinctGroup.sortedWith(LastNamePersonComparator)
-                        )
-                    )
-                }
+            if (group.size >= 2) {
+                addFilteredGroups("phone:$phoneKey", "📞 Gleiche Nummer", 3, group)
             }
         }
 
@@ -2359,8 +2404,22 @@ fun KontaktChronikApp(
     var mergedAwayDeviceCids by remember {
         mutableStateOf(appPrefs.getStringSet("merged_away_device_cids", emptySet()).orEmpty())
     }
-    val duplicateSuggestionGroups = remember(visiblePersons) {
-        findDuplicateSuggestionGroups(visiblePersons)
+    var dismissedMergePairs by remember {
+        mutableStateOf(appPrefs.getStringSet("dismissed_merge_pairs", emptySet()).orEmpty())
+    }
+    fun dismissMergeCombination(ids: Collection<Long>) {
+        val newPairs = buildDismissedMergePairKeysForGroup(ids)
+        if (newPairs.isEmpty()) return
+        val updated = dismissedMergePairs + newPairs
+        dismissedMergePairs = updated
+        appPrefs.edit().putStringSet("dismissed_merge_pairs", updated).apply()
+    }
+    fun resetDismissedMergeCombinations() {
+        dismissedMergePairs = emptySet()
+        appPrefs.edit().remove("dismissed_merge_pairs").apply()
+    }
+    val duplicateSuggestionGroups = remember(visiblePersons, dismissedMergePairs) {
+        findDuplicateSuggestionGroups(visiblePersons, dismissedMergePairs)
     }
     var syncStatus by remember { mutableStateOf("") }
     var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
@@ -2594,7 +2653,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.36", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.37", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -3524,8 +3583,9 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.36")
+                put("version", "1.0.37")
                 put("createdAt", dateStr)
+                put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
                 put("birthdayPopupHour", birthdayPopupHour)
                 put("birthdayPopupMinute", birthdayPopupMinute)
@@ -3944,9 +4004,11 @@ fun KontaktChronikApp(
                                     saveWichtelHistory(parseWichtelHistoryJson(whArr.toString()))
                                 }
                                 val pArr = stateObj.optJSONArray("persons")
+                                val restoredIdMap = mutableMapOf<Long, Long>()
                                 if (pArr != null) {
                                     for (i in 0 until pArr.length()) {
                                         val po = pArr.getJSONObject(i)
+                                        val oldId = po.optLong("id", -1L)
                                         val isHid = po.optBoolean("isHidden", false)
                                         val newId = db.upsertPerson(
                                             PersonEntity(
@@ -3963,8 +4025,29 @@ fun KontaktChronikApp(
                                                 photoBase64 = po.optString("photoBase64", "")
                                             )
                                         )
+                                        if (oldId > 0L) restoredIdMap[oldId] = newId
                                         if (isHid) setPersonHidden(newId, true)
                                     }
+                                }
+                                val dmpArr = stateObj.optJSONArray("dismissedMergePairs")
+                                if (dmpArr != null) {
+                                    val remappedPairs = mutableSetOf<String>()
+                                    for (i in 0 until dmpArr.length()) {
+                                        val rawPair = dmpArr.optString(i, "")
+                                        val parts = rawPair.split(":")
+                                        if (parts.size == 2) {
+                                            val a = parts[0].toLongOrNull()
+                                            val b = parts[1].toLongOrNull()
+                                            if (a != null && b != null) {
+                                                val na = restoredIdMap[a] ?: a
+                                                val nb = restoredIdMap[b] ?: b
+                                                if (na != nb) remappedPairs.add(makeDismissedMergePairKey(na, nb))
+                                            }
+                                        }
+                                    }
+                                    val combined = dismissedMergePairs + remappedPairs
+                                    dismissedMergePairs = combined
+                                    appPrefs.edit().putStringSet("dismissed_merge_pairs", combined).apply()
                                 }
                                 showRestoreInput = false
                                 restoreJsonText = ""
@@ -5722,7 +5805,9 @@ fun KontaktChronikApp(
     // Dialog: Doppelte oder mehrere Kontakte intelligent zusammenführen (ohne doppelte Nummern / Mails / Adressen)
     if (showMergeContactsDialog) {
         val allCandidates = remember(persons) { persons.sortedWith(LastNamePersonComparator) }
-        val allDuplicateGroups = remember(persons) { findDuplicateSuggestionGroups(persons) }
+        val allDuplicateGroups = remember(persons, dismissedMergePairs) {
+            findDuplicateSuggestionGroups(persons, dismissedMergePairs)
+        }
         var selectedIds by remember(mergeInitialPersonIds) { mutableStateOf(mergeInitialPersonIds.toSet()) }
         var primaryId by remember(mergeInitialPersonIds) { mutableStateOf(mergeInitialPersonIds.firstOrNull() ?: -1L) }
         var activeMergeTab by remember(mergeInitialPersonIds) {
@@ -5894,6 +5979,18 @@ fun KontaktChronikApp(
                     }
                     hiddenPersonIds = nextHiddenIds
                     prefsEditor.putStringSet("hidden_person_ids", nextHiddenIds.map { it.toString() }.toSet())
+                    if (dismissedMergePairs.isNotEmpty()) {
+                        val remappedDismissed = dismissedMergePairs.mapNotNull { raw ->
+                            val parts = raw.split(":")
+                            val a = parts.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
+                            val b = parts.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null
+                            val na = if (secondaryIds.contains(a)) targetPrimary.id else a
+                            val nb = if (secondaryIds.contains(b)) targetPrimary.id else b
+                            if (na == nb) null else makeDismissedMergePairKey(na, nb)
+                        }.toSet()
+                        dismissedMergePairs = remappedDismissed
+                        prefsEditor.putStringSet("dismissed_merge_pairs", remappedDismissed)
+                    }
                     prefsEditor.apply()
 
                     // Beziehungen auf Zielkontakt umhängen & deduplizieren
@@ -6140,11 +6237,30 @@ fun KontaktChronikApp(
                                     CompactButton("☑️ Beliebige Kontakte manuell auswählen") {
                                         activeMergeTab = "manual"
                                     }
+                                    if (dismissedMergePairs.isNotEmpty()) {
+                                        HorizontalDivider(color = BorderSlate)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "🚫 ${dismissedMergePairs.size} abgelehnte Kombination(en) ausgeblendet",
+                                                color = TextSecondary,
+                                                fontSize = 11.5.sp,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            CompactButton("Zurücksetzen") {
+                                                resetDismissedMergeCombinations()
+                                                lastMergedNotice = "✓ Abgelehnte Vorschläge wurden wieder eingeblendet."
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         } else {
                             Text(
-                                text = "Tippe bei einer erkannten Gruppe auf „Prüfen →“, um die bereinigte Vorschau zu sehen und sie zusammenzuführen:",
+                                text = "Tippe auf „Prüfen →“ für die bereinigte Vorschau oder auf „Nicht zusammenführen“, damit diese Kombination nicht mehr vorgeschlagen wird:",
                                 color = TextSecondary,
                                 fontSize = 11.5.sp
                             )
@@ -6177,12 +6293,23 @@ fun KontaktChronikApp(
                                                 text = "${grp.reasonBadge} • ${grp.members.size} Kontakte",
                                                 color = AccentSteel,
                                                 fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.weight(1f)
                                             )
-                                            CompactButton("Prüfen →") {
-                                                selectedIds = grp.members.map { it.id }.toSet()
-                                                primaryId = grp.members.first().id
-                                                activeMergeTab = "manual"
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                CompactButton("✕ Nicht zusammenführen") {
+                                                    dismissMergeCombination(grp.members.map { it.id })
+                                                    lastMergedNotice = "🚫 Kombination wird nicht mehr vorgeschlagen."
+                                                    syncStatus = "Vorschlag ignoriert"
+                                                }
+                                                CompactButton("Prüfen →") {
+                                                    selectedIds = grp.members.map { it.id }.toSet()
+                                                    primaryId = grp.members.first().id
+                                                    activeMergeTab = "manual"
+                                                }
                                             }
                                         }
                                         grp.members.forEach { m ->
@@ -6212,6 +6339,30 @@ fun KontaktChronikApp(
                                                         )
                                                     }
                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+                                if (dismissedMergePairs.isNotEmpty()) {
+                                    item(key = "dismissed_reset_footer") {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(BgSlate, RoundedCornerShape(8.dp))
+                                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "🚫 ${dismissedMergePairs.size} abgelehnte Kombination(en) ausgeblendet",
+                                                color = TextSecondary,
+                                                fontSize = 11.5.sp,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            CompactButton("Zurücksetzen") {
+                                                resetDismissedMergeCombinations()
+                                                lastMergedNotice = "✓ Abgelehnte Vorschläge wurden wieder eingeblendet."
                                             }
                                         }
                                     }
@@ -6504,11 +6655,33 @@ fun KontaktChronikApp(
                             if (!isMerging) showMergeContactsDialog = false
                         }
                         if (preview != null) {
-                            CompactButton(
-                                if (isMerging) "⏳ Wird zusammengeführt..."
-                                else "✓ ${selectedPersons.size} Kontakte jetzt zusammenführen"
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                executeMerge()
+                                CompactButton("✕ Nicht zusammenführen") {
+                                    if (!isMerging) {
+                                        val dismissedIds = selectedIds
+                                        dismissMergeCombination(dismissedIds)
+                                        val newDismissed = dismissedMergePairs + buildDismissedMergePairKeysForGroup(dismissedIds)
+                                        val remaining = findDuplicateSuggestionGroups(persons, newDismissed)
+                                        selectedIds = emptySet()
+                                        primaryId = -1L
+                                        lastMergedNotice = "🚫 Kombination wird nicht mehr vorgeschlagen."
+                                        syncStatus = "Vorschlag ignoriert"
+                                        if (mergeInitialPersonIds.isNotEmpty() || remaining.isEmpty()) {
+                                            showMergeContactsDialog = false
+                                        } else {
+                                            activeMergeTab = "suggestions"
+                                        }
+                                    }
+                                }
+                                CompactButton(
+                                    if (isMerging) "⏳..."
+                                    else "✓ Zusammenführen (${selectedPersons.size})"
+                                ) {
+                                    executeMerge()
+                                }
                             }
                         }
                     }
