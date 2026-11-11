@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.28 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.29 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1891,7 +1891,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.28</div>
+            <div class="app-title">Remember Me v1.0.29</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2330,49 +2330,6 @@
     }
 
     let allContactsFilter = "all"; // "all" | "hidden"
-    let quickIgnoreMode = false;
-    let quickIgnoreSelectedIds = new Set();
-
-    function toggleQuickIgnoreMode() {
-      quickIgnoreMode = !quickIgnoreMode;
-      if (!quickIgnoreMode) {
-        quickIgnoreSelectedIds.clear();
-      }
-      renderPhoneApp();
-    }
-
-    function toggleQuickIgnoreSelection(personId) {
-      if (quickIgnoreSelectedIds.has(personId)) {
-        quickIgnoreSelectedIds.delete(personId);
-      } else {
-        quickIgnoreSelectedIds.add(personId);
-      }
-      renderPhoneApp();
-    }
-
-    function selectAllQuickIgnore(idsArray) {
-      (idsArray || []).forEach(id => quickIgnoreSelectedIds.add(id));
-      renderPhoneApp();
-    }
-
-    function clearQuickIgnoreSelection() {
-      quickIgnoreSelectedIds.clear();
-      renderPhoneApp();
-    }
-
-    function applyQuickIgnoreBatch(hideState = true) {
-      if (quickIgnoreSelectedIds.size === 0) return;
-      state.persons.forEach(p => {
-        if (quickIgnoreSelectedIds.has(p.id)) {
-          p.isHidden = !!hideState;
-          if (hideState && detailPersonId === p.id) {
-            detailPersonId = null;
-          }
-        }
-      });
-      quickIgnoreSelectedIds.clear();
-      saveState();
-    }
 
     function togglePersonHidden(personId) {
       const p = state.persons.find(x => x.id === personId);
@@ -2381,7 +2338,6 @@
       if (p.isHidden && detailPersonId === personId) {
         detailPersonId = null;
       }
-      quickIgnoreSelectedIds.delete(personId);
       saveState();
     }
 
@@ -2409,71 +2365,38 @@
     function renderAllContactsTab() {
       const hiddenCount = state.persons.filter(p => p.isHidden).length;
       const visibleCount = state.persons.filter(p => !p.isHidden).length;
-      const targetHideState = allContactsFilter !== "hidden";
       const baseList = allContactsFilter === "hidden"
         ? state.persons.filter(p => p.isHidden)
         : state.persons.filter(p => !p.isHidden);
-      const validIdsSet = new Set(baseList.map(p => p.id));
-      const activeSelectedIds = [...quickIgnoreSelectedIds].filter(id => validIdsSet.has(id));
-      const activeSelectedSet = new Set(activeSelectedIds);
       const filteredBase = baseList.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
       const sorted = sortPersonsArray(filteredBase);
-      const sortedIdsJson = JSON.stringify(sorted.map(p => p.id));
 
       const searchDropdownHtml = renderContactSearchDropdownHtml({
         key: "tab_all_contacts",
         persons: baseList,
         selectedPersonId: null,
         placeholder: `🔎 Kontakt suchen / per Dropdown wählen (${sorted.length}/${baseList.length})...`,
-        onSelectPersonJs: (pid) => quickIgnoreMode ? `toggleQuickIgnoreSelection(${pid})` : `openDetailModal(${pid})`,
-        confirmLabel: (quickIgnoreMode && activeSelectedIds.length > 0)
-          ? (targetHideState ? `🙈 Ausblenden (${activeSelectedIds.length})` : `👁 Einblenden (${activeSelectedIds.length})`)
-          : "✓ Bestätigen",
-        onConfirmJs: (quickIgnoreMode && activeSelectedIds.length > 0)
-          ? `applyQuickIgnoreBatch(${targetHideState})`
-          : "",
-        checkedIdsSet: quickIgnoreMode ? activeSelectedSet : null,
-        onToggleCheckedJs: quickIgnoreMode ? (pid) => `toggleQuickIgnoreSelection(${pid})` : null,
+        onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
         showInlineAlphabet: true,
         inModal: false,
         syncWithTab: true
       });
 
-      const quickIgnoreToolbarHtml = quickIgnoreMode ? `
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; background:var(--bg-slate); border:1.5px solid var(--warn-amber); border-radius:8px; padding:7px 10px;">
-          <span style="font-size:12px; font-weight:700; color:var(--warn-amber);">🙈 ${activeSelectedIds.length} markiert</span>
-          <div class="btn-row" style="flex-wrap:wrap;">
-            <button class="compact-btn" onclick="selectAllQuickIgnore(${sortedIdsJson})">Alle (${sorted.length})</button>
-            ${activeSelectedIds.length > 0 ? `<button class="compact-btn" onclick="clearQuickIgnoreSelection()">Keine</button>` : ""}
-            <button class="compact-btn ${activeSelectedIds.length > 0 ? 'primary' : ''}" ${activeSelectedIds.length === 0 ? 'disabled style="opacity:0.5; cursor:default;"' : ''} onclick="applyQuickIgnoreBatch(${targetHideState})">
-              ✓ ${targetHideState ? 'Ausblenden' : 'Einblenden'} (${activeSelectedIds.length})
-            </button>
-            <button class="compact-btn" onclick="toggleQuickIgnoreMode()">✕</button>
-          </div>
-        </div>
-      ` : "";
-
       const headerBar = `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
+              ${getSortModeButtonLabel()}
+            </button>
             <div class="btn-row">
-              <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
-                ${getSortModeButtonLabel()}
-              </button>
-              <button class="compact-btn ${quickIgnoreMode ? 'primary' : ''}" onclick="toggleQuickIgnoreMode()">
-                ${quickIgnoreMode ? "🙈 Schnellwahl aktiv" : "🙈 Schnell-Ignorieren"}
-              </button>
-            </div>
-            <div class="btn-row">
-              <button class="compact-btn ${allContactsFilter === 'all' ? 'primary' : ''}" onclick="allContactsFilter='all'; quickIgnoreSelectedIds.clear(); renderPhoneApp();">
+              <button class="compact-btn ${allContactsFilter === 'all' ? 'primary' : ''}" onclick="allContactsFilter='all'; renderPhoneApp();">
                 Alle (${visibleCount})
               </button>
-              <button class="compact-btn ${allContactsFilter === 'hidden' ? 'primary' : ''}" onclick="allContactsFilter='hidden'; quickIgnoreSelectedIds.clear(); renderPhoneApp();">
+              <button class="compact-btn ${allContactsFilter === 'hidden' ? 'primary' : ''}" onclick="allContactsFilter='hidden'; renderPhoneApp();">
                 Ausgeblendet (${hiddenCount})
               </button>
             </div>
           </div>
-          ${quickIgnoreToolbarHtml}
           ${searchDropdownHtml}
         </div>
       `;
@@ -2487,21 +2410,16 @@
       }
 
       const listHtml = sorted.map(person => {
-        const isChecked = quickIgnoreMode && activeSelectedSet.has(person.id);
         const bdayLine = formatCompactBirthdayLine(person.birthdayIso);
         const subText = bdayLine || (person.phone ? `Ohne Datum • ${person.phone}` : "Ohne Datumsangabe");
         const pillHtml = renderBirthdayCountdownPill(person.birthdayIso, false);
-        const rowClickAction = quickIgnoreMode ? `toggleQuickIgnoreSelection(${person.id})` : `openDetailModal(${person.id})`;
         return `
-          <div class="card" style="padding: 10px 12px; opacity:${person.isHidden ? '0.74' : '1'}; border-color:${isChecked ? 'var(--warn-amber)' : 'var(--border-slate)'}; background:${isChecked ? 'var(--btn-bg)' : 'var(--card-slate)'};">
+          <div class="card" style="padding: 10px 12px; opacity:${person.isHidden ? '0.68' : '1'};">
             <div class="person-header" style="align-items: center;">
-              ${quickIgnoreMode ? `
-                <input type="checkbox" ${isChecked ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer; flex-shrink:0;" onclick="event.stopPropagation(); toggleQuickIgnoreSelection(${person.id})" />
-              ` : ""}
-              <div style="cursor:pointer;" onclick="${rowClickAction}">
+              <div style="cursor:pointer;" onclick="openDetailModal(${person.id})">
                 ${renderPersonAvatarHtml(person.name)}
               </div>
-              <div style="flex:1; min-width:0; cursor:pointer;" onclick="${rowClickAction}" title="${quickIgnoreMode ? 'Antippen zum Markieren' : 'Antippen für Details'}">
+              <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0;">
                   <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(formatLastNameFirst(person.name))}</span>
                   ${pillHtml}
@@ -2525,87 +2443,50 @@
 
     function renderPersonsList() {
       const visiblePersons = state.persons.filter(p => !p.isHidden);
-      const validIdsSet = new Set(visiblePersons.map(p => p.id));
-      const activeSelectedIds = [...quickIgnoreSelectedIds].filter(id => validIdsSet.has(id));
-      const activeSelectedSet = new Set(activeSelectedIds);
       const filteredVisible = visiblePersons.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
       const sorted = sortPersonsArray(filteredVisible);
-      const sortedIdsJson = JSON.stringify(sorted.map(p => p.id));
 
       const searchDropdownHtml = renderContactSearchDropdownHtml({
         key: "tab_overview",
         persons: visiblePersons,
         selectedPersonId: null,
         placeholder: `🔎 Kontakt suchen / per Dropdown wählen (${sorted.length}/${visiblePersons.length})...`,
-        onSelectPersonJs: (pid) => quickIgnoreMode ? `toggleQuickIgnoreSelection(${pid})` : `openDetailModal(${pid})`,
-        confirmLabel: (quickIgnoreMode && activeSelectedIds.length > 0)
-          ? `🙈 Ausblenden (${activeSelectedIds.length})`
-          : "✓ Bestätigen",
-        onConfirmJs: (quickIgnoreMode && activeSelectedIds.length > 0)
-          ? `applyQuickIgnoreBatch(true)`
-          : "",
-        checkedIdsSet: quickIgnoreMode ? activeSelectedSet : null,
-        onToggleCheckedJs: quickIgnoreMode ? (pid) => `toggleQuickIgnoreSelection(${pid})` : null,
+        onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
         showInlineAlphabet: true,
         inModal: false,
         syncWithTab: true
       });
 
-      const quickIgnoreToolbarHtml = quickIgnoreMode ? `
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; background:var(--bg-slate); border:1.5px solid var(--warn-amber); border-radius:8px; padding:7px 10px;">
-          <span style="font-size:12px; font-weight:700; color:var(--warn-amber);">🙈 ${activeSelectedIds.length} markiert</span>
-          <div class="btn-row" style="flex-wrap:wrap;">
-            <button class="compact-btn" onclick="selectAllQuickIgnore(${sortedIdsJson})">Alle (${sorted.length})</button>
-            ${activeSelectedIds.length > 0 ? `<button class="compact-btn" onclick="clearQuickIgnoreSelection()">Keine</button>` : ""}
-            <button class="compact-btn ${activeSelectedIds.length > 0 ? 'primary' : ''}" ${activeSelectedIds.length === 0 ? 'disabled style="opacity:0.5; cursor:default;"' : ''} onclick="applyQuickIgnoreBatch(true)">
-              ✓ Ausblenden (${activeSelectedIds.length})
-            </button>
-            <button class="compact-btn" onclick="toggleQuickIgnoreMode()">✕</button>
-          </div>
-        </div>
-      ` : "";
-
       const headerBar = `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
-            <div class="btn-row">
-              <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
-                ${getSortModeButtonLabel()}
-              </button>
-              <button class="compact-btn ${quickIgnoreMode ? 'primary' : ''}" onclick="toggleQuickIgnoreMode()" title="Schnell-Ignorieren-Modus (Mehrfachauswahl zum Ausblenden)">
-                ${quickIgnoreMode ? "🙈 Schnellwahl aktiv" : "🙈 Schnell-Ignorieren"}
-              </button>
-            </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
+              ${getSortModeButtonLabel()}
+            </button>
             <button class="compact-btn ${showPastDates ? 'primary' : ''}" onclick="showPastDates=!showPastDates; renderPhoneApp();">
               ${showPastDates ? "Anstehende zeigen" : "Vergangene Termine"}
             </button>
           </div>
-          ${quickIgnoreToolbarHtml}
           ${searchDropdownHtml}
         </div>
       `;
 
       const today = todayIso();
       const listHtml = sorted.map(person => {
-        const isChecked = quickIgnoreMode && activeSelectedSet.has(person.id);
         const personEvents = state.specialEvents.filter(e => e.personId === person.id);
         const bdayLine = showPastDates
           ? formatPassedBirthdayLine(person.birthdayIso)
           : formatCompactBirthdayLine(person.birthdayIso);
         const fallbackLine = !bdayLine ? "Ohne Datumsangabe" : "";
         const pillHtml = renderBirthdayCountdownPill(person.birthdayIso, showPastDates);
-        const rowClickAction = quickIgnoreMode ? `toggleQuickIgnoreSelection(${person.id})` : `openDetailModal(${person.id})`;
 
         return `
-          <div class="card" style="padding: 10px 12px; border-color:${isChecked ? 'var(--warn-amber)' : 'var(--border-slate)'}; background:${isChecked ? 'var(--btn-bg)' : 'var(--card-slate)'};">
+          <div class="card" style="padding: 10px 12px;">
             <div class="person-header" style="align-items: center;">
-              ${quickIgnoreMode ? `
-                <input type="checkbox" ${isChecked ? 'checked' : ''} style="width:18px; height:18px; cursor:pointer; flex-shrink:0;" onclick="event.stopPropagation(); toggleQuickIgnoreSelection(${person.id})" />
-              ` : ""}
-              <div style="cursor:pointer;" onclick="${rowClickAction}">
+              <div style="cursor:pointer;" onclick="openDetailModal(${person.id})">
                 ${renderPersonAvatarHtml(person.name)}
               </div>
-              <div style="flex:1; min-width:0; cursor:pointer;" onclick="${rowClickAction}" title="${quickIgnoreMode ? 'Antippen zum Markieren' : 'Antippen für Details'}">
+              <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${person.id})" title="Antippen für Details">
                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0;">
                   <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(formatLastNameFirst(person.name))}</span>
                   ${pillHtml}
@@ -2624,12 +2505,7 @@
                 ` : ""}
               </div>
               <div class="btn-row">
-                ${quickIgnoreMode ? `
-                  <button class="compact-btn" onclick="togglePersonHidden(${person.id})" title="Sofort ausblenden">🙈 Sofort</button>
-                ` : `
-                  <button class="compact-btn" onclick="togglePersonHidden(${person.id})" title="Kontakt direkt ignorieren / ausblenden">🙈</button>
-                  <button class="compact-btn primary" onclick="openPopupForPerson(${person.id}, '${showPastDates ? 'Nachträglich zum Geburtstag' : 'Erinnerung'}')">💬 Gruß</button>
-                `}
+                <button class="compact-btn primary" onclick="openPopupForPerson(${person.id}, '${showPastDates ? 'Nachträglich zum Geburtstag' : 'Erinnerung'}')">💬 Gruß</button>
               </div>
             </div>
           </div>
@@ -6063,7 +5939,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.28",
+        version: "1.0.29",
         createdAt: dateStr,
         state
       };
@@ -6081,7 +5957,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.28",
+        version: "1.0.29",
         createdAt: dateStr,
         state
       };
@@ -6156,7 +6032,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.28 gestartet.");
+    addLog("Remember Me v1.0.29 gestartet.");
     renderAll();
   </script>
 </body>
