@@ -1504,6 +1504,8 @@ fun KontaktChronikApp(
     var popupReason by remember { mutableStateOf(initialPopupReason) }
     var quickMessageText by remember { mutableStateOf("") }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showTimerEntryDialog by remember { mutableStateOf(false) }
+    var editingTimerPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var detailPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var syncStatus by remember { mutableStateOf("") }
     var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
@@ -1666,7 +1668,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.25", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.26", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -1969,9 +1971,30 @@ fun KontaktChronikApp(
                     allTimerPersons.filter { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
                 }
                 Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "⏳ Melde-Timer (${allTimerPersons.size})",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        CompactButton("＋ Timer-Eintrag") {
+                            editingTimerPerson = null
+                            showTimerEntryDialog = true
+                        }
+                    }
                     ContactSearchDropdown(
                         persons = allTimerPersons,
-                        onSelectPerson = { detailPerson = it },
+                        onSelectPerson = { p ->
+                            editingTimerPerson = p
+                            showTimerEntryDialog = true
+                        },
                         placeholderText = "🔎 Timer-Kontakt per Dropdown / ABCD suchen",
                         confirmButtonLabel = "✓ Bestätigen",
                         externalSearchQuery = tabSearchQuery,
@@ -1985,6 +2008,32 @@ fun KontaktChronikApp(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        if (timerPersons.isEmpty()) {
+                            item {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(CardSlate, RoundedCornerShape(10.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = if (allTimerPersons.isEmpty()) {
+                                            "Noch keine aktiven Melde-Timer vorhanden. Tippe auf „＋ Timer-Eintrag“, um manuell einen Timer für einen Kontakt zu erstellen."
+                                        } else {
+                                            "Keine Timer-Einträge für diesen ABCD-/Suchfilter gefunden."
+                                        },
+                                        color = TextSecondary,
+                                        fontSize = 12.sp
+                                    )
+                                    CompactButton("＋ Manuell Timer-Eintrag erstellen") {
+                                        editingTimerPerson = null
+                                        showTimerEntryDialog = true
+                                    }
+                                }
+                            }
+                        }
                         items(timerPersons, key = { it.id }) { p ->
                             val nextTimer = ContactResolver.nextTimerDate(p)
                             val diff = nextTimer?.let { ChronoUnit.DAYS.between(LocalDate.now(), it) } ?: 0L
@@ -2003,7 +2052,10 @@ fun KontaktChronikApp(
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .clickable { detailPerson = p }
+                                        .clickable {
+                                            editingTimerPerson = p
+                                            showTimerEntryDialog = true
+                                        }
                                 ) {
                                     Text(formatLastNameFirst(p.name), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                                     val unitDe = when (p.timerUnit.uppercase()) {
@@ -2024,7 +2076,14 @@ fun KontaktChronikApp(
                                         fontSize = 11.sp
                                     )
                                 }
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CompactButton("✏️") {
+                                        editingTimerPerson = p
+                                        showTimerEntryDialog = true
+                                    }
                                     CompactButton("Nachricht") {
                                         val relPairs = relations
                                             .filter { it.fromPersonId == p.id }
@@ -2034,6 +2093,22 @@ fun KontaktChronikApp(
                                         quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
                                         popupPerson = p
                                     }
+                                    Text(
+                                        "✕",
+                                        color = WarnAmber,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .clickable {
+                                                pendingConfirmMessage = "Melde-Timer für „${formatLastNameFirst(p.name)}“ deaktivieren?"
+                                                pendingConfirmAction = {
+                                                    scope.launch {
+                                                        db.updatePerson(p.copy(timerEnabled = false))
+                                                    }
+                                                }
+                                            }
+                                            .padding(horizontal = 4.dp)
+                                    )
                                 }
                             }
                         }
@@ -2416,7 +2491,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.25")
+                put("version", "1.0.26")
                 put("createdAt", dateStr)
                 put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
@@ -2933,6 +3008,348 @@ fun KontaktChronikApp(
                     CompactButton("Fertig") {
                         showGreetingsEditorDialog = false
                     }
+                }
+            }
+        }
+    }
+
+    // Dialog: Manuell Timer-Eintrag erstellen / bearbeiten (über den Plus-Button im Timer-Tab)
+    if (showTimerEntryDialog) {
+        val sortedCandidates = remember(visiblePersons) { visiblePersons.sortedByLastName() }
+        val initialTarget = editingTimerPerson ?: sortedCandidates.firstOrNull()
+        var selectedContactId by remember(editingTimerPerson, sortedCandidates.size) {
+            mutableStateOf(initialTarget?.id ?: -1L)
+        }
+        var createNewContactMode by remember(editingTimerPerson, sortedCandidates.isEmpty()) {
+            mutableStateOf(editingTimerPerson == null && sortedCandidates.isEmpty())
+        }
+        var newContactName by remember { mutableStateOf("") }
+        var newContactPhone by remember { mutableStateOf("") }
+        var intervalText by remember(editingTimerPerson) {
+            mutableStateOf((initialTarget?.timerInterval?.takeIf { it > 0 } ?: 14).toString())
+        }
+        var unitVal by remember(editingTimerPerson) {
+            mutableStateOf(initialTarget?.timerUnit?.ifBlank { TimerUnit.DAYS.name } ?: TimerUnit.DAYS.name)
+        }
+        var unitDropdownExpanded by remember { mutableStateOf(false) }
+        var startDateText by remember(editingTimerPerson) {
+            val baseIso = initialTarget?.lastContactedIso?.takeIf { it.isNotBlank() } ?: LocalDate.now().toString()
+            mutableStateOf(formatIsoToDdMmYyyy(baseIso))
+        }
+        var timerNote by remember(editingTimerPerson) {
+            mutableStateOf(initialTarget?.notes.orEmpty())
+        }
+
+        val timerUnitOptions = listOf(
+            "DAYS" to "Tage",
+            "WEEKS" to "Wochen",
+            "MONTHS" to "Monate",
+            "YEARS" to "Jahre"
+        )
+        val selectedUnitLabel = timerUnitOptions.find { it.first == unitVal }?.second ?: "Tage"
+        val parsedInterval = intervalText.toIntOrNull()?.coerceAtLeast(1) ?: 14
+        val parsedBaseDate = runCatching {
+            val iso = normalizeDateInputToIso(startDateText)
+            if (iso.isNotBlank() && !iso.startsWith("--")) LocalDate.parse(iso) else LocalDate.now()
+        }.getOrElse { LocalDate.now() }
+        val previewNextDate = addIntervalToIsoDate(parsedBaseDate, parsedInterval, unitVal)
+        val previewNextFormatted = formatIsoToDdMmYyyy(previewNextDate.toString())
+
+        fun saveTimerEntry() {
+            scope.launch {
+                val cleanInterval = intervalText.toIntOrNull()?.coerceAtLeast(1) ?: 14
+                val cleanBaseIso = normalizeDateInputToIso(startDateText)
+                    .takeIf { it.isNotBlank() && !it.startsWith("--") }
+                    ?: LocalDate.now().toString()
+
+                if (createNewContactMode) {
+                    if (newContactName.isNotBlank()) {
+                        db.upsertPerson(
+                            PersonEntity(
+                                name = newContactName.trim(),
+                                birthdayIso = null,
+                                hasNoOwnPhone = false,
+                                phone = newContactPhone.trim(),
+                                email = "",
+                                notes = timerNote.trim(),
+                                timerEnabled = true,
+                                timerInterval = cleanInterval,
+                                timerUnit = unitVal,
+                                lastContactedIso = cleanBaseIso
+                            )
+                        )
+                        showTimerEntryDialog = false
+                        editingTimerPerson = null
+                    }
+                } else {
+                    val target = visiblePersons.find { it.id == selectedContactId }
+                    if (target != null) {
+                        db.updatePerson(
+                            target.copy(
+                                timerEnabled = true,
+                                timerInterval = cleanInterval,
+                                timerUnit = unitVal,
+                                lastContactedIso = cleanBaseIso,
+                                notes = if (timerNote.isNotBlank()) timerNote.trim() else target.notes
+                            )
+                        )
+                        showTimerEntryDialog = false
+                        editingTimerPerson = null
+                    }
+                }
+            }
+        }
+
+        Dialog(
+            onDismissRequest = {
+                showTimerEntryDialog = false
+                editingTimerPerson = null
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Fixierte Kopfzeile oben (kein Scrollen nötig zum Speichern)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (editingTimerPerson != null) "⏳ Timer bearbeiten" else "⏳ Timer-Eintrag erstellen",
+                        color = TextPrimary,
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactButton("✕") {
+                            showTimerEntryDialog = false
+                            editingTimerPerson = null
+                        }
+                        CompactButton("✓ Speichern") { saveTimerEntry() }
+                    }
+                }
+                HorizontalDivider(color = BorderSlate)
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (sortedCandidates.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Kontakt auswählen (Nachname, ABCD):",
+                                color = TextSecondary,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            CompactButton(if (createNewContactMode) "Aus Kontakten wählen" else "＋ Neuer Kontakt") {
+                                createNewContactMode = !createNewContactMode
+                            }
+                        }
+                    }
+
+                    if (createNewContactMode || sortedCandidates.isEmpty()) {
+                        OutlinedTextField(
+                            value = newContactName,
+                            onValueChange = { newContactName = it },
+                            label = { Text("Name des neuen Kontakts") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = newContactPhone,
+                            onValueChange = { newContactPhone = it },
+                            label = { Text("Telefon (optional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    } else {
+                        ContactSearchDropdown(
+                            persons = sortedCandidates,
+                            selectedPersonId = selectedContactId.takeIf { it > 0L },
+                            onSelectPerson = { p ->
+                                selectedContactId = p.id
+                                intervalText = (p.timerInterval.takeIf { it > 0 } ?: 14).toString()
+                                unitVal = p.timerUnit.ifBlank { TimerUnit.DAYS.name }
+                                startDateText = formatIsoToDdMmYyyy(
+                                    p.lastContactedIso?.takeIf { it.isNotBlank() } ?: LocalDate.now().toString()
+                                )
+                                timerNote = p.notes
+                            },
+                            placeholderText = "🔎 Kontakt für Timer wählen",
+                            confirmButtonLabel = "✓ Bestätigen",
+                            showInlineAlphabet = true
+                        )
+                    }
+
+                    Text(
+                        text = "Schnellwahl für Melde-Rhythmus:",
+                        color = TextSecondary,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    val timerPresets = listOf(
+                        Triple("7 Tage", "7", "DAYS"),
+                        Triple("14 Tage", "14", "DAYS"),
+                        Triple("1 Monat", "1", "MONTHS"),
+                        Triple("3 Monate", "3", "MONTHS"),
+                        Triple("6 Monate", "6", "MONTHS"),
+                        Triple("1 Jahr", "1", "YEARS")
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(timerPresets) { (label, countStr, uCode) ->
+                            val isSelected = intervalText == countStr && unitVal == uCode
+                            CompactButton(if (isSelected) "✓ $label" else label) {
+                                intervalText = countStr
+                                unitVal = uCode
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = intervalText,
+                            onValueChange = { intervalText = it.filter { ch -> ch.isDigit() } },
+                            label = { Text("Intervall (Zahl)") },
+                            modifier = Modifier.weight(0.9f),
+                            singleLine = true
+                        )
+                        Column(modifier = Modifier.weight(1.1f)) {
+                            Text("Einheit", color = TextSecondary, fontSize = 11.sp)
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Box {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(BgSlate, RoundedCornerShape(6.dp))
+                                        .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                                        .clickable { unitDropdownExpanded = true }
+                                        .padding(horizontal = 10.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(selectedUnitLabel, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text("▼", color = AccentSteel, fontSize = 11.sp)
+                                }
+                                DropdownMenu(
+                                    expanded = unitDropdownExpanded,
+                                    onDismissRequest = { unitDropdownExpanded = false },
+                                    modifier = Modifier.background(CardSlate)
+                                ) {
+                                    Column(modifier = Modifier.width(210.dp)) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(BgSlate)
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "✓ $selectedUnitLabel",
+                                                color = AccentSteel,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            CompactButton("✓ Bestätigen") {
+                                                unitDropdownExpanded = false
+                                            }
+                                        }
+                                        HorizontalDivider(color = BorderSlate)
+                                        timerUnitOptions.forEach { (uCode, uLabel) ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        uLabel,
+                                                        color = if (uCode == unitVal) AccentSteel else TextPrimary,
+                                                        fontSize = 13.sp,
+                                                        fontWeight = if (uCode == unitVal) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                },
+                                                onClick = {
+                                                    unitVal = uCode
+                                                    unitDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    DateInputWithCalendar(
+                        value = startDateText,
+                        onValueChange = { startDateText = it },
+                        label = "Startdatum / Letzter Kontakt (TT.MM.JJJJ)"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BgSlate, RoundedCornerShape(6.dp))
+                            .border(1.dp, BorderSlate, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "📅 Nächster Melde-Timer: $previewNextFormatted (🔁 Alle ${formatRhythmTextDe(parsedInterval, unitVal)})",
+                            color = TreeGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = timerNote,
+                        onValueChange = { timerNote = it },
+                        label = { Text("Notiz / Anlass (optional)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                HorizontalDivider(color = BorderSlate)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (editingTimerPerson != null) {
+                        CompactButton("Timer ausschalten") {
+                            val pToDisable = editingTimerPerson
+                            if (pToDisable != null) {
+                                scope.launch {
+                                    db.updatePerson(pToDisable.copy(timerEnabled = false))
+                                    showTimerEntryDialog = false
+                                    editingTimerPerson = null
+                                }
+                            }
+                        }
+                    } else {
+                        CompactButton("Abbrechen") {
+                            showTimerEntryDialog = false
+                            editingTimerPerson = null
+                        }
+                    }
+                    CompactButton("✓ Timer speichern") { saveTimerEntry() }
                 }
             }
         }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.25 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.26 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1891,7 +1891,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.25</div>
+            <div class="app-title">Remember Me v1.0.26</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2910,19 +2910,108 @@
       }
     }
 
+    let timerEntryModalState = null; // { isEditing, personId, createNewContact, newName, newPhone, interval, unit, startDate, notes }
+
+    function openTimerEntryModal(personId = null) {
+      const visible = sortPersonsByLastName(state.persons.filter(p => !p.isHidden));
+      const target = personId ? visible.find(p => p.id === personId) : visible[0];
+      timerEntryModalState = {
+        isEditing: !!personId && !!target,
+        personId: target ? target.id : -1,
+        createNewContact: !personId && visible.length === 0,
+        newName: "",
+        newPhone: "",
+        interval: String((target && target.timerInterval > 0) ? target.timerInterval : 14),
+        unit: (target && target.timerUnit) ? target.timerUnit : "DAYS",
+        startDate: formatIsoToDdMmYyyy((target && target.lastContactedIso) ? target.lastContactedIso : todayIso()),
+        notes: (target && target.notes) ? target.notes : ""
+      };
+      renderModals();
+    }
+
+    function selectContactForTimerModal(personId) {
+      if (!timerEntryModalState) return;
+      const p = state.persons.find(x => x.id === personId);
+      if (!p) return;
+      timerEntryModalState.personId = p.id;
+      timerEntryModalState.interval = String(p.timerInterval > 0 ? p.timerInterval : 14);
+      timerEntryModalState.unit = p.timerUnit || "DAYS";
+      timerEntryModalState.startDate = formatIsoToDdMmYyyy(p.lastContactedIso || todayIso());
+      timerEntryModalState.notes = p.notes || "";
+      renderModals();
+    }
+
+    function saveTimerEntryModal() {
+      if (!timerEntryModalState) return;
+      const t = timerEntryModalState;
+      const cleanInterval = Math.max(1, parseInt(t.interval, 10) || 14);
+      const cleanUnit = t.unit || "DAYS";
+      const cleanStartIso = normalizeDateInputToIso(t.startDate) || todayIso();
+
+      if (t.createNewContact) {
+        const cleanName = (t.newName || "").trim();
+        if (!cleanName) return;
+        const newId = state.nextId++;
+        state.persons.push({
+          id: newId,
+          name: cleanName,
+          birthdayIso: "",
+          hasNoOwnPhone: false,
+          phone: (t.newPhone || "").trim(),
+          email: "",
+          appPeerId: "",
+          notes: (t.notes || "").trim(),
+          photoBase64: makeIllustratedPortraitDataUrl(cleanName),
+          timerEnabled: true,
+          timerInterval: cleanInterval,
+          timerUnit: cleanUnit,
+          lastContactedIso: cleanStartIso
+        });
+        addLog(`⏳ Neuer Kontakt "${cleanName}" mit Melde-Timer (alle ${cleanInterval} ${formatTimerUnitDe(cleanUnit)}) angelegt.`);
+      } else {
+        const person = state.persons.find(p => p.id === t.personId);
+        if (!person) return;
+        person.timerEnabled = true;
+        person.timerInterval = cleanInterval;
+        person.timerUnit = cleanUnit;
+        person.lastContactedIso = cleanStartIso;
+        if ((t.notes || "").trim()) {
+          person.notes = t.notes.trim();
+        }
+        addLog(`⏳ Melde-Timer für "${person.name}" gespeichert (alle ${cleanInterval} ${formatTimerUnitDe(cleanUnit)}).`);
+      }
+      timerEntryModalState = null;
+      saveState();
+    }
+
+    function disableTimerForPerson(personId) {
+      const person = state.persons.find(p => p.id === personId);
+      if (!person) return;
+      askDeleteConfirm(`Melde-Timer für „${formatLastNameFirst(person.name)}“ deaktivieren?`, () => {
+        person.timerEnabled = false;
+        timerEntryModalState = null;
+        addLog(`⏳ Melde-Timer für "${person.name}" deaktiviert.`);
+        saveState();
+      });
+    }
+
     function renderTimerTab() {
       const today = todayIso();
       const allTimerPersons = sortPersonsByLastName(state.persons.filter(p => !p.isHidden && p.timerEnabled));
       const timerPersons = allTimerPersons.filter(p => matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter));
 
       const searchCard = `
-        <div class="card" style="padding:8px 10px;">
+        <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <span style="font-size:13.5px; font-weight:700; color:var(--text-primary);">⏳ Melde-Timer (${allTimerPersons.length})</span>
+            <button class="compact-btn primary" onclick="openTimerEntryModal()">＋ Timer-Eintrag</button>
+          </div>
           ${renderContactSearchDropdownHtml({
             key: "tab_timer",
             persons: allTimerPersons,
             selectedPersonId: null,
             placeholder: `🔎 Timer-Kontakt suchen / per Dropdown wählen (${timerPersons.length}/${allTimerPersons.length})...`,
-            onSelectPersonJs: (pid) => `openDetailModal(${pid})`,
+            onSelectPersonJs: (pid) => `openTimerEntryModal(${pid})`,
             showInlineAlphabet: true,
             inModal: false,
             syncWithTab: true
@@ -2930,27 +3019,44 @@
         </div>
       `;
 
+      const emptyHtml = timerPersons.length === 0 ? `
+        <div class="card" style="display:flex; flex-direction:column; gap:8px;">
+          <div style="font-size:12px; color:var(--text-secondary);">
+            ${allTimerPersons.length === 0
+              ? "Noch keine aktiven Melde-Timer vorhanden. Tippe auf „＋ Timer-Eintrag“, um manuell einen Timer für einen Kontakt zu erstellen."
+              : "Keine Timer-Einträge für diesen ABCD-/Suchfilter gefunden."}
+          </div>
+          <div>
+            <button class="compact-btn primary" onclick="openTimerEntryModal()">＋ Manuell Timer-Eintrag erstellen</button>
+          </div>
+        </div>
+      ` : "";
+
       const listHtml = timerPersons.map(p => {
         const nextDate = ContactResolver.nextTimerDate(p, today);
         const diff = daysBetween(today, nextDate);
         const pillText = diff <= 0 ? "⏳ Fällig!" : `⏳ in ${diff}T`;
         return `
           <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-            <div style="cursor:pointer;" onclick="openDetailModal(${p.id})">
+            <div style="cursor:pointer;" onclick="openTimerEntryModal(${p.id})">
               ${renderPersonAvatarHtml(p.name)}
             </div>
-            <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${p.id})">
+            <div style="flex:1; min-width:0; cursor:pointer;" onclick="openTimerEntryModal(${p.id})">
               <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                 <span class="person-name-link">${escapeHtml(formatLastNameFirst(p.name))}</span>
                 <span class="countdown-pill ${diff <= 0 ? 'today' : (diff <= 3 ? 'soon' : '')}">${pillText}</span>
               </div>
               <div class="person-sub">Alle ${p.timerInterval} ${formatTimerUnitDe(p.timerUnit)} • Nächste: ${formatIsoToDdMmYyyy(nextDate)}</div>
             </div>
-            <button class="compact-btn primary" onclick="openPopupForPerson(${p.id}, 'Melde-Timer')">💬 Gruß</button>
+            <div class="btn-row">
+              <button class="compact-btn" style="padding:5px 7px;" onclick="openTimerEntryModal(${p.id})" title="Timer bearbeiten">✏️</button>
+              <button class="compact-btn primary" onclick="openPopupForPerson(${p.id}, 'Melde-Timer')">💬 Gruß</button>
+              <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="disableTimerForPerson(${p.id})" title="Timer deaktivieren">✕</span>
+            </div>
           </div>
         `;
       }).join("");
-      return searchCard + listHtml;
+      return searchCard + emptyHtml + listHtml;
     }
 
     function renderEventsTab() {
@@ -3626,6 +3732,122 @@
 
               <div class="modal-footer" style="justify-content:flex-end;">
                 <button class="compact-btn primary" onclick="showOptionsDialog=false; renderModals();">Schließen</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (timerEntryModalState !== null) {
+        const t = timerEntryModalState;
+        const visibleCandidates = sortPersonsByLastName(state.persons.filter(p => !p.isHidden));
+        const parsedInterval = Math.max(1, parseInt(t.interval, 10) || 14);
+        const baseIso = normalizeDateInputToIso(t.startDate) || todayIso();
+        const nextIso = addIntervalToIsoDate(baseIso, parsedInterval, t.unit || "DAYS");
+        const nextFormatted = formatIsoToDdMmYyyy(nextIso);
+        const presets = [
+          { label: "7 Tage", count: "7", unit: "DAYS" },
+          { label: "14 Tage", count: "14", unit: "DAYS" },
+          { label: "1 Monat", count: "1", unit: "MONTHS" },
+          { label: "3 Monate", count: "3", unit: "MONTHS" },
+          { label: "6 Monate", count: "6", unit: "MONTHS" },
+          { label: "1 Jahr", count: "1", unit: "YEARS" }
+        ];
+
+        const contactDropdownHtml = renderContactSearchDropdownHtml({
+          key: "timer_modal_contact",
+          persons: visibleCandidates,
+          selectedPersonId: t.personId,
+          placeholder: "🔎 Kontakt für Timer wählen (Nachname)...",
+          onSelectPersonJs: (pid) => `selectContactForTimerModal(${pid})`,
+          showInlineAlphabet: true,
+          inModal: true
+        });
+
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="closeModals(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+              <div class="modal-header-sticky">
+                <div class="modal-title" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                  ${t.isEditing ? "⏳ Timer bearbeiten" : "⏳ Timer-Eintrag erstellen"}
+                </div>
+                <div class="btn-row">
+                  <button class="compact-btn" onclick="timerEntryModalState=null; renderModals();">✕</button>
+                  <button class="compact-btn primary" onclick="saveTimerEntryModal()">✓ Speichern</button>
+                </div>
+              </div>
+
+              ${visibleCandidates.length > 0 ? `
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                  <span class="field-label" style="font-weight:600;">Kontakt auswählen (Nachname, ABCD):</span>
+                  <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="timerEntryModalState.createNewContact=!timerEntryModalState.createNewContact; renderModals();">
+                    ${t.createNewContact ? "Aus Kontakten wählen" : "＋ Neuer Kontakt"}
+                  </button>
+                </div>
+              ` : ""}
+
+              ${(t.createNewContact || visibleCandidates.length === 0) ? `
+                <div class="field-group">
+                  <label class="field-label">Name des neuen Kontakts</label>
+                  <input class="field-input" placeholder="Nachname, Vorname oder Vorname Nachname" value="${escapeHtml(t.newName || '')}" oninput="timerEntryModalState.newName=this.value" />
+                </div>
+                <div class="field-group">
+                  <label class="field-label">Telefon (optional)</label>
+                  <input class="field-input" placeholder="+49..." value="${escapeHtml(t.newPhone || '')}" oninput="timerEntryModalState.newPhone=this.value" />
+                </div>
+              ` : contactDropdownHtml}
+
+              <div class="field-group">
+                <label class="field-label" style="font-weight:600;">Schnellwahl für Melde-Rhythmus:</label>
+                <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                  ${presets.map(pr => {
+                    const active = String(t.interval) === pr.count && (t.unit || "DAYS") === pr.unit;
+                    return `<button type="button" class="compact-btn ${active ? 'primary' : ''}" style="padding:4px 8px; font-size:11px;" onclick="timerEntryModalState.interval='${pr.count}'; timerEntryModalState.unit='${pr.unit}'; renderModals();">${active ? '✓ ' : ''}${pr.label}</button>`;
+                  }).join("")}
+                </div>
+              </div>
+
+              <div style="display:flex; gap:6px;">
+                <div class="field-group" style="flex:0.9;">
+                  <label class="field-label">Intervall (Zahl)</label>
+                  <input type="number" min="1" class="field-input" value="${escapeHtml(t.interval)}" oninput="timerEntryModalState.interval=this.value; renderModals();" />
+                </div>
+                <div class="field-group" style="flex:1.1;">
+                  <label class="field-label">Einheit</label>
+                  <select class="field-select" onchange="timerEntryModalState.unit=this.value; renderModals();">
+                    <option value="DAYS" ${t.unit === 'DAYS' ? 'selected' : ''}>Tage</option>
+                    <option value="WEEKS" ${t.unit === 'WEEKS' ? 'selected' : ''}>Wochen</option>
+                    <option value="MONTHS" ${t.unit === 'MONTHS' ? 'selected' : ''}>Monate</option>
+                    <option value="YEARS" ${t.unit === 'YEARS' ? 'selected' : ''}>Jahre</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <label class="field-label">Startdatum / Letzter Kontakt (TT.MM.JJJJ)</label>
+                <div style="display:flex; gap:5px; align-items:center;">
+                  <input id="tm-startdate" class="field-input" style="flex:1; cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(t.startDate)}" onclick="openCalendarPicker('tm-startdate')" onfocus="openCalendarPicker('tm-startdate')" oninput="timerEntryModalState.startDate=this.value; renderModals();" />
+                  <button class="compact-btn" style="padding:5px 8px;" onclick="openCalendarPicker('tm-startdate')">📅</button>
+                </div>
+              </div>
+
+              <div style="font-size:12px; font-weight:600; color:var(--tree-green); background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:6px; padding:7px 10px;">
+                📅 Nächster Melde-Timer: <b>${escapeHtml(nextFormatted)}</b> (🔁 Alle ${escapeHtml(formatRhythmTextDe(parsedInterval, t.unit || 'DAYS'))})
+              </div>
+
+              <div class="field-group">
+                <label class="field-label">Notiz / Anlass (optional)</label>
+                <input class="field-input" placeholder="z. B. Mal wieder anrufen" value="${escapeHtml(t.notes || '')}" oninput="timerEntryModalState.notes=this.value" />
+              </div>
+
+              <div class="modal-footer">
+                ${t.isEditing && t.personId > 0 ? `
+                  <button class="compact-btn danger" onclick="disableTimerForPerson(${t.personId})">Timer ausschalten</button>
+                ` : `
+                  <button class="compact-btn" onclick="timerEntryModalState=null; renderModals();">Abbrechen</button>
+                `}
+                <button class="compact-btn primary" onclick="saveTimerEntryModal()">✓ Timer speichern</button>
               </div>
             </div>
           </div>
@@ -5426,6 +5648,7 @@
         showOptionsDialog = false;
         showGreetingsEditorModal = false;
         showCreateDialog = false;
+        timerEntryModalState = null;
         detailPersonId = null;
         popupState = null;
         wichtelGroupModalState = null;
@@ -5639,6 +5862,10 @@
         if (calendarPickerState.inputId === "wg-reveal" && wichtelGroupModalState) {
           wichtelGroupModalState.revealDate = formatted;
         }
+        if (calendarPickerState.inputId === "tm-startdate" && timerEntryModalState) {
+          timerEntryModalState.startDate = formatted;
+          renderModals();
+        }
       }
       closeCalendarPicker();
     }
@@ -5712,7 +5939,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.25",
+        version: "1.0.26",
         createdAt: dateStr,
         state
       };
@@ -5730,7 +5957,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.25",
+        version: "1.0.26",
         createdAt: dateStr,
         state
       };
@@ -5805,7 +6032,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.25 gestartet.");
+    addLog("Remember Me v1.0.26 gestartet.");
     renderAll();
   </script>
 </body>
