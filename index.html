@@ -219,6 +219,11 @@
     }
 
     .compact-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.1;
       background: var(--btn-bg);
       color: var(--text-primary);
       border: 1px solid var(--border-slate);
@@ -343,17 +348,19 @@
     .countdown-pill {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      text-align: center;
       gap: 4px;
       font-size: 11px;
       font-weight: 700;
-      padding: 2px 8px;
+      padding: 3px 8px;
       border-radius: 999px;
       background: var(--btn-bg);
       color: var(--accent-steel);
       border: 1px solid var(--border-slate);
       white-space: nowrap;
       flex-shrink: 0;
-      line-height: 1.2;
+      line-height: 1.1;
     }
 
     .countdown-pill.today {
@@ -395,22 +402,32 @@
     }
 
     .badge-app {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.1;
       font-size: 10.5px;
       font-weight: 600;
       color: var(--accent-steel);
       background: var(--btn-bg);
-      padding: 2px 7px;
+      padding: 3px 8px;
       border-radius: 999px;
       white-space: nowrap;
       flex-shrink: 0;
     }
 
     .badge-nophone {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.1;
       font-size: 10.5px;
       font-weight: 600;
       color: var(--warn-amber);
       background: var(--warn-bg);
-      padding: 2px 7px;
+      padding: 3px 8px;
       border-radius: 999px;
       white-space: nowrap;
       flex-shrink: 0;
@@ -522,10 +539,15 @@
     }
 
     .widget-tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.1;
       font-size: 10px;
       color: var(--accent-steel);
       border: 1px solid var(--border-slate);
-      padding: 2px 6px;
+      padding: 3px 7px;
       border-radius: 4px;
     }
 
@@ -555,11 +577,16 @@
     }
 
     .widget-row-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.1;
       font-size: 11px;
       font-weight: 700;
       color: var(--accent-steel);
       background: var(--btn-bg);
-      padding: 2px 7px;
+      padding: 3px 8px;
       border-radius: 6px;
       border: 1px solid var(--border-slate);
     }
@@ -1848,7 +1875,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.22</div>
+            <div class="app-title">Remember Me v1.0.23</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -2069,7 +2096,9 @@
       const p = state.persons.find(x => x.id === personId);
       if (!p) return;
       p.isHidden = !p.isHidden;
-      addLog(p.isHidden ? `Kontakt "${p.name}" dauerhaft ausgeblendet (nur noch unter "Alle Kontakte" sichtbar).` : `Kontakt "${p.name}" wieder eingeblendet.`);
+      if (p.isHidden && detailPersonId === personId) {
+        detailPersonId = null;
+      }
       saveState();
     }
 
@@ -2097,9 +2126,10 @@
 
     function renderAllContactsTab() {
       const hiddenCount = state.persons.filter(p => p.isHidden).length;
+      const visibleCount = state.persons.filter(p => !p.isHidden).length;
       const baseList = allContactsFilter === "hidden"
         ? state.persons.filter(p => p.isHidden)
-        : state.persons;
+        : state.persons.filter(p => !p.isHidden);
       const sorted = sortPersonsArray(baseList);
 
       const headerBar = `
@@ -2109,7 +2139,7 @@
           </button>
           <div class="btn-row">
             <button class="compact-btn ${allContactsFilter === 'all' ? 'primary' : ''}" onclick="allContactsFilter='all'; renderPhoneApp();">
-              Alle (${state.persons.length})
+              Alle (${visibleCount})
             </button>
             <button class="compact-btn ${allContactsFilter === 'hidden' ? 'primary' : ''}" onclick="allContactsFilter='hidden'; renderPhoneApp();">
               Ausgeblendet (${hiddenCount})
@@ -3388,7 +3418,7 @@
                 <span>In Handykontakten speichern</span>
               </label>
               <label class="checkbox-row">
-                <input type="checkbox" id="d-hidden" ${dp.isHidden ? 'checked' : ''} />
+                <input type="checkbox" id="d-hidden" ${dp.isHidden ? 'checked' : ''} onchange="togglePersonHidden(${dp.id})" />
                 <span>Kontakt ausblenden</span>
               </label>
 
@@ -5226,7 +5256,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.22",
+        version: "1.0.23",
         createdAt: dateStr,
         state
       };
@@ -5244,7 +5274,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.22",
+        version: "1.0.23",
         createdAt: dateStr,
         state
       };
@@ -5319,7 +5349,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.22 gestartet.");
+    addLog("Remember Me v1.0.23 gestartet.");
     renderAll();
   </script>
 </body>
