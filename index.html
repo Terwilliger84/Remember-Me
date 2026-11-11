@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.27 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.28 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -1891,7 +1891,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.27</div>
+            <div class="app-title">Remember Me v1.0.28</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -6063,7 +6063,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.27",
+        version: "1.0.28",
         createdAt: dateStr,
         state
       };
@@ -6081,7 +6081,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.27",
+        version: "1.0.28",
         createdAt: dateStr,
         state
       };
@@ -6156,7 +6156,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.27 gestartet.");
+    addLog("Remember Me v1.0.28 gestartet.");
     renderAll();
   </script>
 </body>

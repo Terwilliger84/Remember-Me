@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import de.kontaktchronik.app.data.AppDatabase
@@ -835,117 +836,156 @@ fun ContactSearchDropdown(
                 }
             }
 
-            DropdownMenu(
-                expanded = internalExpanded,
-                onDismissRequest = { internalExpanded = false },
-                modifier = Modifier.background(CardSlate)
-            ) {
-                Column(modifier = Modifier.width(300.dp)) {
-                    // Oben fixierte Leiste: Bestätigen + Suche + ABCD-Schnellwahl
-                    Column(
+            if (internalExpanded) {
+                Dialog(
+                    onDismissRequest = { internalExpanded = false },
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .background(BgSlate)
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { internalExpanded = false }
+                            .padding(horizontal = 14.dp, vertical = 28.dp),
+                        contentAlignment = Alignment.TopCenter
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 460.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(CardSlate, RoundedCornerShape(12.dp))
+                                .border(1.5.dp, AccentSteel, RoundedCornerShape(12.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { }
                         ) {
-                            Text(
-                                text = if (selectedPerson != null) {
-                                    "✓ ${formatLastNameFirst(selectedPerson.name)}"
-                                } else {
-                                    "📋 ${sortedFiltered.size} Kontakte (Nachname A–Z)"
-                                },
-                                color = AccentSteel,
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            CompactButton(confirmButtonLabel) {
-                                onConfirmAction?.invoke()
-                                internalExpanded = false
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = query,
-                            onValueChange = { setQuery(it) },
-                            label = { Text("🔎 Nachname / Vorname suchen...", fontSize = 10.5.sp) },
-                            trailingIcon = {
-                                if (query.isNotBlank()) {
+                            // Oben fixierte Leiste: Bestätigen + Suche + ABCD-Schnellwahl
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(BgSlate)
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
-                                        "✕",
-                                        color = WarnAmber,
-                                        fontSize = 13.sp,
+                                        text = if (selectedPerson != null) {
+                                            "✓ ${formatLastNameFirst(selectedPerson.name)}"
+                                        } else {
+                                            "📋 ${sortedFiltered.size} Kontakte (Nachname A–Z)"
+                                        },
+                                        color = AccentSteel,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier
-                                            .clickable { setQuery("") }
-                                            .padding(6.dp)
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
                                     )
-                                }
-                            },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        AlphabetQuickBar(
-                            selectedLetter = letter,
-                            onSelectLetter = { setLetter(it) },
-                            availableLetters = availableLetters
-                        )
-                    }
-
-                    HorizontalDivider(color = BorderSlate)
-
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 190.dp)
-                    ) {
-                        if (allowNone) {
-                            item(key = "none_option") {
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            noneLabel,
-                                            color = if (selectedPersonId == -1L) AccentSteel else TextSecondary,
-                                            fontSize = 12.5.sp,
-                                            fontWeight = if (selectedPersonId == -1L) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    },
-                                    onClick = {
-                                        onSelectNone?.invoke()
-                                        internalExpanded = false
+                                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        CompactButton("✕") {
+                                            internalExpanded = false
+                                        }
+                                        CompactButton(confirmButtonLabel) {
+                                            onConfirmAction?.invoke()
+                                            internalExpanded = false
+                                        }
                                     }
+                                }
+
+                                OutlinedTextField(
+                                    value = query,
+                                    onValueChange = { setQuery(it) },
+                                    label = { Text("🔎 Nachname / Vorname suchen...", fontSize = 11.sp) },
+                                    trailingIcon = {
+                                        if (query.isNotBlank()) {
+                                            Text(
+                                                "✕",
+                                                color = WarnAmber,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .clickable { setQuery("") }
+                                                    .padding(6.dp)
+                                            )
+                                        }
+                                    },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+
+                                AlphabetQuickBar(
+                                    selectedLetter = letter,
+                                    onSelectLetter = { setLetter(it) },
+                                    availableLetters = availableLetters
                                 )
                             }
-                        }
-                        if (sortedFiltered.isEmpty()) {
-                            item(key = "empty_option") {
-                                Box(modifier = Modifier.padding(12.dp)) {
-                                    Text(
-                                        "Keine Kontakte für diesen Filter gefunden.",
-                                        color = TextMuted,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        } else {
-                            items(sortedFiltered, key = { it.id }) { p ->
-                                val isSelected = p.id == selectedPersonId
-                                val isChecked = checkedPersonIds?.contains(p.id) == true
-                                val formattedName = formatLastNameFirst(p.name)
-                                val bdayShort = formatIsoToDdMmYyyy(p.birthdayIso)
-                                DropdownMenuItem(
-                                    text = {
+
+                            HorizontalDivider(color = BorderSlate)
+
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false)
+                            ) {
+                                if (allowNone) {
+                                    item(key = "none_option") {
                                         Row(
-                                            modifier = Modifier.fillMaxWidth(),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    onSelectNone?.invoke()
+                                                    internalExpanded = false
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                noneLabel,
+                                                color = if (selectedPersonId == -1L) AccentSteel else TextSecondary,
+                                                fontSize = 13.sp,
+                                                fontWeight = if (selectedPersonId == -1L) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                        HorizontalDivider(color = BorderSlate.copy(alpha = 0.5f))
+                                    }
+                                }
+                                if (sortedFiltered.isEmpty()) {
+                                    item(key = "empty_option") {
+                                        Box(modifier = Modifier.padding(14.dp)) {
+                                            Text(
+                                                "Keine Kontakte für diesen Filter gefunden.",
+                                                color = TextMuted,
+                                                fontSize = 12.5.sp
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    items(sortedFiltered, key = { it.id }) { p ->
+                                        val isSelected = p.id == selectedPersonId
+                                        val isChecked = checkedPersonIds?.contains(p.id) == true
+                                        val formattedName = formatLastNameFirst(p.name)
+                                        val bdayShort = formatIsoToDdMmYyyy(p.birthdayIso)
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(if (isSelected || isChecked) BtnBg else CardSlate)
+                                                .clickable {
+                                                    if (onToggleCheckedPerson != null) {
+                                                        onToggleCheckedPerson(p)
+                                                    } else {
+                                                        onSelectPerson(p)
+                                                        internalExpanded = false
+                                                    }
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -956,7 +996,7 @@ fun ContactSearchDropdown(
                                                     else -> formattedName
                                                 },
                                                 color = if (isSelected || isChecked) AccentSteel else TextPrimary,
-                                                fontSize = 12.5.sp,
+                                                fontSize = 13.sp,
                                                 fontWeight = if (isSelected || isChecked) FontWeight.Bold else FontWeight.Normal,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
@@ -966,23 +1006,16 @@ fun ContactSearchDropdown(
                                                 Text(
                                                     text = bdayShort,
                                                     color = TextMuted,
-                                                    fontSize = 10.5.sp,
+                                                    fontSize = 11.sp,
                                                     maxLines = 1,
                                                     softWrap = false,
-                                                    modifier = Modifier.padding(start = 6.dp)
+                                                    modifier = Modifier.padding(start = 8.dp)
                                                 )
                                             }
                                         }
-                                    },
-                                    onClick = {
-                                        if (onToggleCheckedPerson != null) {
-                                            onToggleCheckedPerson(p)
-                                        } else {
-                                            onSelectPerson(p)
-                                            internalExpanded = false
-                                        }
+                                        HorizontalDivider(color = BorderSlate.copy(alpha = 0.45f))
                                     }
-                                )
+                                }
                             }
                         }
                     }
@@ -1696,7 +1729,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.27", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.28", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -2820,7 +2853,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.27")
+                put("version", "1.0.28")
                 put("createdAt", dateStr)
                 put("birthdayGreetings", JSONArray(serializeBirthdayGreetingsJson(birthdayGreetings)))
                 put("wichtelGroups", JSONArray(serializeWichtelGroupsJson(wichtelGroups)))
@@ -3196,62 +3229,89 @@ fun KontaktChronikApp(
                         CompactButton("▼ Liste (${filteredIndices.size})") {
                             greetingDropdownExpanded = true
                         }
-                        DropdownMenu(
-                            expanded = greetingDropdownExpanded,
-                            onDismissRequest = { greetingDropdownExpanded = false },
-                            modifier = Modifier.background(CardSlate)
-                        ) {
-                            Column(modifier = Modifier.width(305.dp)) {
-                                Column(
+                        if (greetingDropdownExpanded) {
+                            Dialog(
+                                onDismissRequest = { greetingDropdownExpanded = false },
+                                properties = DialogProperties(usePlatformDefaultWidth = false)
+                            ) {
+                                Box(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(BgSlate)
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                        .fillMaxSize()
+                                        .clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null
+                                        ) { greetingDropdownExpanded = false }
+                                        .padding(horizontal = 14.dp, vertical = 28.dp),
+                                    contentAlignment = Alignment.TopCenter
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 440.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(CardSlate, RoundedCornerShape(12.dp))
+                                            .border(1.5.dp, AccentSteel, RoundedCornerShape(12.dp))
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) { }
                                     ) {
-                                        Text(
-                                            "✓ ${filteredIndices.size} Sprüche",
-                                            color = AccentSteel,
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        CompactButton("✓ Bestätigen") {
-                                            greetingDropdownExpanded = false
-                                        }
-                                    }
-                                    AlphabetQuickBar(
-                                        selectedLetter = selectedLetter,
-                                        onSelectLetter = { selectedLetter = it }
-                                    )
-                                }
-                                HorizontalDivider(color = BorderSlate)
-                                LazyColumn(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(max = 190.dp)
-                                ) {
-                                    items(filteredIndices, key = { it }) { gIdx ->
-                                        val gText = birthdayGreetings.getOrNull(gIdx).orEmpty()
-                                        DropdownMenuItem(
-                                            text = {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(BgSlate)
+                                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
                                                 Text(
-                                                    "#${gIdx + 1}: $gText",
-                                                    color = TextPrimary,
+                                                    "✓ ${filteredIndices.size} Sprüche",
+                                                    color = AccentSteel,
                                                     fontSize = 12.sp,
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis
+                                                    fontWeight = FontWeight.Bold
                                                 )
-                                            },
-                                            onClick = {
-                                                searchQuery = (gIdx + 1).toString()
-                                                greetingDropdownExpanded = false
+                                                CompactButton("✓ Bestätigen") {
+                                                    greetingDropdownExpanded = false
+                                                }
                                             }
-                                        )
+                                            AlphabetQuickBar(
+                                                selectedLetter = selectedLetter,
+                                                onSelectLetter = { selectedLetter = it }
+                                            )
+                                        }
+                                        HorizontalDivider(color = BorderSlate)
+                                        LazyColumn(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .weight(1f, fill = false)
+                                        ) {
+                                            items(filteredIndices, key = { it }) { gIdx ->
+                                                val gText = birthdayGreetings.getOrNull(gIdx).orEmpty()
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            searchQuery = (gIdx + 1).toString()
+                                                            greetingDropdownExpanded = false
+                                                        }
+                                                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        "#${gIdx + 1}: $gText",
+                                                        color = TextPrimary,
+                                                        fontSize = 12.sp,
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                                HorizontalDivider(color = BorderSlate.copy(alpha = 0.45f))
+                                            }
+                                        }
                                     }
                                 }
                             }
