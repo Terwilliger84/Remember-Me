@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.42 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.43 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -2172,7 +2172,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.42</div>
+            <div class="app-title">Remember Me v1.0.43</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -6422,7 +6422,7 @@
                   <label class="field-label">Melde-Timer (Tage)</label>
                   <div class="input-icon-wrap">
                     <span class="input-icon-chip">⏱️</span>
-                    <input id="c-timer" value="${escapeHtml(createDraft.timer)}" oninput="createDraft.timer=this.value" />
+                    <input id="c-timer" placeholder="Optional (leer = kein Timer)" value="${escapeHtml(createDraft.timer)}" oninput="createDraft.timer=this.value" />
                   </div>
                 </div>
                 <div class="field-group">
@@ -7364,7 +7364,7 @@
     let detailDraftRelLabel = "Kind von";
     let detailDraftRelTargetId = -1;
     let createRelationsExpanded = false;
-    let createDraft = { name: "", bday: "", noPhone: false, phone: "", email: "", timer: "14", notes: "", photoBase64: "", relLabel: "Kind von", relTargetId: -1 };
+    let createDraft = { name: "", bday: "", noPhone: false, phone: "", email: "", timer: "", notes: "", photoBase64: "", relLabel: "Kind von", relTargetId: -1 };
 
     function triggerContactPhotoPicker(mode) {
       if (mode === "detail") syncDetailDraftBeforeRerender();
@@ -8761,7 +8761,7 @@
         saveInDevice: true,
         phone: "",
         email: "",
-        timer: "14",
+        timer: "",
         notes: "",
         photoBase64: "",
         relLabel: "Kind von",
@@ -9029,7 +9029,9 @@
       const saveInDevice = savePhoneEl ? savePhoneEl.checked : true;
       const phone = document.getElementById("c-phone").value.trim();
       const email = document.getElementById("c-email").value.trim();
-      const timerInterval = parseInt(document.getElementById("c-timer").value, 10) || 14;
+      const rawTimer = parseInt((document.getElementById("c-timer").value || "").trim(), 10);
+      const hasTimer = Number.isFinite(rawTimer) && rawTimer > 0;
+      const timerInterval = hasTimer ? rawTimer : 14;
       const notes = document.getElementById("c-notes").value.trim();
 
       const newId = state.nextId++;
@@ -9045,7 +9047,7 @@
         notes,
         photoBase64: createDraft.photoBase64 || "",
         extraInfos: createExtraInfos.filter(x => (x.label && x.label.trim()) || (x.value && x.value.trim())),
-        timerEnabled: true,
+        timerEnabled: hasTimer,
         timerInterval,
         timerUnit: "DAYS",
         lastContactedIso: todayIso()
@@ -9293,7 +9295,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.42",
+        version: "1.0.43",
         createdAt: dateStr,
         state
       };
@@ -9311,7 +9313,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.42",
+        version: "1.0.43",
         createdAt: dateStr,
         state
       };
@@ -9386,7 +9388,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.42 gestartet.");
+    addLog("Remember Me v1.0.43 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

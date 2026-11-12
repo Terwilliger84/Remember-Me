@@ -3489,7 +3489,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.41", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.43", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -4434,7 +4434,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.41")
+                put("version", "1.0.43")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
@@ -4869,7 +4869,7 @@ fun KontaktChronikApp(
                                                 phone = po.optString("phone", ""),
                                                 email = po.optString("email", ""),
                                                 notes = po.optString("notes", ""),
-                                                timerEnabled = po.optBoolean("timerEnabled", true),
+                                                timerEnabled = po.optBoolean("timerEnabled", false),
                                                 timerInterval = po.optInt("timerInterval", 14),
                                                 timerUnit = po.optString("timerUnit", TimerUnit.DAYS.name),
                                                 isHidden = isHid,
@@ -5523,7 +5523,7 @@ fun KontaktChronikApp(
         var notes by remember { mutableStateOf("") }
         var photoVal by remember { mutableStateOf("") }
         var extraInfos by remember { mutableStateOf(listOf<Pair<String, String>>()) }
-        var timerInterval by remember { mutableStateOf("14") }
+        var timerInterval by remember { mutableStateOf("") }
         var pendingCreateRelations by remember { mutableStateOf(listOf("Kind von" to -1L)) }
         var createRelExpanded by remember { mutableStateOf(false) }
 
@@ -5541,6 +5541,7 @@ fun KontaktChronikApp(
         fun saveNewContact() {
             if (name.isNotBlank()) {
                 scope.launch {
+                    val parsedTimerDays = timerInterval.trim().toIntOrNull()?.takeIf { it > 0 }
                     val basePerson = PersonEntity(
                         name = name.trim(),
                         birthdayIso = normalizeDateInputToIso(bday),
@@ -5548,8 +5549,8 @@ fun KontaktChronikApp(
                         phone = phone.trim(),
                         email = email.trim(),
                         notes = notes.trim(),
-                        timerEnabled = true,
-                        timerInterval = timerInterval.toIntOrNull() ?: 14,
+                        timerEnabled = parsedTimerDays != null,
+                        timerInterval = parsedTimerDays ?: 14,
                         timerUnit = TimerUnit.DAYS.name,
                         lastContactedIso = LocalDate.now().toString(),
                         photoBase64 = photoVal
@@ -5716,7 +5717,8 @@ fun KontaktChronikApp(
                             value = timerInterval,
                             onValueChange = { timerInterval = it },
                             label = "Melde-Timer (Tage)",
-                            leadingSymbol = "⏱️"
+                            leadingSymbol = "⏱️",
+                            placeholder = "Optional (leer = kein Timer)"
                         )
                         StyledContactTextField(
                             value = notes,

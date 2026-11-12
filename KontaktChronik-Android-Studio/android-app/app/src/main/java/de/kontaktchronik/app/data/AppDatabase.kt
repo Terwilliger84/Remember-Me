@@ -624,7 +624,7 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                         hasNoOwnPhone = phone.isBlank(),
                         phone = phone,
                         email = email,
-                        timerEnabled = !bday.isNullOrBlank(),
+                        timerEnabled = false,
                         importedFromDeviceContactId = cid,
                         photoBase64 = finalPhoto
                     )
