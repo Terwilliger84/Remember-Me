@@ -44,6 +44,7 @@ object WichtelCloudSync {
         val cloudPid: Int,
         val isOpened: Boolean,
         val hasPin: Boolean,
+        val hasPush: Boolean = false,
         val hasWishlist: Boolean,
         val wishText: String,
         val noGos: String,
@@ -257,9 +258,46 @@ object WichtelCloudSync {
         }.getOrDefault(false)
     }
 
+    private fun postPushEvent(payloadObj: JSONObject) {
+        runCatching {
+            val conn = (URL("$PORTAL_BASE_URL/api/push-event").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 7000
+                readTimeout = 9000
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+            }
+            OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { writer ->
+                writer.write(payloadObj.toString())
+                writer.flush()
+            }
+            conn.responseCode
+            conn.disconnect()
+        }
+    }
+
+    private fun fetchEnabledPushPids(cloudRoundId: String): Set<Int> {
+        return runCatching {
+            val conn = (URL("$PORTAL_BASE_URL/api/push-status?r=${URLEncoder.encode(cloudRoundId, "UTF-8")}").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 6000
+                readTimeout = 8000
+            }
+            val code = conn.responseCode
+            val text = if (code in 200..299) conn.inputStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty() else ""
+            conn.disconnect()
+            if (text.isBlank()) emptySet()
+            else {
+                val arr = JSONObject(text).optJSONArray("enabledPids") ?: JSONArray()
+                (0 until arr.length()).mapNotNull { i -> arr.optInt(i, 0).takeIf { it > 0 } }.toSet()
+            }
+        }.getOrDefault(emptySet())
+    }
+
     suspend fun fetchRoundLiveStatus(cloudRoundId: String): CloudRoundLiveStatus? = withContext(Dispatchers.IO) {
         if (cloudRoundId.isBlank()) return@withContext null
         runCatching {
+            val enabledPushPids = fetchEnabledPushPids(cloudRoundId)
             val path = "/databases/$DB_ID/collections/$COL_ID/documents?queries[]=${qEqual("roundId", cloudRoundId)}&queries[]=${qLimit(250)}"
             val (code, body) = httpRequest("GET", path)
             if (code !in 200..299) return@runCatching null
@@ -291,6 +329,7 @@ object WichtelCloudSync {
                             cloudPid = pid,
                             isOpened = pObj.optString("openedAt", "").isNotBlank(),
                             hasPin = pObj.optString("pinHash", "").isNotBlank(),
+                            hasPush = enabledPushPids.contains(pid),
                             hasWishlist = wish.isNotBlank() || url.isNotBlank() || extras.isNotEmpty(),
                             wishText = wish,
                             noGos = noGos,
@@ -358,6 +397,13 @@ object WichtelCloudSync {
             payloadObj.put("extraWishUrls", extraArr)
             payloadObj.put("wishUpdatedAt", Instant.now().toString())
             upsertDocument(docId, cloudRoundId, "PART", "P_$cloudPid", payloadObj)
+            postPushEvent(
+                JSONObject().apply {
+                    put("roundId", cloudRoundId)
+                    put("eventType", "WISH_UPDATED")
+                    put("fromPid", cloudPid)
+                }
+            )
             true
         }.getOrDefault(false)
     }
@@ -399,19 +445,29 @@ object WichtelCloudSync {
             val payloadObj = JSONObject(doc.optString("payload", "{}"))
             payloadObj.put("forceRevealed", forceRevealed)
             upsertDocument(docId, cloudRoundId, "ROUND", "META", payloadObj)
+            if (forceRevealed) {
+                postPushEvent(
+                    JSONObject().apply {
+                        put("roundId", cloudRoundId)
+                        put("eventType", "ROUND_REVEALED")
+                    }
+                )
+            }
             true
         }.getOrDefault(false)
     }
 
     private fun deleteRoundFromCloudInternal(cloudRoundId: String) {
-        val path = "/databases/$DB_ID/collections/$COL_ID/documents?queries[]=${qEqual("roundId", cloudRoundId)}&queries[]=${qLimit(250)}"
-        val (code, body) = httpRequest("GET", path)
-        if (code !in 200..299) return
-        val docs = JSONObject(body).optJSONArray("documents") ?: JSONArray()
-        for (i in 0 until docs.length()) {
-            val docId = docs.optJSONObject(i)?.optString("\$id").orEmpty()
-            if (docId.isNotBlank()) {
-                runCatching { httpRequest("DELETE", "/databases/$DB_ID/collections/$COL_ID/documents/$docId") }
+        for (rid in listOf(cloudRoundId, "push_$cloudRoundId")) {
+            val path = "/databases/$DB_ID/collections/$COL_ID/documents?queries[]=${qEqual("roundId", rid)}&queries[]=${qLimit(250)}"
+            val (code, body) = httpRequest("GET", path)
+            if (code !in 200..299) continue
+            val docs = JSONObject(body).optJSONArray("documents") ?: JSONArray()
+            for (i in 0 until docs.length()) {
+                val docId = docs.optJSONObject(i)?.optString("\$id").orEmpty()
+                if (docId.isNotBlank()) {
+                    runCatching { httpRequest("DELETE", "/databases/$DB_ID/collections/$COL_ID/documents/$docId") }
+                }
             }
         }
     }

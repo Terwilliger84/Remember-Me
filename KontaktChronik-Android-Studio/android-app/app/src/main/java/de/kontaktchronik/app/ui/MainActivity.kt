@@ -2312,6 +2312,7 @@ data class WichtelParticipant(
     val directToken: String = "",
     val cloudOpened: Boolean = false,
     val cloudHasPin: Boolean = false,
+    val cloudHasPush: Boolean = false,
     val cloudHasWishlist: Boolean = false
 )
 
@@ -2365,6 +2366,7 @@ fun parseWichtelGroupsJson(raw: String?): List<WichtelGroup> {
                     directToken = pObj.optString("directToken", ""),
                     cloudOpened = pObj.optBoolean("cloudOpened", false),
                     cloudHasPin = pObj.optBoolean("cloudHasPin", false),
+                    cloudHasPush = pObj.optBoolean("cloudHasPush", false),
                     cloudHasWishlist = pObj.optBoolean("cloudHasWishlist", false)
                 )
             }
@@ -2431,6 +2433,7 @@ fun serializeWichtelGroupsJson(groups: List<WichtelGroup>): String {
                             put("directToken", p.directToken)
                             put("cloudOpened", p.cloudOpened)
                             put("cloudHasPin", p.cloudHasPin)
+                            put("cloudHasPush", p.cloudHasPush)
                             put("cloudHasWishlist", p.cloudHasWishlist)
                         }
                     )
@@ -3489,7 +3492,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.44", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.45", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -4434,7 +4437,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.44")
+                put("version", "1.0.45")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
@@ -9795,6 +9798,7 @@ fun WichtelScreen(
                             else p.copy(
                                 cloudOpened = st.isOpened,
                                 cloudHasPin = st.hasPin,
+                                cloudHasPush = st.hasPush,
                                 cloudHasWishlist = st.hasWishlist,
                                 wishText = st.wishText.ifBlank { p.wishText },
                                 noGos = st.noGos.ifBlank { p.noGos },
@@ -9814,7 +9818,8 @@ fun WichtelScreen(
                 onSaveGroups(nextGroups)
                 if (showBanner) {
                     val openedCount = live.participantStatuses.values.count { it.isOpened }
-                    cloudStatusBanner = "☁️ Live-Status aktualisiert ($nowTime): $openedCount/${g.participants.size} Lose geöffnet, ${live.totalAnonMessages} anonyme Nachrichten."
+                    val pushCount = live.participantStatuses.values.count { it.hasPush }
+                    cloudStatusBanner = "☁️ Live-Status ($nowTime): $openedCount/${g.participants.size} geöffnet, $pushCount mit 🔔 Handy-Meldung, ${live.totalAnonMessages} Nachrichten."
                 }
             } else if (showBanner) {
                 cloudStatusBanner = "⚠️ Appwrite-Cloud momentan nicht erreichbar – bitte Internetverbindung prüfen."
@@ -10197,11 +10202,11 @@ fun WichtelScreen(
         return buildString {
             append("🎄🎁 Hallo $firstName!\n")
             append("Unsere Wichtelrunde „${g.groupName}“ ist ausgelost!\n")
-            append("🎭 ${g.motto}" + (if (g.budget.isNotBlank()) " • 💶 Budget: ${g.budget}" else "") + " • 📅 Auflösung: $revealStr\n\n")
-            append("👉 ${b}Klicke auf deinen persönlichen Link – es öffnet sich sofort dein Fenster mit der gezogenen Person & deren Wunschliste:${b}\n")
+            append("🎭 ${g.motto}" + (if (g.budget.isNotBlank()) " • 💶 ${g.budget}" else "") + " • 📅 $revealStr\n\n")
+            append("👉 ${b}Tippe einfach auf deinen persönlichen Link:${b}\n")
             append("$link\n\n")
-            append("📝 Dort kannst du auch deine eigene Wunschliste eintragen oder anonym nachfragen.\n")
-            append("🤫 Bitte Link nicht weiterleiten – auch Admin ${g.adminName} kennt dein Los nicht!")
+            append("1️⃣ Du siehst auf einer einfachen Seite sofort, wen du gezogen hast & den Wunschzettel.\n")
+            append("2️⃣ Tippe dort oben einmal auf „🔔 Handy-Meldungen einschalten“ – dann klingelt dein Handy automatisch bei Neuigkeiten!")
         }
     }
 
@@ -10525,7 +10530,7 @@ fun WichtelScreen(
                             }
                         } else if (!revealed) {
                             val openedCount = activeGroup.participants.count { it.cloudOpened }
-                            val pinCount = activeGroup.participants.count { it.cloudHasPin }
+                            val pushCount = activeGroup.participants.count { it.cloudHasPush }
                             val wishCount = activeGroup.participants.count {
                                 it.cloudHasWishlist || it.wishText.isNotBlank() || it.wishlistUrl.isNotBlank() || it.extraWishUrls.isNotEmpty()
                             }
@@ -10585,8 +10590,8 @@ fun WichtelScreen(
                                 )
 
                                 Text(
-                                    "📊 Versendet: $sentCount/${activeGroup.participants.size} • 👀 Geöffnet: $openedCount/${activeGroup.participants.size} • 📝 Wunschlisten: $wishCount" +
-                                        if (activeGroup.cloudSyncedAt.isNotBlank()) " • Stand: ${activeGroup.cloudSyncedAt}" else "",
+                                    "📊 Versendet: $sentCount/${activeGroup.participants.size} • 👀 Geöffnet: $openedCount • 🔔 Meldungen: $pushCount • 📝 Wünsche: $wishCount" +
+                                        if (activeGroup.cloudSyncedAt.isNotBlank()) " • ${activeGroup.cloudSyncedAt}" else "",
                                     color = TextPrimary,
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold
@@ -10928,6 +10933,16 @@ fun WichtelScreen(
                                             maxLines = 1,
                                             softWrap = false
                                         )
+                                        if (part.cloudHasPush) {
+                                            Text(
+                                                "🔔 Handy-Meldung aktiv",
+                                                color = TreeGreen,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
                                         if (part.cloudHasPin) {
                                             Text(
                                                 "🔒 PIN aktiv",

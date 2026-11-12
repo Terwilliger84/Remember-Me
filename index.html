@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.44 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.45 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -2172,7 +2172,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.44</div>
+            <div class="app-title">Remember Me v1.0.45</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -5215,6 +5215,7 @@
 
       const openedCount = group.participants.filter(p => p.cloudOpened).length;
       const pinCount = group.participants.filter(p => p.cloudHasPin).length;
+      const pushCount = group.participants.filter(p => p.cloudHasPush).length;
       const wishCount = group.participants.filter(p => p.cloudHasWishlist || (p.wishText && p.wishText.trim()) || (p.wishlistUrl && p.wishlistUrl.trim())).length;
       const sentCount = group.participants.filter(p => p.notifiedVia && p.notifiedVia.trim()).length;
       const emailCount = group.participants.filter(p => {
@@ -5239,10 +5240,10 @@
                 </button>
               </div>
               <div style="font-size:11px; color:var(--text-secondary); line-height:1.38;">
-                Beim Anklicken des persönlichen Links öffnet sich beim Teilnehmer direkt ein Fenster mit der gezogenen Person & deren Wunschliste – ohne App & 100 % Admin-blind!
+                Seniorenfreundliche 1-Seiten-Maske ohne Untermenüs – inkl. automatischer Handy-Meldung (Web-Push) bei neuen Nachrichten & Wünschen, auch wenn der Browser geschlossen ist!
               </div>
               <div style="font-size:11.5px; font-weight:600; color:var(--text-primary);">
-                📊 Versendet: <b>${sentCount}/${group.participants.length}</b> • 👀 Geöffnet: <b>${openedCount}/${group.participants.length}</b> • 📝 Wunschlisten: <b>${wishCount}</b>
+                📊 Versendet: <b>${sentCount}/${group.participants.length}</b> • 👀 Geöffnet: <b>${openedCount}/${group.participants.length}</b> • 🔔 Meldungen: <b>${pushCount}</b> • 📝 Wunschlisten: <b>${wishCount}</b>
                 ${group.cloudSyncedAt ? `<span style="color:var(--text-muted); font-weight:400;"> • Stand: ${escapeHtml(group.cloudSyncedAt)}</span>` : ""}
               </div>
               <div onclick="openWichtelQuickSendModal(${group.id})" style="cursor:pointer; background:rgba(16, 185, 129, 0.22); border:1.5px solid var(--tree-green); border-radius:8px; padding:9px 11px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
@@ -5276,7 +5277,7 @@
                       ? `🕵️ ${group.cloudUnreadMessages} ungelesene anonyme Nachricht(en) im Portal!`
                       : `🕵️ Anonymer Fragen-Chat: ${group.cloudTotalMessages || 0} Nachrichten (alles gelesen)`}
                   </div>
-                  <div style="font-size:10px; color:var(--text-muted);">100 % anonym zwischen Wichtel & Wichtelkind – ohne Namen oder Nummer (Android-App bietet zusätzlich 1-Klick Auto-SMS!).</div>
+                  <div style="font-size:10px; color:var(--text-muted);">100 % anonym zwischen Wichtel & Wichtelkind – Teilnehmer mit aktivierter 🔔 Handy-Meldung werden automatisch benachrichtigt!</div>
                 </div>
                 <button class="compact-btn" style="padding:4px 8px; font-size:11px; white-space:nowrap;" onclick="shareNeutralWichtelInboxNudge(${group.id})">
                   📣 Gruppen-Hinweis
@@ -5360,6 +5361,7 @@
             ? `<span style="color:var(--warn-amber); font-weight:700;">🎁 Hat gezogen: ${escapeHtml(target.name)}</span>`
             : `<span style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;">
                 <span style="color:${part.cloudOpened ? 'var(--tree-green)' : 'var(--text-muted)'}; font-weight:600;">${part.cloudOpened ? '✅ Los online geöffnet' : '⏳ Los noch ungeöffnet'}</span>
+                ${part.cloudHasPush ? `<span style="color:var(--tree-green); font-weight:700;">🔔 Handy-Meldung aktiv</span>` : ""}
                 ${part.cloudHasPin ? `<span style="color:var(--accent-steel); font-weight:600;">🔒 PIN aktiv</span>` : ""}
                 ${(part.cloudHasWishlist || (part.wishText && part.wishText.trim()) || allUrls.length > 0) ? `<span style="color:var(--tree-green); font-weight:600;">📝 Wunschzettel</span>` : ""}
               </span>`);
@@ -7948,7 +7950,7 @@
         g.isDrawn = false;
         g.cloudRoundId = "";
         g.cloudSyncedAt = "";
-        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; p.cloudPid = 0; p.directToken = ""; p.cloudOpened = false; p.cloudHasPin = false; });
+        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; p.cloudPid = 0; p.directToken = ""; p.cloudOpened = false; p.cloudHasPin = false; p.cloudHasPush = false; });
         if (oldCloud) deleteWichtelRoundOnline(oldCloud);
         addLog(`Teilnehmerliste für "${g.groupName}" aktualisiert (${g.participants.length} Teilnehmer).`);
       }
@@ -8108,22 +8110,48 @@
       }
     }
 
-    async function deleteWichtelRoundOnline(cloudRoundId) {
+    async function triggerWichtelPushEventOnline(cloudRoundId, bodyObj) {
       if (!cloudRoundId) return;
       try {
-        const res = await wichtelAppwriteFetch(
-          "GET",
-          `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents?queries[]=${wichtelQEqual("roundId", cloudRoundId)}&queries[]=${wichtelQLimit(250)}`
-        );
-        if (res.status >= 200 && res.status < 300) {
-          const docs = (JSON.parse(res.text).documents || []);
-          for (const d of docs) {
-            if (d.$id) {
-              await wichtelAppwriteFetch("DELETE", `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents/${d.$id}`);
+        await fetch(`${WICHTEL_PORTAL_BASE_URL}/api/push-event`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.assign({ roundId: cloudRoundId }, bodyObj || {}))
+        });
+      } catch (e) {}
+    }
+
+    async function fetchWichtelPushPidsOnline(cloudRoundId) {
+      if (!cloudRoundId) return new Set();
+      try {
+        const res = await fetch(`${WICHTEL_PORTAL_BASE_URL}/api/push-status?r=${encodeURIComponent(cloudRoundId)}`);
+        if (!res.ok) return new Set();
+        const data = await res.json();
+        const arr = Array.isArray(data.enabledPids) ? data.enabledPids.map(n => Number(n) || 0) : [];
+        return new Set(arr.filter(Boolean));
+      } catch (e) {
+        return new Set();
+      }
+    }
+
+    async function deleteWichtelRoundOnline(cloudRoundId) {
+      if (!cloudRoundId) return;
+      for (const rKey of [cloudRoundId, `push_${cloudRoundId}`]) {
+        try {
+          const res = await wichtelAppwriteFetch(
+            "GET",
+            `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents?queries[]=${wichtelQEqual("roundId", rKey)}&queries[]=${wichtelQLimit(250)}`
+          );
+          if (res.status >= 200 && res.status < 300) {
+            const docs = (JSON.parse(res.text).documents || []);
+            for (const d of docs) {
+              if (d.$id) {
+                await wichtelAppwriteFetch("DELETE", `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents/${d.$id}`);
+              }
             }
           }
-        }
-      } catch (e) {}
+        } catch (e) {}
+      }
     }
 
     async function publishWichtelRoundToAppwrite(g, oldCloudRoundId = "") {
@@ -8242,8 +8270,10 @@
             if (unread) unreadMsgs++;
           }
         }
+        const pushPids = await fetchWichtelPushPidsOnline(g.cloudRoundId);
         g.participants.forEach(p => {
           const cp = partByPid[p.cloudPid];
+          p.cloudHasPush = pushPids.has(p.cloudPid);
           if (!cp) return;
           p.cloudOpened = !!(cp.openedAt && String(cp.openedAt).trim());
           p.cloudHasPin = !!(cp.pinHash && String(cp.pinHash).trim());
@@ -8262,7 +8292,8 @@
         g.cloudSyncedAt = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
         if (logSuccess) {
           const opened = g.participants.filter(x => x.cloudOpened).length;
-          addLog(`🔄 Live-Status aus Appwrite geladen: ${opened}/${g.participants.length} Lose geöffnet, ${totalMsgs} anonyme Nachrichten (${unreadMsgs} ungelesen).`);
+          const pushes = g.participants.filter(x => x.cloudHasPush).length;
+          addLog(`🔄 Live-Status aus Appwrite geladen: ${opened}/${g.participants.length} Lose geöffnet, ${pushes} Handy-Meldungen aktiv, ${totalMsgs} anonyme Nachrichten (${unreadMsgs} ungelesen).`);
         }
         saveState();
       } catch (err) {
@@ -8288,6 +8319,7 @@
           payloadObj.extraWishUrls = Array.isArray(part.extraWishUrls) ? part.extraWishUrls.filter(Boolean) : [];
           payloadObj.wishUpdatedAt = new Date().toISOString();
           await upsertWichtelDocOnline(docId, g.cloudRoundId, "PART", `P_${part.cloudPid}`, payloadObj);
+          triggerWichtelPushEventOnline(g.cloudRoundId, { eventType: "WISH_UPDATED", fromPid: part.cloudPid });
         }
       } catch (e) {}
     }
@@ -8302,6 +8334,9 @@
           const payloadObj = JSON.parse(doc.payload || "{}");
           payloadObj.forceRevealed = !!g.forceRevealed;
           await upsertWichtelDocOnline(docId, g.cloudRoundId, "ROUND", "META", payloadObj);
+          if (g.forceRevealed) {
+            triggerWichtelPushEventOnline(g.cloudRoundId, { eventType: "ROUND_REVEALED" });
+          }
         }
       } catch (e) {}
     }
@@ -8494,7 +8529,7 @@
         g.isDrawn = false;
         g.cloudRoundId = "";
         g.cloudSyncedAt = "";
-        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; p.cloudPid = 0; p.directToken = ""; p.cloudOpened = false; p.cloudHasPin = false; });
+        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; p.cloudPid = 0; p.directToken = ""; p.cloudOpened = false; p.cloudHasPin = false; p.cloudHasPush = false; });
         addLog(`Teilnehmer "${part.name}" aus "${g.groupName}" entfernt.`);
         saveState();
         if (oldCloud) deleteWichtelRoundOnline(oldCloud);
@@ -8575,6 +8610,7 @@
         p.directToken = generateWichtelRandomCode(12);
         p.cloudOpened = false;
         p.cloudHasPin = false;
+        p.cloudHasPush = false;
         p.cloudHasWishlist = !!((p.wishText && p.wishText.trim()) || (p.wishlistUrl && p.wishlistUrl.trim()));
       });
       g.isDrawn = true;
@@ -8622,12 +8658,11 @@
       const subj = `🎄 Dein persönlicher Wichtel-Zugang: ${g.groupName}`;
       const msg =
         `🎄🎁 Hallo ${firstName}!\n` +
-        `Unsere Wichtelrunde „${g.groupName}“ ist ausgelost!\n` +
-        `🎭 ${g.motto || "🎁 Klassisches Wichteln"}${g.budget ? ` • 💶 Budget: ${g.budget}` : ""} • 📅 Auflösung: ${revealStr}\n\n` +
-        `👉 ${b}Klicke auf deinen persönlichen Link – es öffnet sich sofort dein Fenster mit der gezogenen Person & deren Wunschliste:${b}\n` +
+        `Unsere Wichtelrunde „${g.groupName}“ ist ausgelost (${g.motto || "🎁 Klassisches Wichteln"}${g.budget ? ` • Budget: ${g.budget}` : ""} • bis ${revealStr})!\n\n` +
+        `👉 ${b}1. Tippe einfach auf deinen persönlichen Wichtel-Link:${b}\n` +
         `${directLink}\n\n` +
-        `📝 Dort kannst du auch deine eigene Wunschliste eintragen oder anonym nachfragen.\n` +
-        `🤫 Bitte Link nicht weiterleiten – auch Admin ${g.adminName || "Admin"} kennt dein Los nicht!`;
+        `🔔 ${b}2. Tippe oben auf der Seite einmal auf „Handy-Meldungen einschalten“${b} – dann meldet sich dein Handy automatisch bei Nachrichten oder neuen Wünschen!\n\n` +
+        `Alles ist auf einer ganz einfachen Seite (gezogene Person + Wünsche + Fragen). Bitte Link nicht weiterleiten! 🤫`;
 
       if (channel === "Email") {
         giver.notifiedVia = "E-Mail";
@@ -9493,7 +9528,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.44",
+        version: "1.0.45",
         createdAt: dateStr,
         state
       };
@@ -9511,7 +9546,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.44",
+        version: "1.0.45",
         createdAt: dateStr,
         state
       };
@@ -9586,7 +9621,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.44 gestartet.");
+    addLog("Remember Me v1.0.45 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>
