@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.43 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.44 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -2172,7 +2172,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.43</div>
+            <div class="app-title">Remember Me v1.0.44</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -5012,6 +5012,7 @@
     let wichtelAnonQuestionState = null; // { groupId, targetParticipantId, questionText }
     let wichtelHistoryImportModalOpen = false;
     let wichtelHistoryShareState = null; // { historyId }
+    let wichtelQuickSendGroupId = null;
 
     const WICHTEL_MOTTOS = [
       "🎁 Klassisches Wichteln",
@@ -5215,6 +5216,7 @@
       const openedCount = group.participants.filter(p => p.cloudOpened).length;
       const pinCount = group.participants.filter(p => p.cloudHasPin).length;
       const wishCount = group.participants.filter(p => p.cloudHasWishlist || (p.wishText && p.wishText.trim()) || (p.wishlistUrl && p.wishlistUrl.trim())).length;
+      const sentCount = group.participants.filter(p => p.notifiedVia && p.notifiedVia.trim()).length;
       const emailCount = group.participants.filter(p => {
         const person = p.personId ? state.persons.find(x => x.id === p.personId) : null;
         const em = (p.email || (person && person.email) || "").trim();
@@ -5237,16 +5239,26 @@
                 </button>
               </div>
               <div style="font-size:11px; color:var(--text-secondary); line-height:1.38;">
-                Niemand braucht die App! Jeder öffnet das Web-Portal im Handy-Browser, wählt seine eigene 4-stellige PIN, sieht sein geheimes Los, trägt Wünsche ein & stellt 100 % anonyme Fragen.
+                Beim Anklicken des persönlichen Links öffnet sich beim Teilnehmer direkt ein Fenster mit der gezogenen Person & deren Wunschliste – ohne App & 100 % Admin-blind!
               </div>
               <div style="font-size:11.5px; font-weight:600; color:var(--text-primary);">
-                📊 Geöffnet: <b>${openedCount}/${group.participants.length}</b> • 🔐 PIN geschützt: <b>${pinCount}</b> • 📝 Wunschzettel: <b>${wishCount}</b>
+                📊 Versendet: <b>${sentCount}/${group.participants.length}</b> • 👀 Geöffnet: <b>${openedCount}/${group.participants.length}</b> • 📝 Wunschlisten: <b>${wishCount}</b>
                 ${group.cloudSyncedAt ? `<span style="color:var(--text-muted); font-weight:400;"> • Stand: ${escapeHtml(group.cloudSyncedAt)}</span>` : ""}
               </div>
-              <div style="font-size:11px; font-weight:700; color:var(--accent-steel);">🚀 Alle ${group.participants.length} Mitglieder auf einmal einladen:</div>
+              <div onclick="openWichtelQuickSendModal(${group.id})" style="cursor:pointer; background:rgba(16, 185, 129, 0.22); border:1.5px solid var(--tree-green); border-radius:8px; padding:9px 11px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div>
+                  <div style="font-size:12.5px; font-weight:700; color:var(--text-primary);">🚀 Zugangs-Links schnell an alle senden (${sentCount}/${group.participants.length})</div>
+                  <div style="font-size:10.5px; color:var(--text-secondary);">WhatsApp, E-Mail oder Alternativ-App – 1-Klick-Reihenfolge für alle Teilnehmer</div>
+                </div>
+                <span style="font-size:12px; font-weight:700; color:var(--tree-green); white-space:nowrap;">Öffnen ➔</span>
+              </div>
+              <div style="font-size:11px; font-weight:700; color:var(--accent-steel);">Oder gemeinsamen Runden-Link senden:</div>
               <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                <button class="compact-btn primary" style="padding:5px 10px; font-size:11.5px; font-weight:700;" onclick="shareWichtelGroupPortalWhatsApp(${group.id})">
-                  📲 1 Link für ALLE (WhatsApp-Gruppe)
+                <button class="compact-btn" style="padding:5px 10px; font-size:11.5px; font-weight:600;" onclick="shareWichtelGroupPortalWhatsApp(${group.id})">
+                  📲 Gruppen-Link (WhatsApp)
+                </button>
+                <button class="compact-btn" style="padding:5px 10px; font-size:11.5px;" onclick="shareWichtelGroupPortalAnyApp(${group.id})">
+                  📤 Gruppen-Link teilen
                 </button>
                 ${emailCount > 0 ? `
                   <button class="compact-btn" style="padding:5px 10px; font-size:11.5px;" onclick="sendWichtelBulkEmailInvite(${group.id})">
@@ -5409,14 +5421,20 @@
               <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-slate);">
                 ${isAdminSelf ? `
                   <button class="compact-btn primary" style="padding:4px 9px; font-size:11px;" onclick="openOwnAdminWichtelPortal(${group.id}, ${part.id})">
-                    🌐 Mein eigenes Los öffnen ↗
+                    🌐 Mein Los ↗
                   </button>
                 ` : ""}
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'DirectWhatsApp')" title="Sendet den persönlichen Geheim-Link ohne das Los zu verraten">
-                  🔗 Geheim-Link (WhatsApp)
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'WhatsApp')" title="Sendet den persönlichen Zugangs-Link per WhatsApp">
+                  💬 WhatsApp
+                </button>
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'Email')" title="Sendet den persönlichen Zugangs-Link per E-Mail">
+                  ✉️ Mail
+                </button>
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'ShareApp')" title="Sendet den persönlichen Zugangs-Link über eine Alternativ-App (Signal, Telegram, SMS, etc.)">
+                  📤 App / Teilen
                 </button>
                 <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="copyWichtelDirectMemberUrl(${group.id}, ${part.id})">
-                  📋 Direkt-Link
+                  📋 Link
                 </button>
                 ${part.cloudHasPin ? `
                   <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="resetWichtelMemberPinOnline(${group.id}, ${part.id})" title="Setzt nur die 4-stellige Portal-PIN zurück (Los bleibt geheim)">
@@ -7242,6 +7260,79 @@
         return;
       }
 
+      if (wichtelQuickSendGroupId !== null) {
+        const qg = (state.wichtelGroups || []).find(x => x.id === wichtelQuickSendGroupId);
+        if (!qg || !qg.isDrawn) {
+          wichtelQuickSendGroupId = null;
+        } else {
+          const sentCount = qg.participants.filter(p => p.notifiedVia && p.notifiedVia.trim()).length;
+          const nextOpen = qg.participants.find(p => !(p.notifiedVia && p.notifiedVia.trim()));
+          const nextIsAdmin = nextOpen ? (nextOpen.name || "").trim().toLowerCase() === (qg.adminName || "").trim().toLowerCase() : false;
+          const nextPhone = nextOpen ? resolveWichtelMemberPhone(nextOpen) : "";
+          const nextEmail = nextOpen ? resolveWichtelMemberEmail(nextOpen) : "";
+
+          modalRoot.innerHTML = `
+            <div class="modal-backdrop" onclick="closeModals(event)">
+              <div class="modal" style="max-width:375px;" onclick="event.stopPropagation()">
+                <div class="modal-header-sticky">
+                  <div class="modal-title" style="flex:1; min-width:0; white-space:nowrap;">🚀 Links senden (${sentCount}/${qg.participants.length})</div>
+                  <button class="compact-btn primary" onclick="wichtelQuickSendGroupId=null; renderModals();">✓ Fertig</button>
+                </div>
+                <div style="font-size:11.5px; color:var(--text-secondary); line-height:1.38;">
+                  Beim Anklicken öffnet sich beim Teilnehmer direkt ein Fenster mit der gezogenen Person & deren Wunschliste (100 % geheim & Admin-blind).
+                </div>
+                ${nextOpen ? `
+                  <div style="background:rgba(16,185,129,0.16); border:1.5px solid var(--tree-green); border-radius:9px; padding:9px 10px; display:flex; flex-direction:column; gap:6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                      <span style="font-size:13px; font-weight:700; color:var(--text-primary);">👉 Als Nächstes: ${escapeHtml(nextOpen.name)}</span>
+                      <span style="font-size:11px; color:var(--text-secondary); cursor:pointer; font-weight:600;" onclick="notifyWichtelParticipant(${qg.id}, ${nextOpen.id}, 'Skip')">⏭️ Abhaken</span>
+                    </div>
+                    ${(nextPhone || nextEmail) ? `
+                      <div style="font-size:11px; color:var(--text-secondary);">
+                        ${[nextPhone ? `📱 ${escapeHtml(nextPhone)}` : "", nextEmail ? `✉️ ${escapeHtml(nextEmail)}` : ""].filter(Boolean).join(" • ")}
+                      </div>
+                    ` : ""}
+                    <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                      ${nextIsAdmin ? `<button class="compact-btn primary" style="padding:4px 9px; font-size:11px;" onclick="openOwnAdminWichtelPortal(${qg.id}, ${nextOpen.id})">🌐 Mein Los ↗</button>` : ""}
+                      <button class="compact-btn primary" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${qg.id}, ${nextOpen.id}, 'WhatsApp')">💬 WhatsApp</button>
+                      <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${qg.id}, ${nextOpen.id}, 'Email')">✉️ E-Mail</button>
+                      <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${qg.id}, ${nextOpen.id}, 'ShareApp')">📤 Andere App</button>
+                    </div>
+                  </div>
+                ` : `
+                  <div style="background:rgba(16,185,129,0.16); border:1px solid var(--tree-green); border-radius:8px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:12px; font-weight:700; color:var(--tree-green);">🎉 Alle ${qg.participants.length} Zugangs-Links versendet!</span>
+                    <span style="font-size:11px; color:var(--text-secondary); cursor:pointer;" onclick="resetWichtelQuickSendStatus(${qg.id})">↺ Zurücksetzen</span>
+                  </div>
+                `}
+                <div style="display:flex; flex-direction:column; gap:6px; max-height:48vh; overflow-y:auto; padding-right:2px;">
+                  ${qg.participants.map(m => {
+                    const isMAdmin = (m.name || "").trim().toLowerCase() === (qg.adminName || "").trim().toLowerCase();
+                    const isSent = !!(m.notifiedVia && m.notifiedVia.trim());
+                    return `
+                      <div style="background:var(--bg-slate); border:1px solid ${isSent ? 'var(--tree-green)' : 'var(--border-slate)'}; border-radius:8px; padding:7px 9px; display:flex; flex-direction:column; gap:5px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                          <span style="font-size:12.5px; font-weight:600; color:var(--text-primary);">${escapeHtml(m.name)}${isMAdmin ? " (👑 Admin)" : ""}</span>
+                          <span style="font-size:11px; font-weight:700; color:${isSent ? 'var(--tree-green)' : 'var(--text-muted)'};">${isSent ? `✅ ${escapeHtml(m.notifiedVia)}` : "⏳ Offen"}</span>
+                        </div>
+                        <div style="display:flex; flex-wrap:wrap; gap:5px;">
+                          ${isMAdmin ? `<button class="compact-btn" style="padding:3px 7px; font-size:11px;" onclick="openOwnAdminWichtelPortal(${qg.id}, ${m.id})">🌐 Öffnen</button>` : ""}
+                          <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="notifyWichtelParticipant(${qg.id}, ${m.id}, 'WhatsApp')">💬 WhatsApp</button>
+                          <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="notifyWichtelParticipant(${qg.id}, ${m.id}, 'Email')">✉️ Mail</button>
+                          <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="notifyWichtelParticipant(${qg.id}, ${m.id}, 'ShareApp')">📤 App</button>
+                          <button class="compact-btn" style="padding:3px 7px; font-size:11px;" onclick="copyWichtelDirectMemberUrl(${qg.id}, ${m.id})">📋</button>
+                        </div>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+              </div>
+            </div>
+          `;
+          return;
+        }
+      }
+
       if (wichtelSecretCodeModalState !== null) {
         const dec = wichtelSecretCodeModalState.decoded;
         modalRoot.innerHTML = `
@@ -8255,6 +8346,70 @@
       );
     }
 
+    function resolveWichtelMemberPhone(member) {
+      if (!member) return "";
+      if (member.phone && member.phone.trim()) return member.phone.trim();
+      const p = (state.persons || []).find(x => (member.personId && x.id === member.personId) || (x.name || "").trim().toLowerCase() === (member.name || "").trim().toLowerCase());
+      return p && p.phone ? p.phone.trim() : "";
+    }
+
+    function resolveWichtelMemberEmail(member) {
+      if (!member) return "";
+      if (member.email && member.email.trim()) return member.email.trim();
+      const p = (state.persons || []).find(x => (member.personId && x.id === member.personId) || (x.name || "").trim().toLowerCase() === (member.name || "").trim().toLowerCase());
+      return p && p.email ? p.email.trim() : "";
+    }
+
+    function normalizeWhatsAppPhoneNumber(raw) {
+      const trimmed = String(raw || "").trim();
+      if (!trimmed) return "";
+      const digitsOnly = trimmed.replace(/[^0-9]/g, "");
+      if (digitsOnly.length < 6) return "";
+      if (trimmed.startsWith("+")) return digitsOnly;
+      if (trimmed.startsWith("00")) return digitsOnly.replace(/^00/, "");
+      if (digitsOnly.startsWith("0")) return "49" + digitsOnly.slice(1);
+      return digitsOnly;
+    }
+
+    function openWichtelQuickSendModal(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g || !g.isDrawn) return;
+      if (!g.cloudRoundId) {
+        g.cloudRoundId = generateWichtelRandomCode(10);
+        g.participants.forEach((p, idx) => {
+          if (!p.cloudPid) p.cloudPid = idx + 1;
+          if (!p.directToken) p.directToken = generateWichtelRandomCode(12);
+        });
+        saveState();
+        publishWichtelRoundToAppwrite(g, "");
+      } else if (!g.cloudSyncedAt && !wichtelCloudBusy) {
+        publishWichtelRoundToAppwrite(g, "");
+      }
+      wichtelQuickSendGroupId = groupId;
+      renderModals();
+    }
+
+    function resetWichtelQuickSendStatus(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g) return;
+      g.participants.forEach(p => { p.notifiedVia = ""; });
+      saveState();
+    }
+
+    async function shareWichtelGroupPortalAnyApp(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g || !g.cloudRoundId) return;
+      const msg = buildWhatsAppGroupPortalInviteText(g).replace(/\*/g, "");
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: `🎄 Wichtelrunde: ${g.groupName}`, text: msg });
+          addLog(`📤 Gruppen-Link für "${g.groupName}" über Teilen-Menü gesendet.`);
+          return;
+        } catch (e) {}
+      }
+      await copyWichtelGroupPortalUrl(groupId);
+    }
+
     function shareWichtelGroupPortalWhatsApp(groupId) {
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
       if (!g || !g.cloudRoundId) return;
@@ -8270,10 +8425,7 @@
     function sendWichtelBulkEmailInvite(groupId) {
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
       if (!g || !g.cloudRoundId) return;
-      const emails = [...new Set(g.participants.map(p => {
-        const person = p.personId ? state.persons.find(x => x.id === p.personId) : null;
-        return (p.email || (person && person.email) || "").trim();
-      }).filter(em => em.includes("@")))];
+      const emails = [...new Set(g.participants.map(p => resolveWichtelMemberEmail(p)).filter(em => em.includes("@")))];
       if (emails.length === 0) return;
       const subj = `🎄 Unsere Wichtelrunde: ${g.groupName}`;
       const body = buildWhatsAppGroupPortalInviteText(g).replace(/\*/g, "");
@@ -8298,9 +8450,11 @@
       const p = g ? g.participants.find(x => x.id === participantId) : null;
       if (!g || !p || !g.cloudRoundId || !p.cloudPid) return;
       const link = buildWichtelDirectMemberPortalUrl(g.cloudRoundId, p.cloudPid, p.directToken);
+      p.notifiedVia = "Link kopiert";
+      saveState();
       try {
         await navigator.clipboard.writeText(link);
-        addLog(`📋 Geheimer Direkt-Link für ${p.name} kopiert.`);
+        addLog(`📋 Persönlicher Zugangs-Link für ${p.name} kopiert.`);
       } catch (e) {
         addLog(`🔗 Direkt-Link für ${p.name}: ${link}`);
       }
@@ -8310,6 +8464,8 @@
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
       const p = g ? g.participants.find(x => x.id === participantId) : null;
       if (!g || !p || !g.cloudRoundId || !p.cloudPid) return;
+      p.notifiedVia = "Eigenes Los";
+      saveState();
       const link = buildWichtelDirectMemberPortalUrl(g.cloudRoundId, p.cloudPid, p.directToken);
       window.open(link, "_blank");
     }
@@ -8425,6 +8581,7 @@
       g.forceRevealed = false;
       g.drawnAt = new Date().toLocaleTimeString("de-DE");
       addLog(`🎲 Wichtelrunde "${g.groupName}" geheim ausgelost (100 % Admin-blind)! Verbinde mit Appwrite-Wichtelportal…`);
+      wichtelQuickSendGroupId = g.id;
       saveState();
       publishWichtelRoundToAppwrite(g, oldCloudId);
     }
@@ -8445,26 +8602,66 @@
       }
     }
 
-    function notifyWichtelParticipant(groupId, participantId, channel) {
+    async function notifyWichtelParticipant(groupId, participantId, channel) {
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
       if (!g || !g.cloudRoundId) return;
       const giver = g.participants.find(x => x.id === participantId);
       if (!giver || !giver.cloudPid) return;
 
+      if (channel === "Skip") {
+        giver.notifiedVia = "Erledigt";
+        saveState();
+        return;
+      }
+
       const directLink = buildWichtelDirectMemberPortalUrl(g.cloudRoundId, giver.cloudPid, giver.directToken);
       const revealStr = formatIsoToDdMmYyyy(g.revealDateIso) || "Weihnachten";
+      const firstName = (giver.name || "").trim().split(" ")[0] || giver.name;
+      const isPlain = channel === "Email" || channel === "ShareApp";
+      const b = isPlain ? "" : "*";
+      const subj = `🎄 Dein persönlicher Wichtel-Zugang: ${g.groupName}`;
       const msg =
-        `🎄🔐 Hallo ${giver.name.split(" ")[0]}!\n` +
-        `Hier ist dein persönlicher, versiegelter Wichtel-Zugang für „${g.groupName}“ (${g.motto || "🎁 Klassisches Wichteln"}${g.budget ? `, Budget: ${g.budget}` : ""}):\n\n` +
+        `🎄🎁 Hallo ${firstName}!\n` +
+        `Unsere Wichtelrunde „${g.groupName}“ ist ausgelost!\n` +
+        `🎭 ${g.motto || "🎁 Klassisches Wichteln"}${g.budget ? ` • 💶 Budget: ${g.budget}` : ""} • 📅 Auflösung: ${revealStr}\n\n` +
+        `👉 ${b}Klicke auf deinen persönlichen Link – es öffnet sich sofort dein Fenster mit der gezogenen Person & deren Wunschliste:${b}\n` +
         `${directLink}\n\n` +
-        `✨ Ohne App direkt im Browser öffnen: Dort siehst nur du allein dein Los, kannst deine Wunschliste pflegen & 100 % anonym Fragen stellen!\n` +
-        `🤫 Geheim bis ${revealStr} (auch der Admin kennt dein Los nicht).`;
+        `📝 Dort kannst du auch deine eigene Wunschliste eintragen oder anonym nachfragen.\n` +
+        `🤫 Bitte Link nicht weiterleiten – auch Admin ${g.adminName || "Admin"} kennt dein Los nicht!`;
 
-      giver.notifiedVia = "Direkt-Link";
-      const cleanPhone = (giver.phone || "").replace(/[^0-9]/g, "");
-      addLog(`🔗 Persönlicher Geheim-Link per WhatsApp an ${giver.name} vorbereitet (100 % Admin-blind!).`);
-      const url = cleanPhone
-        ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`
+      if (channel === "Email") {
+        giver.notifiedVia = "E-Mail";
+        const email = resolveWichtelMemberEmail(giver);
+        saveState();
+        window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(msg)}`;
+        addLog(`✉️ Persönlicher Wichtel-Link per E-Mail an ${giver.name} vorbereitet.`);
+        return;
+      }
+
+      if (channel === "ShareApp") {
+        giver.notifiedVia = "App-Link";
+        saveState();
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: subj, text: msg });
+            addLog(`📤 Persönlicher Wichtel-Link an ${giver.name} über Alternativ-App geteilt.`);
+            return;
+          } catch (e) {}
+        }
+        try {
+          await navigator.clipboard.writeText(msg);
+          addLog(`📋 Nachricht & Zugangs-Link für ${giver.name} in die Zwischenablage kopiert (bereit zum Einfügen in jede App!).`);
+        } catch (e) {
+          addLog(`🔗 Zugangs-Link für ${giver.name}: ${directLink}`);
+        }
+        return;
+      }
+
+      giver.notifiedVia = "WhatsApp";
+      const waPhone = normalizeWhatsAppPhoneNumber(resolveWichtelMemberPhone(giver));
+      addLog(`💬 Persönlicher Zugangs-Link per WhatsApp an ${giver.name} geöffnet (100 % Admin-blind!).`);
+      const url = waPhone
+        ? `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`
         : `https://wa.me/?text=${encodeURIComponent(msg)}`;
       window.open(url, "_blank");
       saveState();
@@ -8935,6 +9132,7 @@
         wichtelSecretPeekState = null;
         wichtelAnonQuestionState = null;
         wichtelSecretCodeModalState = null;
+        wichtelQuickSendGroupId = null;
         renderModals();
       }
     }
@@ -9295,7 +9493,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.43",
+        version: "1.0.44",
         createdAt: dateStr,
         state
       };
@@ -9313,7 +9511,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.43",
+        version: "1.0.44",
         createdAt: dateStr,
         state
       };
@@ -9388,7 +9586,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.43 gestartet.");
+    addLog("Remember Me v1.0.44 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

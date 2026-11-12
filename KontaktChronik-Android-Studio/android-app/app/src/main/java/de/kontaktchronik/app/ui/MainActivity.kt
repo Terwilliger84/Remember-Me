@@ -3489,7 +3489,7 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.43", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Remember Me v1.0.44", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -4434,7 +4434,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.43")
+                put("version", "1.0.44")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
@@ -9721,6 +9721,7 @@ fun WichtelScreen(
     var anonQuestionTarget by remember { mutableStateOf<Pair<WichtelGroup, WichtelParticipant>?>(null) }
     var showImportHistoryDialog by remember { mutableStateOf(false) }
     var showDecodeSecretDialog by remember { mutableStateOf(false) }
+    var quickSendDialogGroupId by remember { mutableStateOf<Long?>(null) }
 
     val activeGroup = groups.find { it.id == selectedGroupId } ?: groups.firstOrNull()
 
@@ -9730,9 +9731,12 @@ fun WichtelScreen(
             return
         }
         val invites = g.participants.map { p ->
+            val resolvedPhone = p.phone.ifBlank {
+                persons.find { (p.personId != null && it.id == p.personId) || it.name.equals(p.name, ignoreCase = true) }?.phone.orEmpty()
+            }
             WichtelCloudSync.SmsInviteItem(
                 name = p.name,
-                phone = p.phone,
+                phone = resolvedPhone,
                 cloudPid = p.cloudPid,
                 directToken = p.directToken
             )
@@ -9744,7 +9748,10 @@ fun WichtelScreen(
             invites = invites
         )
         val updatedParts = g.participants.map { p ->
-            val cleaned = p.phone.trim().replace(Regex("[^0-9+]"), "")
+            val resolvedPhone = p.phone.ifBlank {
+                persons.find { (p.personId != null && it.id == p.personId) || it.name.equals(p.name, ignoreCase = true) }?.phone.orEmpty()
+            }
+            val cleaned = resolvedPhone.trim().replace(Regex("[^0-9+]"), "")
             if (cleaned.length >= 6 && p.cloudPid > 0 && p.directToken.isNotBlank()) {
                 p.copy(notifiedVia = "Auto-SMS")
             } else p
@@ -10127,6 +10134,38 @@ fun WichtelScreen(
         )
         onSaveGroups(latestGroups.map { if (it.id == g.id) updatedGroup else it })
         publishDrawnGroupToCloud(updatedGroup, oldCloudRoundId = g.cloudRoundId)
+        quickSendDialogGroupId = updatedGroup.id
+    }
+
+    fun resolveMemberPhone(member: WichtelParticipant): String {
+        return member.phone.ifBlank {
+            persons.find {
+                (member.personId != null && it.id == member.personId) ||
+                    it.name.equals(member.name, ignoreCase = true)
+            }?.phone.orEmpty()
+        }.trim()
+    }
+
+    fun resolveMemberEmail(member: WichtelParticipant): String {
+        return member.email.ifBlank {
+            persons.find {
+                (member.personId != null && it.id == member.personId) ||
+                    it.name.equals(member.name, ignoreCase = true)
+            }?.email.orEmpty()
+        }.trim()
+    }
+
+    fun normalizeWhatsAppPhone(raw: String): String {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return ""
+        val digitsOnly = trimmed.replace(Regex("[^0-9]"), "")
+        if (digitsOnly.length < 6) return ""
+        return when {
+            trimmed.startsWith("+") -> digitsOnly
+            trimmed.startsWith("00") -> digitsOnly.removePrefix("00")
+            digitsOnly.startsWith("0") -> "49" + digitsOnly.removePrefix("0")
+            else -> digitsOnly
+        }
     }
 
     fun buildWhatsAppGroupPortalInvite(g: WichtelGroup): String {
@@ -10140,22 +10179,146 @@ fun WichtelScreen(
             append("$link\n\n")
             append("✨ *So funktioniert's in 10 Sekunden:*\n")
             append("1️⃣ Link im Browser antippen & deinen Namen wählen\n")
-            append("2️⃣ Eigene geheime 4-stellige PIN vergeben & dein Los öffnen\n")
-            append("3️⃣ Eigene Wünsche / No-Gos eintragen & bei Bedarf 100 % *anonym* Fragen an dein gezogenes Wichtelkind stellen!\n")
+            append("2️⃣ Eigene geheime 4-stellige PIN vergeben & dein Los samt Wunschliste sehen\n")
+            append("3️⃣ Eigene Wünsche / No-Gos eintragen & bei Bedarf 100 % *anonym* Fragen stellen!\n")
             append("🤫 Selbst Admin ${g.adminName} sieht nicht, wer wen gezogen hat!")
         }
     }
 
-    fun buildDirectMemberWhatsAppInvite(g: WichtelGroup, member: WichtelParticipant): String {
+    fun buildDirectMemberInviteSubject(g: WichtelGroup): String {
+        return "🎄 Dein persönlicher Wichtel-Zugang: ${g.groupName}"
+    }
+
+    fun buildDirectMemberWhatsAppInvite(g: WichtelGroup, member: WichtelParticipant, plainText: Boolean = false): String {
         val link = WichtelCloudSync.buildDirectMemberPortalUrl(g.cloudRoundId, member.cloudPid, member.directToken)
         val revealStr = formatIsoToDdMmYyyy(g.revealDateIso).ifBlank { "Weihnachten" }
+        val firstName = member.name.trim().substringBefore(" ").ifBlank { member.name }
+        val b = if (plainText) "" else "*"
         return buildString {
-            append("🎄🔐 Hallo ${member.name.substringBefore(" ")}!\n")
-            append("Hier ist dein persönlicher, versiegelter Wichtel-Zugang für „${g.groupName}“ (${g.motto}, Budget: ${g.budget}):\n\n")
+            append("🎄🎁 Hallo $firstName!\n")
+            append("Unsere Wichtelrunde „${g.groupName}“ ist ausgelost!\n")
+            append("🎭 ${g.motto}" + (if (g.budget.isNotBlank()) " • 💶 Budget: ${g.budget}" else "") + " • 📅 Auflösung: $revealStr\n\n")
+            append("👉 ${b}Klicke auf deinen persönlichen Link – es öffnet sich sofort dein Fenster mit der gezogenen Person & deren Wunschliste:${b}\n")
             append("$link\n\n")
-            append("✨ Ohne App direkt im Browser öffnen: Dort siehst nur du allein dein Los, kannst deine Wunschliste pflegen & 100 % anonym Fragen stellen!\n")
-            append("🤫 Geheim bis $revealStr (auch der Admin kennt dein Los nicht).")
+            append("📝 Dort kannst du auch deine eigene Wunschliste eintragen oder anonym nachfragen.\n")
+            append("🤫 Bitte Link nicht weiterleiten – auch Admin ${g.adminName} kennt dein Los nicht!")
         }
+    }
+
+    fun markParticipantNotified(g: WichtelGroup, memberId: Long, channelLabel: String) {
+        val current = latestGroups.find { it.id == g.id } ?: g
+        val updatedGroup = current.copy(
+            participants = current.participants.map {
+                if (it.id == memberId) it.copy(notifiedVia = channelLabel) else it
+            }
+        )
+        onSaveGroups(latestGroups.map { if (it.id == g.id) updatedGroup else it })
+    }
+
+    fun ensureCloudPublishedForInvite(g: WichtelGroup): WichtelGroup {
+        var current = latestGroups.find { it.id == g.id } ?: g
+        if (current.cloudRoundId.isBlank() || current.participants.any { it.cloudPid <= 0 || it.directToken.isBlank() }) {
+            current = current.copy(
+                cloudRoundId = current.cloudRoundId.ifBlank { WichtelCloudSync.generateRandomCode(10) },
+                participants = current.participants.mapIndexed { idx, p ->
+                    p.copy(
+                        cloudPid = if (p.cloudPid > 0) p.cloudPid else idx + 1,
+                        directToken = p.directToken.ifBlank { WichtelCloudSync.generateRandomCode(12) }
+                    )
+                }
+            )
+            onSaveGroups(latestGroups.map { if (it.id == current.id) current else it })
+            publishDrawnGroupToCloud(current)
+        } else if (current.cloudSyncedAt.isBlank() && !isCloudBusy) {
+            publishDrawnGroupToCloud(current)
+        }
+        return current
+    }
+
+    fun sendDirectInviteWhatsApp(g: WichtelGroup, member: WichtelParticipant) {
+        val readyGroup = ensureCloudPublishedForInvite(g)
+        val readyMember = readyGroup.participants.find { it.id == member.id } ?: member
+        val msg = buildDirectMemberWhatsAppInvite(readyGroup, readyMember, plainText = false)
+        markParticipantNotified(readyGroup, readyMember.id, "WhatsApp")
+        val waPhone = normalizeWhatsAppPhone(resolveMemberPhone(readyMember))
+        if (waPhone.isNotBlank()) {
+            runCatching {
+                val url = "https://wa.me/$waPhone?text=${android.net.Uri.encode(msg)}"
+                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+            }
+        } else {
+            val openedDirect = runCatching {
+                val waIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    setPackage("com.whatsapp")
+                    putExtra(Intent.EXTRA_TEXT, msg)
+                }
+                context.startActivity(waIntent)
+                true
+            }.getOrDefault(false)
+            if (!openedDirect) {
+                runCatching {
+                    val url = "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                }
+            }
+        }
+    }
+
+    fun sendDirectInviteEmail(g: WichtelGroup, member: WichtelParticipant) {
+        val readyGroup = ensureCloudPublishedForInvite(g)
+        val readyMember = readyGroup.participants.find { it.id == member.id } ?: member
+        val email = resolveMemberEmail(readyMember)
+        val subj = buildDirectMemberInviteSubject(readyGroup)
+        val body = buildDirectMemberWhatsAppInvite(readyGroup, readyMember, plainText = true)
+        markParticipantNotified(readyGroup, readyMember.id, "E-Mail")
+        val openedMailto = runCatching {
+            val uri = android.net.Uri.parse(
+                "mailto:${android.net.Uri.encode(email)}?subject=${android.net.Uri.encode(subj)}&body=${android.net.Uri.encode(body)}"
+            )
+            context.startActivity(Intent(Intent.ACTION_SENDTO, uri))
+            true
+        }.getOrDefault(false)
+        if (!openedMailto) {
+            runCatching {
+                val fallback = Intent(Intent.ACTION_SEND).apply {
+                    type = "message/rfc822"
+                    if (email.isNotBlank()) putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
+                    putExtra(Intent.EXTRA_SUBJECT, subj)
+                    putExtra(Intent.EXTRA_TEXT, body)
+                }
+                context.startActivity(Intent.createChooser(fallback, "E-Mail an ${readyMember.name} senden"))
+            }
+        }
+    }
+
+    fun sendDirectInviteShareApp(g: WichtelGroup, member: WichtelParticipant) {
+        val readyGroup = ensureCloudPublishedForInvite(g)
+        val readyMember = readyGroup.participants.find { it.id == member.id } ?: member
+        val subj = buildDirectMemberInviteSubject(readyGroup)
+        val body = buildDirectMemberWhatsAppInvite(readyGroup, readyMember, plainText = true)
+        markParticipantNotified(readyGroup, readyMember.id, "App-Link")
+        runCatching {
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, subj)
+                putExtra(Intent.EXTRA_TEXT, body)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, "Zugangs-Link an ${readyMember.name} senden"))
+        }
+    }
+
+    fun copyDirectInviteLink(g: WichtelGroup, member: WichtelParticipant) {
+        val readyGroup = ensureCloudPublishedForInvite(g)
+        val readyMember = readyGroup.participants.find { it.id == member.id } ?: member
+        val directUrl = WichtelCloudSync.buildDirectMemberPortalUrl(
+            readyGroup.cloudRoundId,
+            readyMember.cloudPid,
+            readyMember.directToken
+        )
+        clipboardManager.setText(AnnotatedString(directUrl))
+        markParticipantNotified(readyGroup, readyMember.id, "Link kopiert")
+        cloudStatusBanner = "✓ Persönlicher Zugangs-Link für ${readyMember.name} kopiert."
     }
 
     fun buildNeutralAnonInboxNudge(g: WichtelGroup): String {
@@ -10366,12 +10529,12 @@ fun WichtelScreen(
                             val wishCount = activeGroup.participants.count {
                                 it.cloudHasWishlist || it.wishText.isNotBlank() || it.wishlistUrl.isNotBlank() || it.extraWishUrls.isNotEmpty()
                             }
-                            val phoneCount = activeGroup.participants.count { it.phone.replace(Regex("[^0-9]"), "").length >= 6 }
+                            val sentCount = activeGroup.participants.count { it.notifiedVia.isNotBlank() }
+                            val phoneCount = activeGroup.participants.count {
+                                resolveMemberPhone(it).replace(Regex("[^0-9]"), "").length >= 6
+                            }
                             val emailList = activeGroup.participants.mapNotNull { p ->
-                                val em = p.email.ifBlank {
-                                    persons.find { it.id == p.personId || it.name.equals(p.name, ignoreCase = true) }?.email.orEmpty()
-                                }.trim()
-                                em.takeIf { it.contains("@") }
+                                resolveMemberEmail(p).takeIf { it.contains("@") }
                             }.distinct()
 
                             Column(
@@ -10416,36 +10579,81 @@ fun WichtelScreen(
                                 }
 
                                 Text(
-                                    "Niemand braucht die App! Jeder öffnet das Web-Portal im Browser, wählt seine 4-stellige PIN, sieht sein geheimes Los, trägt Wünsche ein & stellt 100 % anonyme Fragen.",
+                                    "Beim Anklicken des persönlichen Links öffnet sich beim Teilnehmer direkt ein Fenster mit der gezogenen Person & deren Wunschliste – ohne App & 100 % Admin-blind!",
                                     color = TextSecondary,
                                     fontSize = 11.sp
                                 )
 
                                 Text(
-                                    "📊 Geöffnet: $openedCount/${activeGroup.participants.size} • 🔐 PIN geschützt: $pinCount • 📝 Wunschzettel: $wishCount" +
+                                    "📊 Versendet: $sentCount/${activeGroup.participants.size} • 👀 Geöffnet: $openedCount/${activeGroup.participants.size} • 📝 Wunschlisten: $wishCount" +
                                         if (activeGroup.cloudSyncedAt.isNotBlank()) " • Stand: ${activeGroup.cloudSyncedAt}" else "",
                                     color = TextPrimary,
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
 
-                                Text("🚀 Alle ${activeGroup.participants.size} Mitglieder auf einmal einladen:", color = AccentSteel, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                // Primärer Schnellversand-Assistent für persönliche Direkt-Links (WhatsApp / Mail / Alternativ-App)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(TreeGreen.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+                                        .border(1.5.dp, TreeGreen, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            val ready = ensureCloudPublishedForInvite(activeGroup)
+                                            quickSendDialogGroupId = ready.id
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 9.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "🚀 Zugangs-Links schnell an alle senden ($sentCount/${activeGroup.participants.size})",
+                                                color = TextPrimary,
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                "WhatsApp, E-Mail oder Alternativ-App – 1-Klick-Reihenfolge für alle Teilnehmer",
+                                                color = TextSecondary,
+                                                fontSize = 10.5.sp
+                                            )
+                                        }
+                                        Text("Öffnen ➔", color = TreeGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Text("Oder gemeinsamen Runden-Link / Auto-SMS nutzen:", color = AccentSteel, fontSize = 11.sp, fontWeight = FontWeight.Bold)
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    CompactButton("📲 1 Link für ALLE (WhatsApp-Gruppe)") {
-                                        if (activeGroup.cloudRoundId.isNotBlank()) {
-                                            val msg = buildWhatsAppGroupPortalInvite(activeGroup)
-                                            val updatedParts = activeGroup.participants.map { p ->
-                                                if (p.notifiedVia.isBlank()) p.copy(notifiedVia = "Gruppen-Link") else p
+                                    CompactButton("📲 Gruppen-Link (WhatsApp)") {
+                                        val ready = ensureCloudPublishedForInvite(activeGroup)
+                                        val msg = buildWhatsAppGroupPortalInvite(ready)
+                                        val updatedParts = ready.participants.map { p ->
+                                            if (p.notifiedVia.isBlank()) p.copy(notifiedVia = "Gruppen-Link") else p
+                                        }
+                                        onSaveGroups(latestGroups.map { if (it.id == ready.id) ready.copy(participants = updatedParts) else it })
+                                        runCatching {
+                                            val url = "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                        }
+                                    }
+                                    CompactButton("📤 Gruppen-Link teilen") {
+                                        val ready = ensureCloudPublishedForInvite(activeGroup)
+                                        val msg = buildWhatsAppGroupPortalInvite(ready).replace("*", "")
+                                        runCatching {
+                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_SUBJECT, "🎄 Unsere Wichtelrunde: ${ready.groupName}")
+                                                putExtra(Intent.EXTRA_TEXT, msg)
                                             }
-                                            onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) activeGroup.copy(participants = updatedParts) else it })
-                                            runCatching {
-                                                val url = "https://wa.me/?text=${android.net.Uri.encode(msg)}"
-                                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                                            }
+                                            context.startActivity(Intent.createChooser(shareIntent, "Gruppen-Link teilen"))
                                         }
                                     }
                                     CompactButton("📩 Auto-SMS an alle ($phoneCount)") {
@@ -10470,9 +10678,10 @@ fun WichtelScreen(
                                     }
                                     if (emailList.isNotEmpty()) {
                                         CompactButton("✉️ Sammel-Mail (${emailList.size})") {
+                                            val ready = ensureCloudPublishedForInvite(activeGroup)
                                             runCatching {
-                                                val subj = "🎄 Unsere Wichtelrunde: ${activeGroup.groupName}"
-                                                val body = buildWhatsAppGroupPortalInvite(activeGroup).replace("*", "")
+                                                val subj = "🎄 Unsere Wichtelrunde: ${ready.groupName}"
+                                                val body = buildWhatsAppGroupPortalInvite(ready).replace("*", "")
                                                 val uri = android.net.Uri.parse(
                                                     "mailto:?bcc=${android.net.Uri.encode(emailList.joinToString(","))}&subject=${android.net.Uri.encode(subj)}&body=${android.net.Uri.encode(body)}"
                                                 )
@@ -10481,11 +10690,10 @@ fun WichtelScreen(
                                         }
                                     }
                                     CompactButton("📋 Gruppen-Link kopieren") {
-                                        if (activeGroup.cloudRoundId.isNotBlank()) {
-                                            val link = WichtelCloudSync.buildGroupPortalUrl(activeGroup.cloudRoundId)
-                                            clipboardManager.setText(AnnotatedString(link))
-                                            cloudStatusBanner = "✓ Familien-Portal-Link kopiert: $link"
-                                        }
+                                        val ready = ensureCloudPublishedForInvite(activeGroup)
+                                        val link = WichtelCloudSync.buildGroupPortalUrl(ready.cloudRoundId)
+                                        clipboardManager.setText(AnnotatedString(link))
+                                        cloudStatusBanner = "✓ Familien-Portal-Link kopiert: $link"
                                     }
                                 }
 
@@ -10823,7 +11031,8 @@ fun WichtelScreen(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 if (isAdminSelf) {
-                                    CompactButton("🌐 Mein eigenes Los öffnen ↗") {
+                                    CompactButton("🌐 Mein Los ↗") {
+                                        markParticipantNotified(activeGroup, part.id, "Eigenes Los")
                                         runCatching {
                                             val myUrl = WichtelCloudSync.buildDirectMemberPortalUrl(
                                                 activeGroup.cloudRoundId,
@@ -10834,32 +11043,17 @@ fun WichtelScreen(
                                         }
                                     }
                                 }
-                                CompactButton("🔗 Geheim-Link per WhatsApp") {
-                                    val msg = buildDirectMemberWhatsAppInvite(activeGroup, part)
-                                    val updatedGroup = activeGroup.copy(
-                                        participants = activeGroup.participants.map {
-                                            if (it.id == part.id) it.copy(notifiedVia = "Direkt-Link") else it
-                                        }
-                                    )
-                                    onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) updatedGroup else it })
-                                    runCatching {
-                                        val cleanPhone = part.phone.replace(Regex("[^0-9]"), "")
-                                        val url = if (cleanPhone.isNotBlank()) {
-                                            "https://wa.me/$cleanPhone?text=${android.net.Uri.encode(msg)}"
-                                        } else {
-                                            "https://wa.me/?text=${android.net.Uri.encode(msg)}"
-                                        }
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                                    }
+                                CompactButton("💬 WhatsApp") {
+                                    sendDirectInviteWhatsApp(activeGroup, part)
                                 }
-                                CompactButton("📋 Direkt-Link") {
-                                    val directUrl = WichtelCloudSync.buildDirectMemberPortalUrl(
-                                        activeGroup.cloudRoundId,
-                                        part.cloudPid,
-                                        part.directToken
-                                    )
-                                    clipboardManager.setText(AnnotatedString(directUrl))
-                                    cloudStatusBanner = "✓ Geheimer Direkt-Link für ${part.name} kopiert."
+                                CompactButton("✉️ Mail") {
+                                    sendDirectInviteEmail(activeGroup, part)
+                                }
+                                CompactButton("📤 App / Teilen") {
+                                    sendDirectInviteShareApp(activeGroup, part)
+                                }
+                                CompactButton("📋 Link") {
+                                    copyDirectInviteLink(activeGroup, part)
                                 }
                                 if (part.cloudHasPin) {
                                     CompactButton("🔑 PIN Reset") {
@@ -11013,6 +11207,218 @@ fun WichtelScreen(
                                     CompactButton("📲 An Teilnehmer") {
                                         shareHistoryEntry(h)
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Dialog: Schnellversand persönlicher Wichtel-Zugangslinks an alle Teilnehmer (WhatsApp, E-Mail, Alternativ-App)
+    val qGroup = quickSendDialogGroupId?.let { qid -> groups.find { it.id == qid } }
+    if (qGroup != null && qGroup.isDrawn) {
+        val sentCount = qGroup.participants.count { it.notifiedVia.isNotBlank() }
+        val nextOpenMember = qGroup.participants.firstOrNull { it.notifiedVia.isBlank() }
+
+        Dialog(onDismissRequest = { quickSendDialogGroupId = null }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CardSlate, RoundedCornerShape(10.dp))
+                    .border(1.dp, TreeGreen, RoundedCornerShape(10.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "🚀 Links senden ($sentCount/${qGroup.participants.size})",
+                        color = TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    CompactButton("✓ Fertig") { quickSendDialogGroupId = null }
+                }
+
+                Text(
+                    if (isCloudBusy) {
+                        "⏳ Verbinde Runde mit Online-Portal… (Links sind sofort bereit!)"
+                    } else {
+                        "Beim Anklicken öffnet sich beim Teilnehmer direkt ein Fenster mit der gezogenen Person & deren Wunschliste (100 % geheim & Admin-blind)."
+                    },
+                    color = if (isCloudBusy) WarnAmber else TextSecondary,
+                    fontSize = 11.5.sp
+                )
+
+                if (nextOpenMember != null) {
+                    val isNextAdmin = nextOpenMember.name.trim().equals(qGroup.adminName.trim(), ignoreCase = true)
+                    val nextPhone = resolveMemberPhone(nextOpenMember)
+                    val nextEmail = resolveMemberEmail(nextOpenMember)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(TreeGreen.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+                            .border(1.5.dp, TreeGreen, RoundedCornerShape(8.dp))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "👉 Als Nächstes: ${nextOpenMember.name}",
+                                color = TextPrimary,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                "⏭️ Abhaken",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable {
+                                    markParticipantNotified(qGroup, nextOpenMember.id, "Erledigt")
+                                }
+                            )
+                        }
+                        if (nextPhone.isNotBlank() || nextEmail.isNotBlank()) {
+                            Text(
+                                listOfNotNull(
+                                    nextPhone.takeIf { it.isNotBlank() }?.let { "📱 $it" },
+                                    nextEmail.takeIf { it.isNotBlank() }?.let { "✉️ $it" }
+                                ).joinToString(" • "),
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (isNextAdmin) {
+                                CompactButton("🌐 Mein Los öffnen ↗") {
+                                    val ready = ensureCloudPublishedForInvite(qGroup)
+                                    val mePart = ready.participants.find { it.id == nextOpenMember.id } ?: nextOpenMember
+                                    markParticipantNotified(ready, mePart.id, "Eigenes Los")
+                                    runCatching {
+                                        val myUrl = WichtelCloudSync.buildDirectMemberPortalUrl(ready.cloudRoundId, mePart.cloudPid, mePart.directToken)
+                                        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(myUrl)))
+                                    }
+                                }
+                            }
+                            CompactButton("💬 WhatsApp") {
+                                sendDirectInviteWhatsApp(qGroup, nextOpenMember)
+                            }
+                            CompactButton("✉️ E-Mail") {
+                                sendDirectInviteEmail(qGroup, nextOpenMember)
+                            }
+                            CompactButton("📤 Andere App") {
+                                sendDirectInviteShareApp(qGroup, nextOpenMember)
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(TreeGreen.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
+                            .border(1.dp, TreeGreen, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "🎉 Alle ${qGroup.participants.size} Zugangs-Links wurden versendet!",
+                            color = TreeGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "↺ Zurücksetzen",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            modifier = Modifier.clickable {
+                                val resetG = qGroup.copy(participants = qGroup.participants.map { it.copy(notifiedVia = "") })
+                                onSaveGroups(latestGroups.map { if (it.id == qGroup.id) resetG else it })
+                            }
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = BorderSlate)
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    qGroup.participants.forEach { member ->
+                        val isMemberAdmin = member.name.trim().equals(qGroup.adminName.trim(), ignoreCase = true)
+                        val isSent = member.notifiedVia.isNotBlank()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BgSlate, RoundedCornerShape(8.dp))
+                                .border(1.dp, if (isSent) TreeGreen.copy(alpha = 0.6f) else BorderSlate, RoundedCornerShape(8.dp))
+                                .padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    member.name + if (isMemberAdmin) " (👑 Admin)" else "",
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    if (isSent) "✅ ${member.notifiedVia}" else "⏳ Offen",
+                                    color = if (isSent) TreeGreen else TextMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                if (isMemberAdmin) {
+                                    CompactButton("🌐 Öffnen") {
+                                        val ready = ensureCloudPublishedForInvite(qGroup)
+                                        val mePart = ready.participants.find { it.id == member.id } ?: member
+                                        markParticipantNotified(ready, mePart.id, "Eigenes Los")
+                                        runCatching {
+                                            val myUrl = WichtelCloudSync.buildDirectMemberPortalUrl(ready.cloudRoundId, mePart.cloudPid, mePart.directToken)
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(myUrl)))
+                                        }
+                                    }
+                                }
+                                CompactButton("💬 WhatsApp") {
+                                    sendDirectInviteWhatsApp(qGroup, member)
+                                }
+                                CompactButton("✉️ Mail") {
+                                    sendDirectInviteEmail(qGroup, member)
+                                }
+                                CompactButton("📤 App") {
+                                    sendDirectInviteShareApp(qGroup, member)
+                                }
+                                CompactButton("📋") {
+                                    copyDirectInviteLink(qGroup, member)
                                 }
                             }
                         }

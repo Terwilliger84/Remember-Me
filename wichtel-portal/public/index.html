@@ -510,11 +510,12 @@
         }
 
         // Auto-Unlock via Direkt-Token (?p=...&k=...) oder gemerkter lokaler Sitzung
+        // -> Öffnet direkt das Ergebnis-Fenster (gezogene Person + Wunschliste) ohne Zwischenschritt!
         if (!state.unlockedPid) {
           if (state.urlPid > 0 && state.urlToken) {
             const cand = state.partsByPid.get(state.urlPid);
             if (cand && cand.tokenHash && sha256Hex(state.urlToken) === cand.tokenHash) {
-              completeUnlock(cand);
+              completeUnlock(cand, true);
               localStorage.setItem(storageKeyForRound(state.roundId), JSON.stringify({ pid: cand.pid, token: state.urlToken }));
             }
           }
@@ -526,7 +527,7 @@
                 if (cand) {
                   const okToken = saved.token && cand.tokenHash && sha256Hex(saved.token) === cand.tokenHash;
                   const okPin = saved.pinHash && cand.pinHash && saved.pinHash === cand.pinHash;
-                  if (okToken || okPin) completeUnlock(cand);
+                  if (okToken || okPin) completeUnlock(cand, true);
                 }
               }
             } catch (_) {}
@@ -555,10 +556,14 @@
       }
     }
 
-    function completeUnlock(partObj) {
+    function completeUnlock(partObj, autoReveal = true) {
       state.unlockedPid = Number(partObj.pid);
       state.assignment = unsealWichtelBox(partObj.sealedBox, state.roundId, partObj.pid);
-      state.boxRevealedNow = Boolean(partObj.openedAt);
+      state.boxRevealedNow = autoReveal ? true : Boolean(partObj.openedAt);
+      if (autoReveal && !partObj.openedAt) {
+        partObj.openedAt = new Date().toISOString();
+        saveParticipantDoc(partObj).catch(() => {});
+      }
       state.wishDraft = {
         wishText: partObj.wishText || "",
         noGos: partObj.noGos || "",
@@ -605,9 +610,10 @@
           return;
         }
         part.pinHash = hash;
+        if (!part.openedAt) part.openedAt = new Date().toISOString();
         await saveParticipantDoc(part);
         localStorage.setItem(storageKeyForRound(state.roundId), JSON.stringify({ pid: part.pid, pinHash: hash }));
-        completeUnlock(part);
+        completeUnlock(part, true);
         await loadRoundData(false);
         showToast("Geheim-PIN gespeichert!");
       } else {
@@ -615,8 +621,12 @@
           showToast("❌ Falsche Geheim-PIN! (Bei Vergessen kann der Admin deine PIN zurücksetzen)");
           return;
         }
+        if (!part.openedAt) {
+          part.openedAt = new Date().toISOString();
+          saveParticipantDoc(part).catch(() => {});
+        }
         localStorage.setItem(storageKeyForRound(state.roundId), JSON.stringify({ pid: part.pid, pinHash: hash }));
-        completeUnlock(part);
+        completeUnlock(part, true);
         await loadRoundData(false);
       }
     }
@@ -732,6 +742,8 @@
 
     function logoutSwitchPerson() {
       localStorage.removeItem(storageKeyForRound(state.roundId));
+      state.urlPid = 0;
+      state.urlToken = "";
       state.unlockedPid = 0;
       state.selectedLoginPid = 0;
       state.assignment = null;
@@ -905,36 +917,65 @@
           const allTargetUrls = target
             ? [target.wishlistUrl, ...(Array.isArray(target.extraWishUrls) ? target.extraWishUrls : [])].filter(u => u && u.trim())
             : [];
-          const hasAnyTargetWish = target && (target.wishText || target.noGos || target.address || allTargetUrls.length > 0);
-          contentHtml = `
-            <div class="card" style="display:flex; flex-direction:column; gap:10px;">
-              <div class="gift-box">
-                <div style="font-size:12px; font-weight:700; color:#cbd5e1; text-transform:uppercase; letter-spacing:0.6px;">Du beschenkst geheim:</div>
-                <div class="target-name">🎁 ${esc(targetName)}</div>
-                <div style="font-size:11.5px; color:var(--muted);">Pssst – bleibt bis zum ${esc(revealFormatted)} dein Geheimnis!</div>
+          const hasAnyTargetWish = Boolean(target && (
+            (target.wishText && target.wishText.trim()) ||
+            (target.noGos && target.noGos.trim()) ||
+            (target.address && target.address.trim()) ||
+            allTargetUrls.length > 0
+          ));
+          const myOwnUrls = me
+            ? [me.wishlistUrl, ...(Array.isArray(me.extraWishUrls) ? me.extraWishUrls : [])].filter(u => u && u.trim())
+            : [];
+          const meHasWish = Boolean(me && ((me.wishText && me.wishText.trim()) || myOwnUrls.length > 0));
+          const targetFirstName = targetName.split(" ")[0] || targetName;
 
-                ${hasAnyTargetWish ? `
-                  ${target.wishText ? `<div class="wish-item"><b>📝 Wünsche & Ideen:</b><br/>${esc(target.wishText).replace(/\n/g, "<br/>")}</div>` : ""}
-                  ${target.noGos ? `<div class="wish-item"><b>🚫 Bitte NICHT / Allergien:</b><br/>${esc(target.noGos).replace(/\n/g, "<br/>")}</div>` : ""}
-                  ${target.address ? `<div class="wish-item"><b>📦 Größe / Postadresse:</b><br/>${esc(target.address).replace(/\n/g, "<br/>")}</div>` : ""}
-                  ${allTargetUrls.length > 0 ? `
-                    <div class="wish-item">
-                      <b>🛒 Wunsch-Links:</b><br/>
-                      ${allTargetUrls.map((u, i) => `<div style="margin-top:4px;"><a href="${esc(u.startsWith('http') ? u : 'https://' + u)}" target="_blank" rel="noopener">🔗 Wunsch-Link ${i + 1} öffnen ↗</a></div>`).join("")}
-                    </div>
-                  ` : ""}
-                ` : `
-                  <div class="wish-item" style="text-align:center; color:var(--muted);">
-                    ${esc(targetName.split(" ")[0])} hat noch keinen Wunschzettel ausgefüllt – du kannst unten direkt <b>anonym nachfragen</b>!
+          contentHtml = `
+            <div class="card" style="display:flex; flex-direction:column; gap:12px;">
+              <div class="gift-box">
+                <div style="font-size:12.5px; color:#e2e8f0; margin-bottom:4px;">Hallo <b>${esc(me.name.split(" ")[0])}</b>! 👋</div>
+                <div style="font-size:12px; font-weight:800; color:#cbd5e1; text-transform:uppercase; letter-spacing:0.6px;">🎉 Du hast gezogen:</div>
+                <div class="target-name">🎁 ${esc(targetName)}</div>
+                <div style="font-size:11.5px; color:var(--muted);">Pssst – bleibt bis zum ${esc(revealFormatted)} geheim!</div>
+
+                <div style="margin-top:14px; padding-top:12px; border-top:1px solid rgba(148,163,184,0.25); text-align:left;">
+                  <div style="font-size:13px; font-weight:800; color:#f8fafc; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                    <span>📋 Wunschliste von ${esc(targetFirstName)}</span>
+                    <span style="font-size:11px; font-weight:700; color:${hasAnyTargetWish ? 'var(--green)' : 'var(--muted)'};">
+                      ${hasAnyTargetWish ? "✓ Vorhanden" : "Noch leer"}
+                    </span>
                   </div>
-                `}
+                  ${hasAnyTargetWish ? `
+                    ${target.wishText ? `
+                      <div class="wish-item">
+                        <b>🎁 Wünsche & Geschenk-Ideen:</b><br/>
+                        ${esc(target.wishText).replace(/\n/g, "<br/>")}
+                        <div style="margin-top:6px;">
+                          <a href="https://www.amazon.de/s?k=${encodeURIComponent(target.wishText)}" target="_blank" rel="noopener" style="font-size:12px; font-weight:700; text-decoration:none;">🔎 Passende Ideen auf Amazon suchen ↗</a>
+                        </div>
+                      </div>
+                    ` : ""}
+                    ${allTargetUrls.length > 0 ? `
+                      <div class="wish-item">
+                        <b>🛒 Wunschlisten-Links:</b><br/>
+                        ${allTargetUrls.map((u, i) => `<div style="margin-top:5px;"><a href="${esc(u.startsWith('http') ? u : 'https://' + u)}" target="_blank" rel="noopener" style="font-weight:700;">🔗 ${allTargetUrls.length === 1 ? "Wunschliste öffnen ↗" : `Wunsch-Link ${i + 1} öffnen ↗`}</a></div>`).join("")}
+                      </div>
+                    ` : ""}
+                    ${target.noGos ? `<div class="wish-item"><b>🚫 Bitte NICHT / Allergien / Hinweise:</b><br/>${esc(target.noGos).replace(/\n/g, "<br/>")}</div>` : ""}
+                    ${target.address ? `<div class="wish-item"><b>📦 Größe / Postadresse:</b><br/>${esc(target.address).replace(/\n/g, "<br/>")}</div>` : ""}
+                  ` : `
+                    <div class="wish-item" style="text-align:center; color:#cbd5e1;">
+                      <b>${esc(targetFirstName)}</b> hat bisher noch nichts auf die Wunschliste eingetragen.<br/>
+                      <span style="font-size:12px; color:var(--muted);">Sobald Wünsche hinterlegt werden, erscheinen sie hier automatisch – oder frag unten einfach anonym nach!</span>
+                    </div>
+                  `}
+                </div>
               </div>
 
-              <button class="btn primary" style="width:100%;" onclick="state.activeTab='chat'; state.chatSubTab='toTarget'; render();">
-                🕵️ ${esc(targetName.split(" ")[0])} anonym eine Frage stellen
+              <button class="btn ${meHasWish ? '' : 'gold'}" style="width:100%;" onclick="switchPortalTab('wish')">
+                ${meHasWish ? "📝 Meine eigene Wunschliste bearbeiten" : "📝 Eigene Wunschliste eintragen (für deinen Wichtel)"}
               </button>
-              <button class="btn" style="width:100%;" onclick="state.activeTab='wish'; render();">
-                📝 Meinen eigenen Wunschzettel ausfüllen
+              <button class="btn primary" style="width:100%;" onclick="state.chatSubTab='toTarget'; switchPortalTab('chat');">
+                🕵️ ${esc(targetFirstName)} anonym eine Frage stellen
               </button>
             </div>
           `;
