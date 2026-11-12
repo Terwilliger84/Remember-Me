@@ -719,6 +719,63 @@ fun contactFieldColors() = OutlinedTextFieldDefaults.colors(
 )
 
 @Composable
+fun InfoHintIcon(
+    title: String,
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier
+            .size(19.dp)
+            .background(AccentSteel.copy(alpha = 0.14f), CircleShape)
+            .border(1.dp, AccentSteel.copy(alpha = 0.65f), CircleShape)
+            .clip(CircleShape)
+            .clickable { open = true },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "i",
+            color = AccentSteel,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.ExtraBold,
+            textAlign = TextAlign.Center,
+            style = CenteredPillTextStyle,
+            maxLines = 1,
+            softWrap = false
+        )
+    }
+    if (open) {
+        AlertDialog(
+            onDismissRequest = { open = false },
+            containerColor = CardSlate,
+            title = {
+                Text(
+                    text = "ℹ️ $title",
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
+            text = {
+                Text(
+                    text = text,
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                CompactButton("OK") { open = false }
+            }
+        )
+    }
+}
+
+@Composable
 fun PrimaryActionButton(
     label: String,
     modifier: Modifier = Modifier,
@@ -731,11 +788,11 @@ fun PrimaryActionButton(
     }
     Box(
         modifier = modifier
-            .background(bgBrush, RoundedCornerShape(9.dp))
-            .border(1.dp, AccentSteel.copy(alpha = 0.75f), RoundedCornerShape(9.dp))
-            .clip(RoundedCornerShape(9.dp))
+            .background(bgBrush, RoundedCornerShape(8.dp))
+            .border(1.dp, AccentSteel.copy(alpha = 0.75f), RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 7.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -746,7 +803,8 @@ fun PrimaryActionButton(
             textAlign = TextAlign.Center,
             style = CenteredPillTextStyle,
             maxLines = 1,
-            softWrap = false
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -759,11 +817,11 @@ fun DangerActionButton(
 ) {
     Box(
         modifier = modifier
-            .background(PartnerRose.copy(alpha = 0.12f), RoundedCornerShape(9.dp))
-            .border(1.dp, PartnerRose.copy(alpha = 0.55f), RoundedCornerShape(9.dp))
-            .clip(RoundedCornerShape(9.dp))
+            .background(PartnerRose.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+            .border(1.dp, PartnerRose.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable { onClick() }
-            .padding(horizontal = 11.dp, vertical = 7.dp),
+            .padding(horizontal = 9.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -774,7 +832,8 @@ fun DangerActionButton(
             textAlign = TextAlign.Center,
             style = CenteredPillTextStyle,
             maxLines = 1,
-            softWrap = false
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -911,44 +970,35 @@ fun ContactOptionToggleRow(
             )
             .clip(RoundedCornerShape(10.dp))
             .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
             modifier = Modifier.weight(1f)
         ) {
-            Text(icon, fontSize = 14.sp, style = CenteredPillTextStyle)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = if (checked) TextPrimary else TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.horizontalScroll(rememberScrollState())
-                )
-                if (!subtitle.isNullOrBlank()) {
-                    Text(
-                        text = subtitle,
-                        color = TextMuted,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier.horizontalScroll(rememberScrollState())
-                    )
-                }
+            Text(icon, fontSize = 14.sp, style = CenteredPillTextStyle, maxLines = 1, softWrap = false)
+            Text(
+                text = title,
+                color = if (checked) TextPrimary else TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            if (!subtitle.isNullOrBlank()) {
+                InfoHintIcon(title = title, text = subtitle)
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
-        // Kompakte moderne Switch-Pill
         Box(
             modifier = Modifier
-                .width(38.dp)
-                .height(21.dp)
+                .width(36.dp)
+                .height(20.dp)
                 .background(
                     if (checked) AccentSteel else BorderSlate.copy(alpha = 0.8f),
                     RoundedCornerShape(50)
@@ -958,7 +1008,7 @@ fun ContactOptionToggleRow(
         ) {
             Box(
                 modifier = Modifier
-                    .size(15.dp)
+                    .size(14.dp)
                     .background(Color.White, CircleShape)
             )
         }
@@ -1049,20 +1099,13 @@ fun ContactHeroBanner(
                             )
                         }
                     }
-                    Text(
-                        text = if (photoBase64.isNotBlank()) "✓ Foto aktiv" else "Tippe auf Avatar für Foto",
-                        color = TextSecondary,
-                        fontSize = 10.5.sp,
-                        maxLines = 1,
-                        softWrap = false
-                    )
                 }
             }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                CompactButton(if (photoBase64.isNotBlank()) "📷 Ändern" else "📷 Foto") {
+                CompactButton("📷 Foto") {
                     onPickPhoto()
                 }
                 if (photoBase64.isNotBlank()) {
@@ -1273,16 +1316,6 @@ fun MultiRelationDraftEditor(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = "Mehrere Beziehungen gleichzeitig verknüpfen (z. B. Kind von … & Bruder von …):",
-            color = TextSecondary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier.horizontalScroll(rememberScrollState())
-        )
-
         draftRows.forEachIndexed { idx, (rowLabel, rowTargetId) ->
             Column(
                 modifier = Modifier
@@ -1396,16 +1429,14 @@ fun MultiRelationDraftEditor(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CompactButton("➕ Weitere Beziehung hinzufügen") {
+            CompactButton("+ Beziehung") {
                 val usedPresets = draftRows.map { it.first }.toSet()
                 val nextDefault = listOf("Bruder von", "Schwester von", "Ehe-Partner von", "Kind von", "Mutter von", "Vater von")
                     .firstOrNull { it !in usedPresets } ?: "Kind von"
                 onDraftRowsChange(draftRows + (nextDefault to -1L))
             }
             if (onSaveAllNow != null && validCount > 0) {
-                PrimaryActionButton(
-                    if (validCount == 1) "✓ 1 Beziehung verknüpfen" else "✓ $validCount Beziehungen verknüpfen"
-                ) {
+                PrimaryActionButton("✓ Verknüpfen ($validCount)") {
                     onSaveAllNow()
                 }
             }
@@ -1560,11 +1591,11 @@ fun ContactSearchDropdown(
     persons: List<PersonEntity>,
     selectedPersonId: Long? = null,
     onSelectPerson: (PersonEntity) -> Unit,
-    placeholderText: String = "🔎 Kontakt suchen / Dropdown (A–Z)...",
-    confirmButtonLabel: String = "✓ Bestätigen",
+    placeholderText: String = "🔎 Suchen",
+    confirmButtonLabel: String = "✓ OK",
     onConfirmAction: (() -> Unit)? = null,
     allowNone: Boolean = false,
-    noneLabel: String = "-- Keine Verknüpfung --",
+    noneLabel: String = "-- Keine --",
     onSelectNone: (() -> Unit)? = null,
     externalSearchQuery: String? = null,
     onExternalSearchQueryChange: ((String) -> Unit)? = null,
@@ -1634,6 +1665,9 @@ fun ContactSearchDropdown(
                     color = if (selectedPerson != null || query.isNotBlank() || (letter.isNotBlank() && letter != "Alle")) TextPrimary else TextSecondary,
                     fontSize = 12.5.sp,
                     fontWeight = if (selectedPerson != null) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 Row(
@@ -3492,7 +3526,16 @@ fun KontaktChronikApp(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Remember Me v1.0.45", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Remember Me v1.0.46",
+                color = TextPrimary,
+                fontSize = 15.5.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                 CompactButton(getThemeIcon(appThemeMode)) {
                     applyThemeMode(nextThemeMode(appThemeMode))
@@ -3575,51 +3618,64 @@ fun KontaktChronikApp(
         Spacer(modifier = Modifier.height(10.dp))
 
         if (persons.isEmpty()) {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(8.dp))
                     .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                    .padding(16.dp)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Noch keine Kontakte vorhanden", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
-                        "Tippe auf '📲 Handykontakte synchronisieren' oder oben auf 'Sync', um deine Telefonkontakte samt Geburtstagen und Kontaktfotos zu übernehmen, oder auf '+ Kontakt anlegen'.",
-                        color = TextSecondary,
-                        fontSize = 12.sp
+                        "Keine Kontakte",
+                        color = TextPrimary,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CompactButton("📲 Handykontakte synchronisieren") {
-                            val hasRead = ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.READ_CONTACTS
-                            ) == PackageManager.PERMISSION_GRANTED
-                            val hasWrite = ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.WRITE_CONTACTS
-                            ) == PackageManager.PERMISSION_GRANTED
-                            if (hasRead && hasWrite) {
-                                scope.launch {
-                                    val count = syncContactsRespectingMerged()
-                                    syncStatus = "$count Kontakte synchronisiert"
-                                }
-                            } else {
-                                contactPermissionLauncher.launch(
-                                    arrayOf(
-                                        Manifest.permission.READ_CONTACTS,
-                                        Manifest.permission.WRITE_CONTACTS
-                                    )
-                                )
+                    InfoHintIcon(
+                        title = "Kontakte übernehmen",
+                        text = "Tippe auf „📲 Sync“, um deine Telefonkontakte samt Geburtstagen und Kontaktfotos zu übernehmen, oder auf „+ Neu“, um manuell einen Kontakt anzulegen."
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CompactButton("📲 Sync") {
+                        val hasRead = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.READ_CONTACTS
+                        ) == PackageManager.PERMISSION_GRANTED
+                        val hasWrite = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.WRITE_CONTACTS
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (hasRead && hasWrite) {
+                            scope.launch {
+                                val count = syncContactsRespectingMerged()
+                                syncStatus = "$count Kontakte synchronisiert"
                             }
+                        } else {
+                            contactPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.READ_CONTACTS,
+                                    Manifest.permission.WRITE_CONTACTS
+                                )
+                            )
                         }
-                        CompactButton("+ Kontakt anlegen") {
-                            showCreateDialog = true
-                        }
+                    }
+                    CompactButton("+ Neu") {
+                        showCreateDialog = true
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
         when (activeTab) {
@@ -3649,14 +3705,14 @@ fun KontaktChronikApp(
                         else -> filteredBase.sortedWith(LastNamePersonComparator)
                     }
                 }
-                val sortBtnLabel = if (contactSortMode == "birthday") "⇅ Geburtstag" else "⇅ Nachname"
+                val sortBtnLabel = if (contactSortMode == "birthday") "⇅ Geb." else "⇅ Name"
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     ContactSearchDropdown(
                         persons = baseList,
                         onSelectPerson = { detailPerson = it },
-                        placeholderText = "🔎 Kontakt suchen / Dropdown-Liste",
-                        confirmButtonLabel = "✓ Bestätigen",
+                        placeholderText = "🔎 Suchen",
+                        confirmButtonLabel = "✓ OK",
                         externalSearchQuery = tabSearchQuery,
                         onExternalSearchQueryChange = { tabSearchQuery = it },
                         externalSelectedLetter = tabSelectedLetter,
@@ -3679,8 +3735,8 @@ fun KontaktChronikApp(
                             contactSortMode = if (contactSortMode == "lastname") "birthday" else "lastname"
                         }
                         CompactButton(
-                            if (duplicateSuggestionGroups.isNotEmpty()) "🔗 Zusammenführen (${duplicateSuggestionGroups.size})"
-                            else "🔗 Zusammenführen"
+                            if (duplicateSuggestionGroups.isNotEmpty()) "🔗 Duplikate (${duplicateSuggestionGroups.size})"
+                            else "🔗 Duplikate"
                         ) {
                             mergeInitialPersonIds = emptyList()
                             showMergeContactsDialog = true
@@ -3689,8 +3745,8 @@ fun KontaktChronikApp(
                             allContactsFilter = "all"
                         }
                         CompactButton(
-                            if (allContactsFilter == "hidden") "✓ Ausgeblendet ($hiddenCount)"
-                            else "Ausgeblendet ($hiddenCount)"
+                            if (allContactsFilter == "hidden") "✓ Ausgebl. ($hiddenCount)"
+                            else "Ausgebl. ($hiddenCount)"
                         ) {
                             allContactsFilter = "hidden"
                         }
@@ -3708,15 +3764,16 @@ fun KontaktChronikApp(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "👁 $matchingHiddenInContactsCount ausgeblendet für diesen Filter",
+                                text = "👁 $matchingHiddenInContactsCount ausgeblendet",
                                 color = WarnAmber,
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
-                            CompactButton("Ausgeblendete zeigen") {
+                            CompactButton("Zeigen") {
                                 allContactsFilter = "hidden"
                             }
                         }
@@ -3760,16 +3817,19 @@ fun KontaktChronikApp(
                                             Text(
                                                 text = formatLastNameFirst(person.name),
                                                 color = if (isHidden) TextMuted else TextPrimary,
-                                                fontSize = 15.sp,
+                                                fontSize = 14.5.sp,
                                                 fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
                                             BirthdayCountdownPill(birthdayIso = person.birthdayIso, isPastMode = false)
                                             if (isHidden) {
                                                 Text(
-                                                    text = "Ausgeblendet",
+                                                    text = "🙈",
                                                     color = WarnAmber,
-                                                    fontSize = 10.sp,
+                                                    fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     maxLines = 1,
                                                     softWrap = false
@@ -3780,12 +3840,15 @@ fun KontaktChronikApp(
                                             Text(
                                                 text = subText,
                                                 color = TextSecondary,
-                                                fontSize = 12.sp
+                                                fontSize = 11.5.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
                                 }
-                                CompactButton(if (isHidden) "Einblenden" else "Ausblenden") {
+                                CompactButton(if (isHidden) "Einbl." else "Ausbl.") {
                                     setPersonHidden(person.id, !isHidden)
                                 }
                             }
@@ -3843,13 +3906,25 @@ fun KontaktChronikApp(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "⏳ Melde-Timer (${allTimerPersons.size})",
-                            color = TextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        CompactButton("＋ Timer-Eintrag") {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "⏳ Timer (${allTimerPersons.size})",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            InfoHintIcon(
+                                title = "Melde-Timer",
+                                text = "Erinnert dich regelmäßig daran, dich wieder bei ausgewählten Kontakten zu melden."
+                            )
+                        }
+                        CompactButton("+ Timer") {
                             editingTimerPerson = null
                             showTimerEntryDialog = true
                         }
@@ -3860,8 +3935,8 @@ fun KontaktChronikApp(
                             editingTimerPerson = p
                             showTimerEntryDialog = true
                         },
-                        placeholderText = "🔎 Timer-Kontakt per Dropdown / ABCD suchen",
-                        confirmButtonLabel = "✓ Bestätigen",
+                        placeholderText = "🔎 Suchen",
+                        confirmButtonLabel = "✓ OK",
                         externalSearchQuery = tabSearchQuery,
                         onExternalSearchQueryChange = { tabSearchQuery = it },
                         externalSelectedLetter = tabSelectedLetter,
@@ -3875,24 +3950,25 @@ fun KontaktChronikApp(
                     ) {
                         if (timerPersons.isEmpty()) {
                             item {
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(CardSlate, RoundedCornerShape(10.dp))
                                         .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                                        .padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = if (allTimerPersons.isEmpty()) {
-                                            "Noch keine aktiven Melde-Timer vorhanden. Tippe auf „＋ Timer-Eintrag“, um manuell einen Timer für einen Kontakt zu erstellen."
-                                        } else {
-                                            "Keine Timer-Einträge für diesen ABCD-/Suchfilter gefunden."
-                                        },
+                                        text = if (allTimerPersons.isEmpty()) "Keine aktiven Timer" else "Keine Treffer",
                                         color = TextSecondary,
-                                        fontSize = 12.sp
+                                        fontSize = 12.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
                                     )
-                                    CompactButton("＋ Manuell Timer-Eintrag erstellen") {
+                                    CompactButton("+ Timer") {
                                         editingTimerPerson = null
                                         showTimerEntryDialog = true
                                     }
@@ -3922,23 +3998,21 @@ fun KontaktChronikApp(
                                             showTimerEntryDialog = true
                                         }
                                 ) {
-                                    Text(formatLastNameFirst(p.name), color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(formatLastNameFirst(p.name), color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                                     val unitDe = when (p.timerUnit.uppercase()) {
-                                        "DAYS" -> "Tage"
-                                        "WEEKS" -> "Wochen"
-                                        "MONTHS" -> "Monate"
-                                        "YEARS" -> "Jahre"
+                                        "DAYS" -> "T"
+                                        "WEEKS" -> "Wo."
+                                        "MONTHS" -> "Mon."
+                                        "YEARS" -> "J."
                                         else -> p.timerUnit
                                     }
                                     Text(
-                                        "Alle ${p.timerInterval} $unitDe • Nächste: $nextTimerStr",
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
-                                    )
-                                    Text(
-                                        if (diff <= 0L) "Jetzt fällig ($nextTimerStr)" else "Nächste Erinnerung in ${diff}T ($nextTimerStr)",
-                                        color = if (diff <= 0L) WarnAmber else AccentSteel,
-                                        fontSize = 11.sp
+                                        "Alle ${p.timerInterval} $unitDe • " + (if (diff <= 0L) "Fällig ($nextTimerStr)" else "in ${diff}T ($nextTimerStr)"),
+                                        color = if (diff <= 0L) WarnAmber else TextSecondary,
+                                        fontSize = 11.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                                 Row(
@@ -3949,7 +4023,7 @@ fun KontaktChronikApp(
                                         editingTimerPerson = p
                                         showTimerEntryDialog = true
                                     }
-                                    CompactButton("Nachricht") {
+                                    CompactButton("💬") {
                                         val relPairs = relations
                                             .filter { it.fromPersonId == p.id }
                                             .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
@@ -3995,8 +4069,8 @@ fun KontaktChronikApp(
                     ContactSearchDropdown(
                         persons = visiblePersons,
                         onSelectPerson = { detailPerson = it },
-                        placeholderText = "🔎 Erinnerung / Kontakt per Dropdown suchen",
-                        confirmButtonLabel = "✓ Bestätigen",
+                        placeholderText = "🔎 Suchen",
+                        confirmButtonLabel = "✓ OK",
                         externalSearchQuery = tabSearchQuery,
                         onExternalSearchQueryChange = { tabSearchQuery = it },
                         externalSelectedLetter = tabSelectedLetter,
@@ -4010,17 +4084,25 @@ fun KontaktChronikApp(
                     ) {
                         if (visibleEvents.isEmpty() && filteredRemPersons.none { !it.birthdayIso.isNullOrBlank() }) {
                             item {
-                                Box(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(CardSlate, RoundedCornerShape(8.dp))
                                         .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                                        .padding(14.dp)
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        "Keine passenden Erinnerungen gefunden. Tippe in der Übersicht auf einen Namen, um eine Erinnerung hinzuzufügen.",
+                                        "Keine Erinnerungen",
                                         color = TextSecondary,
-                                        fontSize = 12.sp
+                                        fontSize = 12.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    InfoHintIcon(
+                                        title = "Erinnerungen",
+                                        text = "Tippe auf einen Kontakt, um eigene Termine, Jahrestage oder regelmäßige Erinnerungen hinzuzufügen."
                                     )
                                 }
                             }
@@ -4047,15 +4129,22 @@ fun KontaktChronikApp(
                                         "${ev.title} – ${if (p != null) formatLastNameFirst(p.name) else "Kontakt"}",
                                         color = TextPrimary,
                                         fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                    Text("Datum: ${formatIsoToDdMmYyyy(ev.dateIso)}", color = AccentSteel, fontSize = 12.sp)
-                                    if (ev.note.isNotBlank()) {
-                                        Text(ev.note, color = TextMuted, fontSize = 11.sp)
-                                    }
+                                    Text(
+                                        formatIsoToDdMmYyyy(ev.dateIso) + if (ev.note.isNotBlank()) " • ${ev.note}" else "",
+                                        color = AccentSteel,
+                                        fontSize = 11.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
                                 if (p != null) {
-                                    CompactButton("Nachricht") {
+                                    CompactButton("💬") {
                                         val relPairs = relations
                                             .filter { it.fromPersonId == p.id }
                                             .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
@@ -4093,6 +4182,9 @@ fun KontaktChronikApp(
                                             color = TextPrimary,
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f, fill = false)
                                         )
                                         BirthdayCountdownPill(birthdayIso = p.birthdayIso, isPastMode = false)
@@ -4100,10 +4192,13 @@ fun KontaktChronikApp(
                                     Text(
                                         formatCompactBirthdayLine(p.birthdayIso).orEmpty(),
                                         color = TextSecondary,
-                                        fontSize = 12.sp
+                                        fontSize = 11.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                CompactButton("Nachricht") {
+                                CompactButton("💬") {
                                     val relPairs = relations
                                         .filter { it.fromPersonId == p.id }
                                         .mapNotNull { rel -> visiblePersons.find { it.id == rel.toPersonId }?.let { rel to it } }
@@ -4185,14 +4280,14 @@ fun KontaktChronikApp(
                     else timelineItems.firstOrNull { it.daysUntil != Long.MAX_VALUE }?.daysUntil
                 }
 
-                val sortBtnLabel = if (overviewSortMode == "upcoming") "📅 Nächstes Ereignis" else "⇅ Nachname"
+                val sortBtnLabel = if (overviewSortMode == "upcoming") "📅 Termin" else "⇅ Name"
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     ContactSearchDropdown(
                         persons = overviewVisiblePersons,
                         onSelectPerson = { detailPerson = it },
-                        placeholderText = "🔎 Kontakt suchen / Dropdown-Liste",
-                        confirmButtonLabel = "✓ Bestätigen",
+                        placeholderText = "🔎 Suchen",
+                        confirmButtonLabel = "✓ OK",
                         externalSearchQuery = tabSearchQuery,
                         onExternalSearchQueryChange = { tabSearchQuery = it },
                         externalSelectedLetter = tabSelectedLetter,
@@ -4228,7 +4323,7 @@ fun KontaktChronikApp(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (showPastDates) "Anstehende zeigen" else "Vergangene Termine",
+                                text = if (showPastDates) "Anstehend" else "Vergangen",
                                 color = if (showPastDates) BgSlate else TextPrimary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -4252,13 +4347,16 @@ fun KontaktChronikApp(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "👁 $matchingHiddenOverviewCount ausgeblendet für diesen Filter",
+                                text = "👁 $matchingHiddenOverviewCount ausgeblendet",
                                 color = WarnAmber,
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
-                            CompactButton("Ausgeblendete zeigen") {
+                            CompactButton("Zeigen") {
                                 allContactsFilter = "hidden"
                                 activeTab = "Alle Kontakte"
                             }
@@ -4271,24 +4369,33 @@ fun KontaktChronikApp(
                     ) {
                         if (timelineItems.isEmpty()) {
                             item(key = "overview_empty") {
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(CardSlate, RoundedCornerShape(10.dp))
                                         .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                                        .padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = if (overviewVisiblePersons.isEmpty()) {
-                                            "Noch keine Kontakte mit Ereignis, Datum oder Verknüpfung vorhanden."
-                                        } else {
-                                            "Keine anstehenden Ereignisse oder verknüpften Kontakte für diesen Filter gefunden."
-                                        },
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
-                                    )
-                                    CompactButton("👥 Alle Kontakte öffnen") {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = if (overviewVisiblePersons.isEmpty()) "Keine Termine" else "Keine Treffer",
+                                            color = TextSecondary,
+                                            fontSize = 12.5.sp,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        InfoHintIcon(
+                                            title = "Übersicht",
+                                            text = "Hier erscheinen automatisch alle Kontakte mit Geburtstag, Melde-Timer, Erinnerung oder Stammbaum-Verknüpfung."
+                                        )
+                                    }
+                                    CompactButton("👥 Kontakte") {
                                         allContactsFilter = "all"
                                         activeTab = "Alle Kontakte"
                                     }
@@ -4317,7 +4424,7 @@ fun KontaktChronikApp(
                                     .fillMaxWidth()
                                     .background(CardSlate, RoundedCornerShape(10.dp))
                                     .border(if (isNextHighlight || entry.isUrgent) 1.5.dp else 1.dp, cardBorder, RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -4334,14 +4441,6 @@ fun KontaktChronikApp(
                                         modifier = Modifier.weight(1f),
                                         verticalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
-                                        if (isNextHighlight) {
-                                            Text(
-                                                text = if (entry.daysUntil == 0L) "🔥 Heute anstehend" else "⭐ Als Nächstes anstehend",
-                                                color = if (entry.daysUntil == 0L) WarnAmber else AccentSteel,
-                                                fontSize = 10.5.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
                                         Row(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                                             verticalAlignment = Alignment.CenterVertically
@@ -4349,8 +4448,11 @@ fun KontaktChronikApp(
                                             Text(
                                                 text = formatLastNameFirst(person.name),
                                                 color = TextPrimary,
-                                                fontSize = 15.sp,
+                                                fontSize = 14.5.sp,
                                                 fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
                                             OverviewCountdownPill(
@@ -4368,20 +4470,26 @@ fun KontaktChronikApp(
                                                     entry.isRecurring -> TreeGreen
                                                     else -> TextSecondary
                                                 },
-                                                fontSize = 12.sp,
-                                                fontWeight = if (entry.isUrgent || isNextHighlight) FontWeight.SemiBold else FontWeight.Normal
+                                                fontSize = 11.5.sp,
+                                                fontWeight = if (entry.isUrgent || isNextHighlight) FontWeight.SemiBold else FontWeight.Normal,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                         if (entry.secondaryLine.isNotBlank()) {
                                             Text(
                                                 text = entry.secondaryLine,
                                                 color = TextMuted,
-                                                fontSize = 11.sp
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
                                 }
-                                CompactButton("Nachricht") {
+                                CompactButton("💬") {
                                     popupReason = entry.popupReason
                                     quickMessageText = pickRandomBirthdayGreeting(
                                         extractFirstName(resolved.targetPersonName),
@@ -4437,7 +4545,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.45")
+                put("version", "1.0.46")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
@@ -4524,19 +4632,19 @@ fun KontaktChronikApp(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("🌳 Stammbaum", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        CompactButton(if (treeEnabled) "✓ Aktiviert" else "Aktiviert") {
-                            treeEnabled = true
-                            appPrefs.edit().putBoolean("tree_enabled", true).apply()
-                        }
-                        CompactButton(if (!treeEnabled) "✓ Deaktiviert" else "Deaktiviert") {
-                            treeEnabled = false
-                            if (activeTab == "Stammbaum") activeTab = "Übersicht"
-                            appPrefs.edit().putBoolean("tree_enabled", false).apply()
+                        Text("🌳 Stammbaum", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            CompactButton(if (treeEnabled) "✓ Ein" else "Ein") {
+                                treeEnabled = true
+                                appPrefs.edit().putBoolean("tree_enabled", true).apply()
+                            }
+                            CompactButton(if (!treeEnabled) "✓ Aus" else "Aus") {
+                                treeEnabled = false
+                                if (activeTab == "Stammbaum") activeTab = "Übersicht"
+                                appPrefs.edit().putBoolean("tree_enabled", false).apply()
+                            }
                         }
                     }
-                }
 
                 HorizontalDivider(color = BorderSlate)
 
@@ -4545,13 +4653,13 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("🎄 Wichtelrunde", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("🎄 Wichteln", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        CompactButton(if (wichtelEnabled) "✓ Aktiviert" else "Aktiviert") {
+                        CompactButton(if (wichtelEnabled) "✓ Ein" else "Ein") {
                             wichtelEnabled = true
                             appPrefs.edit().putBoolean("wichtel_enabled", true).apply()
                         }
-                        CompactButton(if (!wichtelEnabled) "✓ Deaktiviert" else "Deaktiviert") {
+                        CompactButton(if (!wichtelEnabled) "✓ Aus" else "Aus") {
                             wichtelEnabled = false
                             if (activeTab == "🎄 Wichteln") activeTab = "Übersicht"
                             appPrefs.edit().putBoolean("wichtel_enabled", false).apply()
@@ -4570,25 +4678,27 @@ fun KontaktChronikApp(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Text(
-                                "🔔 Geburtstags-Popup",
+                                "🔔 Geburtstags-Meldung",
                                 color = TextPrimary,
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            Text(
-                                if (birthdayPopupEnabled) {
-                                    "Handy-Meldung am Geburtstag (%02d:%02d Uhr)".format(birthdayPopupHour, birthdayPopupMinute)
-                                } else {
-                                    "Keine Handy-Popup-Benachrichtigung"
-                                },
-                                color = TextSecondary,
-                                fontSize = 11.sp
+                            InfoHintIcon(
+                                title = "Geburtstags-Meldung",
+                                text = "Sendet täglich zur gewählten Uhrzeit eine Handy-Benachrichtigung, wenn heute jemand Geburtstag hat."
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            CompactButton(if (birthdayPopupEnabled) "✓ Aktiviert" else "Aktiviert") {
+                            CompactButton(if (birthdayPopupEnabled) "✓ Ein" else "Ein") {
                                 birthdayPopupEnabled = true
                                 BirthdayNotificationHelper.setBirthdayPopupEnabled(context, true)
                                 hasNotificationPerm = BirthdayNotificationHelper.hasNotificationPermission(context)
@@ -4596,7 +4706,7 @@ fun KontaktChronikApp(
                                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                 }
                             }
-                            CompactButton(if (!birthdayPopupEnabled) "✓ Deaktiviert" else "Deaktiviert") {
+                            CompactButton(if (!birthdayPopupEnabled) "✓ Aus" else "Aus") {
                                 birthdayPopupEnabled = false
                                 BirthdayNotificationHelper.setBirthdayPopupEnabled(context, false)
                             }
@@ -4610,7 +4720,7 @@ fun KontaktChronikApp(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             CompactButton(
-                                label = "⏰ Uhrzeit: %02d:%02d".format(birthdayPopupHour, birthdayPopupMinute)
+                                label = "⏰ %02d:%02d".format(birthdayPopupHour, birthdayPopupMinute)
                             ) {
                                 TimePickerDialog(
                                     context,
@@ -4625,7 +4735,7 @@ fun KontaktChronikApp(
                                     true
                                 ).show()
                             }
-                            CompactButton("🔔 Test-Popup") {
+                            CompactButton("🔔 Test") {
                                 val permOk = BirthdayNotificationHelper.hasNotificationPermission(context)
                                 hasNotificationPerm = permOk
                                 if (!permOk && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -4641,7 +4751,7 @@ fun KontaktChronikApp(
                                 }
                             }
                             if (!hasNotificationPerm && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                CompactButton("🔓 Freigeben") {
+                                CompactButton("🔓 Recht") {
                                     openAppNotificationSettings()
                                 }
                             }
@@ -4656,20 +4766,25 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text(
-                            "📱 Homescreen-Widgets (4 Größen)",
+                            "📱 Widgets",
                             color = TextPrimary,
                             fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
-                        Text(
-                            "Mini (2×1) • Leiste (4×1) • Kompakt (3×2) • Groß (4×3)",
-                            color = TextSecondary,
-                            fontSize = 11.sp
+                        InfoHintIcon(
+                            title = "Homescreen-Widgets",
+                            text = "Verfügbar in 4 Größen auf dem Startbildschirm: Mini (2×1), Leiste (4×1), Kompakt (3×2) und Groß (4×3)."
                         )
                     }
-                    CompactButton("↻ Aktualisieren") {
+                    CompactButton("↻ Sync") {
                         RememberMeWidgetUpdater.updateAllAsync(context)
                         syncStatus = "Alle 4 Homescreen-Widgets aktualisiert"
                     }
@@ -4682,20 +4797,25 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text(
-                            "🎂 Geburtstagsgrüße (${birthdayGreetings.size})",
+                            "🎂 Grüße (${birthdayGreetings.size})",
                             color = TextPrimary,
                             fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
-                        Text(
-                            "Zufällige Glückwunschtexte mit {Name}",
-                            color = TextSecondary,
-                            fontSize = 11.sp
+                        InfoHintIcon(
+                            title = "Geburtstagsgrüße",
+                            text = "Zufällige Glückwunschtexte mit Platzhalter {Name} für schnelle Nachrichten."
                         )
                     }
-                    CompactButton("✏️ Bearbeiten") {
+                    CompactButton("✏️ Öffnen") {
                         showOptionsDialog = false
                         showGreetingsEditorDialog = true
                     }
@@ -4708,18 +4828,23 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text(
-                            if (duplicateSuggestionGroups.isNotEmpty()) "🔗 Kontakte zusammenführen (${duplicateSuggestionGroups.size} Vorschläge)"
-                            else "🔗 Kontakte zusammenführen",
+                            if (duplicateSuggestionGroups.isNotEmpty()) "🔗 Duplikate (${duplicateSuggestionGroups.size})"
+                            else "🔗 Duplikate",
                             color = TextPrimary,
                             fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
-                        Text(
-                            "Mehrere Kontakte ohne doppelte Nummern/Mails/Adressen vereinen",
-                            color = TextSecondary,
-                            fontSize = 11.sp
+                        InfoHintIcon(
+                            title = "Kontakte zusammenführen",
+                            text = "Vereint doppelte Kontakte automatisch ohne doppelte Nummern, E-Mails, Adressen oder Termine."
                         )
                     }
                     CompactButton("🔗 Öffnen") {
@@ -4731,17 +4856,17 @@ fun KontaktChronikApp(
 
                 HorizontalDivider(color = BorderSlate)
 
-                Text("🎨 Design-Theme (Sanftes Blau / Festlich)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("🎨 Design", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         CompactButton(
-                            label = if (appThemeMode == "warm") "✓ ☀️ Sanftes Blau" else "☀️ Sanftes Blau",
+                            label = if (appThemeMode == "warm") "✓ ☀️ Hell" else "☀️ Hell",
                             modifier = Modifier.weight(1f)
                         ) {
                             applyThemeMode("warm")
                         }
                         CompactButton(
-                            label = if (appThemeMode == "cozy-dark") "✓ 🌙 Nachtblau" else "🌙 Nachtblau",
+                            label = if (appThemeMode == "cozy-dark") "✓ 🌙 Dunkel" else "🌙 Dunkel",
                             modifier = Modifier.weight(1f)
                         ) {
                             applyThemeMode("cozy-dark")
@@ -4749,13 +4874,13 @@ fun KontaktChronikApp(
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         CompactButton(
-                            label = if (appThemeMode == "xmas") "✓ 🎄 Weihnachten" else "🎄 Weihnachten",
+                            label = if (appThemeMode == "xmas") "✓ 🎄 Fest" else "🎄 Fest",
                             modifier = Modifier.weight(1f)
                         ) {
                             applyThemeMode("xmas")
                         }
                         CompactButton(
-                            label = if (appThemeMode == "classic") "✓ 💎 Klassisch" else "💎 Klassisch",
+                            label = if (appThemeMode == "classic") "✓ 💎 Klar" else "💎 Klar",
                             modifier = Modifier.weight(1f)
                         ) {
                             applyThemeMode("classic")
@@ -4765,21 +4890,31 @@ fun KontaktChronikApp(
 
                 HorizontalDivider(color = BorderSlate)
 
-                Text("💾 Vollständiges Backup & Restore (.json)", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("💾 Backup", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                    InfoHintIcon(
+                        title = "Backup & Wiederherstellung",
+                        text = "Sichert oder lädt alle Kontakte, Fotos, Beziehungen, Erinnerungen und Wichtelrunden als JSON-Datei."
+                    )
+                }
                 OutlinedTextField(
                     value = backupEmail,
                     onValueChange = {
                         backupEmail = it
                         appPrefs.edit().putString("backup_email", it).apply()
                     },
-                    label = { Text("Empfänger-Mail (optional)") },
+                    label = { Text("E-Mail (optional)", maxLines = 1, softWrap = false) },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    CompactButton("📧 Backup senden") {
+                    CompactButton("📧 Senden") {
                         try {
                             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
                             val rootJson = buildBackupJsonObject()
@@ -4828,7 +4963,7 @@ fun KontaktChronikApp(
                         label = { Text("JSON-Backup hier einfügen") },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    CompactButton("📥 Sicherung jetzt wiederherstellen") {
+                    CompactButton("📥 Wiederherstellen") {
                         scope.launch {
                             runCatching {
                                 val parsed = JSONObject(restoreJsonText.trim())
@@ -4956,15 +5091,26 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "🎂 Geburtstagsgrüße (${birthdayGreetings.size})",
-                        color = TextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.weight(1f)
-                    )
+                    ) {
+                        Text(
+                            "🎂 Grüße (${birthdayGreetings.size})",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        InfoHintIcon(
+                            title = "Geburtstagsgrüße",
+                            text = "Beim Öffnen einer Nachricht wählt die App zufällig einen Spruch aus. {Name} wird automatisch durch den Vornamen ersetzt."
+                        )
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        CompactButton("🔄 100 Standard") {
+                        CompactButton("🔄 Reset") {
                             pendingConfirmMessage = "Alle Geburtstagsgrüße auf die 100 Standard-Glückwunschtexte zurücksetzen?"
                             pendingConfirmAction = {
                                 saveBirthdayGreetings(DEFAULT_BIRTHDAY_GREETINGS)
@@ -4975,11 +5121,6 @@ fun KontaktChronikApp(
                         }
                     }
                 }
-                Text(
-                    "Beim Öffnen einer Nachricht wählt die App zufällig einen dieser Glückwunschtexte aus. {Name} wird automatisch durch den Vornamen ersetzt.",
-                    color = TextSecondary,
-                    fontSize = 11.sp
-                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -5310,12 +5451,14 @@ fun KontaktChronikApp(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Kontakt auswählen (Nachname, ABCD):",
+                                text = "Kontakt:",
                                 color = TextSecondary,
                                 fontSize = 11.5.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
                             )
-                            CompactButton(if (createNewContactMode) "Aus Kontakten wählen" else "＋ Neuer Kontakt") {
+                            CompactButton(if (createNewContactMode) "Aus Liste" else "+ Neu") {
                                 createNewContactMode = !createNewContactMode
                             }
                         }
@@ -5490,7 +5633,7 @@ fun KontaktChronikApp(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (editingTimerPerson != null) {
-                        CompactButton("Timer ausschalten") {
+                        CompactButton("Ausschalten") {
                             val pToDisable = editingTimerPerson
                             if (pToDisable != null) {
                                 scope.launch {
@@ -5506,7 +5649,7 @@ fun KontaktChronikApp(
                             editingTimerPerson = null
                         }
                     }
-                    CompactButton("✓ Timer speichern") { saveTimerEntry() }
+                    CompactButton("✓ Speichern") { saveTimerEntry() }
                 }
             }
         }
@@ -5754,7 +5897,7 @@ fun KontaktChronikApp(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Start
                         ) {
-                            CompactButton("➕ Weiteres Feld hinzufügen") {
+                            CompactButton("+ Feld") {
                                 val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Adresse / Info"
                                 extraInfos = extraInfos + (defaultLabel to "")
                             }
@@ -5824,7 +5967,7 @@ fun KontaktChronikApp(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CompactButton("Abbrechen") { showCreateDialog = false }
-                    PrimaryActionButton("✓ Kontakt speichern") { saveNewContact() }
+                    PrimaryActionButton("✓ Speichern") { saveNewContact() }
                 }
             }
         }
@@ -6017,14 +6160,14 @@ fun KontaktChronikApp(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     if (persons.size >= 2) {
-                                        CompactButton("🔗 Zusammenführen") {
+                                        CompactButton("🔗 Duplikat") {
                                             mergeInitialPersonIds = listOf(dp.id)
                                             detailPerson = null
                                             showMergeContactsDialog = true
                                         }
                                     }
                                     if (treeEnabled) {
-                                        CompactButton("🌳 Im Stammbaum öffnen") {
+                                        CompactButton("🌳 Baum") {
                                             selectedTreeRootId = dp.id
                                             detailPerson = null
                                             activeTab = "Stammbaum"
@@ -6102,7 +6245,7 @@ fun KontaktChronikApp(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Start
                         ) {
-                            CompactButton("➕ Weiteres Feld hinzufügen") {
+                            CompactButton("+ Feld") {
                                 val defaultLabel = if (extraInfos.isEmpty()) "2. Telefon" else "Adresse / Info"
                                 extraInfos = extraInfos + (defaultLabel to "")
                             }
@@ -6569,12 +6712,14 @@ fun KontaktChronikApp(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Nachricht / Gruß (zufälliger Glückwunsch)",
+                        "Nachricht",
                         color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
                     )
-                    CompactButton("🎲 Anderer Spruch") {
+                    CompactButton("🎲 Spruch") {
                         quickMessageText = pickRandomBirthdayGreeting(
                             extractFirstName(resolved.targetPersonName),
                             false
@@ -6624,7 +6769,7 @@ fun KontaktChronikApp(
                             QuickActionDispatcher.openExtraMessenger(context, extra, resolved.phone, quickMessageText)
                         }
                     }
-                    CompactButton("＋ Hinzufügen") {
+                    CompactButton("+ App") {
                         showAddMessenger = !showAddMessenger
                     }
                 }
@@ -6663,7 +6808,7 @@ fun KontaktChronikApp(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    CompactButton("Kontaktiert") {
+                    CompactButton("✓ Gemeldet") {
                         scope.launch {
                             db.updatePerson(p.copy(lastContactedIso = LocalDate.now().toString()))
                             popupPerson = null
@@ -7024,19 +7169,30 @@ fun KontaktChronikApp(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "🔗 Kontakte zusammenführen",
-                            color = TextPrimary,
-                            fontSize = 15.5.sp,
-                            fontWeight = FontWeight.Bold,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.weight(1f)
-                        )
+                        ) {
+                            Text(
+                                text = "🔗 Duplikate",
+                                color = TextPrimary,
+                                fontSize = 15.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            InfoHintIcon(
+                                title = "Kontakte zusammenführen",
+                                text = "Wähle 2 oder mehr Kontakte aus. Doppelte Nummern, E-Mails, Adressen, Termine und Beziehungen werden automatisch auf jeweils einen Eintrag bereinigt."
+                            )
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             CompactButton("✕") {
                                 if (!isMerging) showMergeContactsDialog = false
                             }
                             if (preview != null) {
-                                CompactButton(if (isMerging) "⏳..." else "✓ Zusammenführen") {
+                                CompactButton(if (isMerging) "⏳…" else "✓ Vereinen") {
                                     executeMerge()
                                 }
                             }
@@ -7079,9 +7235,9 @@ fun KontaktChronikApp(
                         }
                         CompactButton(
                             label = if (activeMergeTab == "manual") {
-                                "✓ ☑️ Manuell & Vorschau (${selectedIds.size})"
+                                "✓ ☑️ Auswahl (${selectedIds.size})"
                             } else {
-                                "☑️ Manuell & Vorschau (${selectedIds.size})"
+                                "☑️ Auswahl (${selectedIds.size})"
                             },
                             modifier = Modifier.weight(1f)
                         ) {
@@ -7101,17 +7257,14 @@ fun KontaktChronikApp(
                             ) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text(
-                                        "Keine automatischen Duplikate gefunden 🎉",
+                                        "Keine Duplikate gefunden 🎉",
                                         color = TextPrimary,
                                         fontSize = 13.5.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
-                                    Text(
-                                        "Du kannst jederzeit über „☑️ Manuell & Vorschau“ beliebige 2 oder mehr Kontakte auswählen und deren Nummern, E-Mails, Adressen, Termine und Beziehungen ohne doppelte Einträge in einem Kontakt bündeln.",
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
-                                    )
-                                    CompactButton("☑️ Beliebige Kontakte manuell auswählen") {
+                                    CompactButton("☑️ Manuell wählen") {
                                         activeMergeTab = "manual"
                                     }
                                     if (dismissedMergePairs.isNotEmpty()) {
@@ -7122,25 +7275,22 @@ fun KontaktChronikApp(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                "🚫 ${dismissedMergePairs.size} abgelehnte Kombination(en) ausgeblendet",
+                                                "🚫 ${dismissedMergePairs.size} ignoriert",
                                                 color = TextSecondary,
                                                 fontSize = 11.5.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
                                                 modifier = Modifier.weight(1f)
                                             )
-                                            CompactButton("Zurücksetzen") {
+                                            CompactButton("Reset") {
                                                 resetDismissedMergeCombinations()
-                                                lastMergedNotice = "✓ Abgelehnte Vorschläge wurden wieder eingeblendet."
+                                                lastMergedNotice = "✓ Abgelehnte Vorschläge eingeblendet."
                                             }
                                         }
                                     }
                                 }
                             }
                         } else {
-                            Text(
-                                text = "Tippe auf „Prüfen →“ für die bereinigte Vorschau oder auf „Nicht zusammenführen“, damit diese Kombination nicht mehr vorgeschlagen wird:",
-                                color = TextSecondary,
-                                fontSize = 11.5.sp
-                            )
                             LazyColumn(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -7167,19 +7317,22 @@ fun KontaktChronikApp(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "${grp.reasonBadge} • ${grp.members.size} Kontakte",
+                                                text = "${grp.reasonBadge} (${grp.members.size})",
                                                 color = AccentSteel,
                                                 fontSize = 11.5.sp,
                                                 fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f)
                                             )
                                             Row(
                                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                CompactButton("✕ Nicht zusammenführen") {
+                                                CompactButton("✕ Ignorieren") {
                                                     dismissMergeCombination(grp.members.map { it.id })
-                                                    lastMergedNotice = "🚫 Kombination wird nicht mehr vorgeschlagen."
+                                                    lastMergedNotice = "🚫 Ignoriert."
                                                     syncStatus = "Vorschlag ignoriert"
                                                 }
                                                 CompactButton("Prüfen →") {
@@ -7371,23 +7524,13 @@ fun KontaktChronikApp(
                             }
 
                             if (selectedPersons.size < 2) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(BgSlate, RoundedCornerShape(8.dp))
-                                        .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                                        .padding(12.dp)
-                                ) {
-                                    Text(
-                                        text = if (selectedPersons.size == 1) {
-                                            "Noch mindestens 1 weiteren Kontakt auswählen, um die Informationen mit „${formatLastNameFirst(selectedPersons.first().name)}“ zusammenzuführen."
-                                        } else {
-                                            "Wähle oben mindestens 2 Kontakte aus. Doppelte Telefonnummern (auch mit unterschiedlichen Leerzeichen, Bindestrichen oder +49), E-Mail-Adressen, Postadressen und Notizen werden automatisch erkannt und jeweils nur ein einziges Mal übernommen."
-                                        },
-                                        color = TextSecondary,
-                                        fontSize = 12.sp
-                                    )
-                                }
+                                Text(
+                                    text = "Mindestens 2 Kontakte auswählen.",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
                             }
 
                             preview?.let { pv ->
@@ -7510,6 +7653,7 @@ fun KontaktChronikApp(
 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                                     modifier = Modifier.clickable { mergeInDeviceContacts = !mergeInDeviceContacts }
                                 ) {
                                     Checkbox(
@@ -7517,9 +7661,11 @@ fun KontaktChronikApp(
                                         onCheckedChange = { mergeInDeviceContacts = it }
                                     )
                                     Text(
-                                        text = "Auch in Handykontakten zusammenführen (Zielkontakt aktualisieren & Duplikate entfernen)",
+                                        text = "Auch im Telefonbuch vereinen",
                                         color = TextSecondary,
-                                        fontSize = 12.sp
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
@@ -7540,7 +7686,7 @@ fun KontaktChronikApp(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                CompactButton("✕ Nicht zusammenführen") {
+                                CompactButton("✕ Ignorieren") {
                                     if (!isMerging) {
                                         val dismissedIds = selectedIds
                                         dismissMergeCombination(dismissedIds)
@@ -7548,7 +7694,7 @@ fun KontaktChronikApp(
                                         val remaining = findDuplicateSuggestionGroups(persons, newDismissed)
                                         selectedIds = emptySet()
                                         primaryId = -1L
-                                        lastMergedNotice = "🚫 Kombination wird nicht mehr vorgeschlagen."
+                                        lastMergedNotice = "🚫 Ignoriert."
                                         syncStatus = "Vorschlag ignoriert"
                                         if (mergeInitialPersonIds.isNotEmpty() || remaining.isEmpty()) {
                                             showMergeContactsDialog = false
@@ -7558,8 +7704,8 @@ fun KontaktChronikApp(
                                     }
                                 }
                                 CompactButton(
-                                    if (isMerging) "⏳..."
-                                    else "✓ Zusammenführen (${selectedPersons.size})"
+                                    if (isMerging) "⏳…"
+                                    else "✓ Vereinen (${selectedPersons.size})"
                                 ) {
                                     executeMerge()
                                 }
@@ -8427,21 +8573,32 @@ fun FamilyTreeScreen(
                     ) {
                         Text("🌳", fontSize = 14.sp, style = CenteredPillTextStyle)
                     }
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Familien-Stammbaum",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            InfoHintIcon(
+                                title = "Stammbaum & Linien",
+                                text = "Linien-Farben:\n• Blau (━━): Eltern ↔ Kind\n• Rosa (━❤️━): Partner / Ehe\n• Grün (━🤝━): Geschwister\n• Violett (╌╌): Weitere Familie\n\nBedienung:\n• Mit 1 Finger ziehen, mit 2 Fingern zoomen.\n• Über „✏️ Linien“ Verbindungen antippen oder 2 Personen nacheinander wählen."
+                            )
+                        }
                         Text(
-                            text = "Familien-Stammbaum",
-                            color = TextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                        Text(
-                            text = "${positionedNodes.size} Personen · $levelCount ${if (levelCount == 1) "Ebene" else "Generationen"} · ${treeEdges.size} Verbindungen",
+                            text = "${positionedNodes.size} Pers. · $levelCount Ebenen · ${treeEdges.size} Linien",
                             color = TextSecondary,
                             fontSize = 10.5.sp,
                             maxLines = 1,
-                            softWrap = false
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -8458,37 +8615,37 @@ fun FamilyTreeScreen(
                 showInlineAlphabet = true
             )
 
-            // Manuelle Verbindungs-Werkzeuge direkt im Stammbaum
+            // Kompakte 1-Zeilen-Werkzeug- & Zoom-Leiste
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
                         .background(
                             if (editConnectionsMode) AccentSteel else BtnBg,
-                            RoundedCornerShape(8.dp)
+                            RoundedCornerShape(6.dp)
                         )
                         .border(
                             1.dp,
                             if (editConnectionsMode) AccentSteel else BorderSlate,
-                            RoundedCornerShape(8.dp)
+                            RoundedCornerShape(6.dp)
                         )
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(6.dp))
                         .clickable {
                             editConnectionsMode = !editConnectionsMode
                             firstPickedPersonId = null
                         }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(horizontal = 9.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (editConnectionsMode) "✓ Bearbeiten aktiv" else "✏️ Verbindungen ändern",
+                        text = if (editConnectionsMode) "✓ Linien" else "✏️ Linien",
                         color = if (editConnectionsMode) Color.White else TextPrimary,
-                        fontSize = 11.5.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         style = CenteredPillTextStyle,
                         maxLines = 1,
@@ -8496,7 +8653,7 @@ fun FamilyTreeScreen(
                     )
                 }
 
-                CompactButton("➕ Verknüpfen") {
+                CompactButton("+ Neu") {
                     val defaultOther = sortedPersons.firstOrNull { it.id != rootPerson.id }?.id ?: -1L
                     if (defaultOther > 0L) {
                         openConnectionEditorForPair(rootPerson.id, defaultOther)
@@ -8504,71 +8661,28 @@ fun FamilyTreeScreen(
                 }
 
                 if (treeEdges.isNotEmpty()) {
-                    CompactButton("📋 Alle Linien (${treeEdges.size})") {
+                    CompactButton("📋 (${treeEdges.size})") {
                         showAllEdgesDialog = true
                     }
                 }
-            }
 
-            // Zoom- & Ausrichtungs-Leiste
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "🔍 Zoom & Ziehen:",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CompactButton("➖") {
-                        treeZoom = (treeZoom - 0.15f).coerceIn(0.35f, 2.0f)
-                    }
-                    CompactButton("$zoomPct%") {
-                        treeZoom = 1.0f
-                        treePanX = 0f
-                        treePanY = 0f
-                    }
-                    CompactButton("➕") {
-                        treeZoom = (treeZoom + 0.15f).coerceIn(0.35f, 2.0f)
-                    }
-                    CompactButton("⛶ Passend") {
-                        val widthScale = if (maxRowCount > 2) 2.35f / maxRowCount else 0.95f
-                        val heightScale = if (levelCount > 3) 3.2f / levelCount else 1.0f
-                        treeZoom = minOf(1.0f, widthScale, heightScale).coerceIn(0.42f, 1.0f)
-                        treePanX = 0f
-                        treePanY = 0f
-                    }
+                CompactButton("➖") {
+                    treeZoom = (treeZoom - 0.15f).coerceIn(0.35f, 2.0f)
                 }
-            }
-
-            // Farb-Legende der direkten Beziehungslinien
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                listOf(
-                    Triple("Eltern ↔ Kind", AccentSteel, "━━"),
-                    Triple("Partner / Ehe", PartnerRose, "━❤️━"),
-                    Triple("Geschwister", TreeGreen, "━🤝━"),
-                    Triple("Weitere Familie", ExtendedFamilyViolet, "╌╌")
-                ).forEach { (lbl, col, sym) ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(sym, color = col, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
-                        Text(lbl, color = TextSecondary, fontSize = 10.5.sp, maxLines = 1, softWrap = false)
-                    }
+                CompactButton("$zoomPct%") {
+                    treeZoom = 1.0f
+                    treePanX = 0f
+                    treePanY = 0f
+                }
+                CompactButton("➕") {
+                    treeZoom = (treeZoom + 0.15f).coerceIn(0.35f, 2.0f)
+                }
+                CompactButton("⛶") {
+                    val widthScale = if (maxRowCount > 2) 2.35f / maxRowCount else 0.95f
+                    val heightScale = if (levelCount > 3) 3.2f / levelCount else 1.0f
+                    treeZoom = minOf(1.0f, widthScale, heightScale).coerceIn(0.42f, 1.0f)
+                    treePanX = 0f
+                    treePanY = 0f
                 }
             }
         }
@@ -8578,26 +8692,29 @@ fun FamilyTreeScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(AccentSteel.copy(alpha = 0.14f), RoundedCornerShape(10.dp))
-                    .border(1.dp, AccentSteel, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 11.dp, vertical = 8.dp),
+                    .background(AccentSteel.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+                    .border(1.dp, AccentSteel, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = if (pickedFirst == null) {
-                        "✏️ Tippe auf ein ✏️-Badge einer Linie ODER tippe nacheinander 2 Personen an, um ihre Verbindung zu ändern."
+                        "✏️ Linie oder 2 Personen nacheinander antippen"
                     } else {
-                        "1. Person: ${pickedFirst.name} gewählt — tippe jetzt auf die 2. Person!"
+                        "1.: ${pickedFirst.name} → 2. Person wählen"
                     },
                     color = TextPrimary,
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 if (pickedFirst != null) {
                     Spacer(modifier = Modifier.width(6.dp))
-                    CompactButton("Auswahl ✕") { firstPickedPersonId = null }
+                    CompactButton("✕") { firstPickedPersonId = null }
                 }
             }
         }
@@ -9192,25 +9309,31 @@ fun FamilyTreeScreen(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(12.dp))
                     .border(1.dp, BorderSlate, RoundedCornerShape(12.dp))
-                    .padding(11.dp),
-                verticalArrangement = Arrangement.spacedBy(7.dp)
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    "Weitere Kontakte (${unconnected.size}, noch nicht mit ${formatLastNameFirst(rootPerson.name)} verknüpft):",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    "Tippe auf einen Kontakt, um ihn direkt mit ${rootPerson.name} im Stammbaum zu verknüpfen:",
-                    color = TextMuted,
-                    fontSize = 11.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "🔗 Nicht verknüpft (${unconnected.size})",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    InfoHintIcon(
+                        title = "Direkt verknüpfen",
+                        text = "Tippe auf einen Namen, um ihn direkt mit ${rootPerson.name} im Stammbaum zu verbinden."
+                    )
+                }
                 ContactSearchDropdown(
                     persons = unconnected,
                     selectedPersonId = null,
                     onSelectPerson = { up -> openConnectionEditorForPair(up.id, rootPerson.id) },
-                    placeholderText = "🔗 Kontakt direkt mit ${extractFirstName(rootPerson.name)} verknüpfen",
+                    placeholderText = "🔎 Verknüpfen",
                     showInlineAlphabet = true
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -9303,8 +9426,8 @@ fun FamilyTreeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Beziehungsart (1. ➔ 2. Person):", color = TextSecondary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
-                        CompactButton("⇄ Richtung tauschen") {
+                        Text("Beziehung:", color = TextSecondary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                        CompactButton("⇄ Tauschen") {
                             val tmp = selFromId
                             selFromId = selToId
                             selToId = tmp
@@ -9359,7 +9482,7 @@ fun FamilyTreeScreen(
                         CompactButton("Abbrechen") { editModalState = null }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    PrimaryActionButton("✓ Verbindung speichern") {
+                    PrimaryActionButton("✓ Speichern") {
                         if (selFromId > 0L && selToId > 0L && selFromId != selToId) {
                             if (modal.isExisting && modal.originalAId > 0L && modal.originalBId > 0L) {
                                 onReplaceRelation(modal.originalAId, modal.originalBId, selFromId, selToId, selLabel)
@@ -9468,7 +9591,7 @@ fun FamilyTreeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CompactButton("➕ Neue Verbindung") {
+                    CompactButton("+ Neu") {
                         showAllEdgesDialog = false
                         val defaultOther = sortedPersons.firstOrNull { it.id != rootPerson.id }?.id ?: -1L
                         if (defaultOther > 0L) {
@@ -10340,13 +10463,13 @@ fun WichtelScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
+                .padding(bottom = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             LazyRow(
                 modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 items(groups) { g ->
                     val isSel = g.id == activeGroup?.id
@@ -10355,8 +10478,8 @@ fun WichtelScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.width(6.dp))
-            CompactButton("🌐 Portal ↗") {
+            Spacer(modifier = Modifier.width(5.dp))
+            CompactButton("🌐 Portal") {
                 runCatching {
                     val targetUrl = if (activeGroup != null && activeGroup.isDrawn && activeGroup.cloudRoundId.isNotBlank()) {
                         WichtelCloudSync.buildGroupPortalUrl(activeGroup.cloudRoundId)
@@ -10367,12 +10490,12 @@ fun WichtelScreen(
                 }
             }
             Spacer(modifier = Modifier.width(4.dp))
-            CompactButton("+ Neue Runde") {
+            CompactButton("+ Neu") {
                 isCreatingGroup = true
                 isReusingHistory = false
                 editingGroup = WichtelGroup(
                     id = System.currentTimeMillis(),
-                    groupName = "Weihnachts-Wichteln ${LocalDate.now().year}",
+                    groupName = "Wichteln ${LocalDate.now().year}",
                     adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
                     motto = "🎁 Klassisches Wichteln",
                     budget = "25 €",
@@ -10391,15 +10514,18 @@ fun WichtelScreen(
                     .padding(bottom = 6.dp)
                     .background(BgSlate, RoundedCornerShape(8.dp))
                     .border(1.dp, if (cloudStatusBanner.startsWith("⚠️")) WarnAmber else TreeGreen, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 9.dp, vertical = 5.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     cloudStatusBanner,
                     color = if (cloudStatusBanner.startsWith("⚠️")) WarnAmber else TreeGreen,
-                    fontSize = 11.5.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -10418,39 +10544,53 @@ fun WichtelScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             if (activeGroup == null) {
                 item {
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(CardSlate, RoundedCornerShape(8.dp))
                             .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                            .padding(14.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("🎄 Noch keine Wichtelrunde erstellt", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Text(
-                                "Erstelle als Gruppenadmin eine Wichtelrunde, kreuze Kontakte (inkl. Paar-Sperre) an und lade danach ALLE Familienmitglieder mit 1 Klick über das Appwrite-Online-Wichtelportal ein – ganz ohne App und 100 % Admin-blind!",
-                                color = TextSecondary,
-                                fontSize = 12.sp
+                                "🎄 Keine Wichtelrunde",
+                                color = TextPrimary,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            CompactButton("🎄 Erste Wichtelrunde starten") {
-                                isCreatingGroup = true
-                                isReusingHistory = false
-                                editingGroup = WichtelGroup(
-                                    id = System.currentTimeMillis(),
-                                    groupName = "Familien-Wichteln ${LocalDate.now().year}",
-                                    adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
-                                    motto = "🎁 Klassisches Wichteln",
-                                    budget = "25 €",
-                                    revealDateIso = "${LocalDate.now().year}-12-24",
-                                    reminderDaysBefore = 7,
-                                    excludeCouples = true,
-                                    excludeLastYear = true
-                                )
-                            }
+                            InfoHintIcon(
+                                title = "Online-Wichteln",
+                                text = "Erstelle eine Wichtelrunde, kreuze Kontakte (inkl. Paar-Sperre) an und sende die geheimen Lose mit 1 Klick über das Online-Portal – ohne App-Zwang und 100 % Admin-blind!"
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        CompactButton("+ Starten") {
+                            isCreatingGroup = true
+                            isReusingHistory = false
+                            editingGroup = WichtelGroup(
+                                id = System.currentTimeMillis(),
+                                groupName = "Wichteln ${LocalDate.now().year}",
+                                adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
+                                motto = "🎁 Klassisches Wichteln",
+                                budget = "25 €",
+                                revealDateIso = "${LocalDate.now().year}-12-24",
+                                reminderDaysBefore = 7,
+                                excludeCouples = true,
+                                excludeLastYear = true
+                            )
                         }
                     }
                 }
@@ -10461,42 +10601,47 @@ fun WichtelScreen(
                             .fillMaxWidth()
                             .background(CardSlate, RoundedCornerShape(8.dp))
                             .border(1.dp, AccentSteel, RoundedCornerShape(8.dp))
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        "🎄 ${activeGroup.groupName}",
+                                        color = TextPrimary,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    InfoHintIcon(
+                                        title = "Runden-Details",
+                                        text = "👑 Admin: ${activeGroup.adminName}\n🎭 Modus: ${activeGroup.motto}\n💶 Budget: ${activeGroup.budget.ifBlank { "—" }}\n📅 Auflösung: $revealDateFormatted\n⏰ Wecker: ${activeGroup.reminderDaysBefore}T vorher\n💑 Paar-Sperre: ${if (activeGroup.excludeCouples) "Aktiv" else "Aus"}\n🔄 Keine Wiederholung: ${if (activeGroup.excludeLastYear) "Aktiv (inkl. Historie)" else "Aus"}"
+                                    )
+                                }
                                 Text(
-                                    "🎄 ${activeGroup.groupName}",
-                                    color = TextPrimary,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    "👑 Admin: ${activeGroup.adminName}" +
-                                        if (activeGroup.budget.isNotBlank()) " • 💶 Budget: ${activeGroup.budget}" else "",
+                                    "👑 ${activeGroup.adminName}" +
+                                        (if (activeGroup.budget.isNotBlank()) " · 💶 ${activeGroup.budget}" else "") +
+                                        " · 📅 $revealDateFormatted",
                                     color = TextSecondary,
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    "${activeGroup.motto} • ⏰ Wecker: ${activeGroup.reminderDaysBefore}T vorher",
-                                    color = TreeGreen,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    "📅 Frist: $revealDateFormatted" +
-                                        (if (activeGroup.excludeCouples) " • 💑 Paar-Sperre" else "") +
-                                        (if (activeGroup.excludeLastYear) " • 🔄 Keine Wiederholungen (inkl. Historie)" else ""),
-                                    color = AccentSteel,
-                                    fontSize = 11.sp
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                                 CompactButton("✏️") {
                                     isCreatingGroup = false
                                     isReusingHistory = false
@@ -10515,17 +10660,28 @@ fun WichtelScreen(
                         }
 
                         if (!activeGroup.isDrawn) {
-                            Box(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(BgSlate, RoundedCornerShape(6.dp))
                                     .border(1.dp, AccentSteel, RoundedCornerShape(6.dp))
-                                    .padding(8.dp)
+                                    .padding(horizontal = 9.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    "🎲 Bereit zum Würfeln: Sobald alle Teilnehmer angekreuzt sind, tippe auf „🎲 Jetzt auslosen!“. Alle Lose werden automatisch verschlüsselt ins Appwrite-Familienportal geladen – selbst du als Admin siehst nicht, wer wen gezogen hat!",
+                                    "🎲 Bereit (${activeGroup.participants.size} Teiln.)",
                                     color = TextPrimary,
-                                    fontSize = 11.5.sp
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                InfoHintIcon(
+                                    title = "Geheime Auslosung",
+                                    text = "Kreuze über „☑️ Teiln.“ alle Personen an und tippe auf „🎲 Auslosen“. Alle Lose werden automatisch verschlüsselt ins Online-Portal geladen – selbst du als Admin siehst nicht, wer wen gezogen hat!"
                                 )
                             }
                         } else if (!revealed) {
@@ -10547,22 +10703,36 @@ fun WichtelScreen(
                                     .fillMaxWidth()
                                     .background(BgSlate, RoundedCornerShape(8.dp))
                                     .border(1.5.dp, TreeGreen, RoundedCornerShape(8.dp))
-                                    .padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(7.dp)
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        "🔒 100 % Admin-Blind & Online-Portal aktiv (bis $revealDateFormatted)",
-                                        color = TreeGreen,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         modifier = Modifier.weight(1f)
-                                    )
-                                    CompactButton(if (isCloudBusy) "⏳ Sync…" else "🔄 Live-Status") {
+                                    ) {
+                                        Text(
+                                            "🔒 Portal aktiv ($revealDateFormatted)",
+                                            color = TreeGreen,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        InfoHintIcon(
+                                            title = "Online-Portal & Direkt-Links",
+                                            text = "Beim Antippen des persönlichen Links öffnet sich beim Teilnehmer direkt eine übersichtliche Seite mit der gezogenen Person, Wunschliste, Handy-Meldung und anonymem Chat – ohne App & 100 % Admin-blind!"
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    CompactButton(if (isCloudBusy) "⏳ Sync" else "🔄 Sync") {
                                         if (activeGroup.cloudRoundId.isBlank()) {
                                             val upgraded = activeGroup.copy(
                                                 cloudRoundId = WichtelCloudSync.generateRandomCode(10),
@@ -10584,64 +10754,70 @@ fun WichtelScreen(
                                 }
 
                                 Text(
-                                    "Beim Anklicken des persönlichen Links öffnet sich beim Teilnehmer direkt ein Fenster mit der gezogenen Person & deren Wunschliste – ohne App & 100 % Admin-blind!",
-                                    color = TextSecondary,
-                                    fontSize = 11.sp
-                                )
-
-                                Text(
-                                    "📊 Versendet: $sentCount/${activeGroup.participants.size} • 👀 Geöffnet: $openedCount • 🔔 Meldungen: $pushCount • 📝 Wünsche: $wishCount" +
-                                        if (activeGroup.cloudSyncedAt.isNotBlank()) " • ${activeGroup.cloudSyncedAt}" else "",
+                                    "📊 Gesendet $sentCount/${activeGroup.participants.size} · 👀 $openedCount · 🔔 $pushCount · 📝 $wishCount" +
+                                        if (activeGroup.cloudSyncedAt.isNotBlank()) " · ${activeGroup.cloudSyncedAt}" else "",
                                     color = TextPrimary,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
                                 )
 
-                                // Primärer Schnellversand-Assistent für persönliche Direkt-Links (WhatsApp / Mail / Alternativ-App)
-                                Box(
+                                // Primärer Schnellversand-Assistent für persönliche Direkt-Links
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(TreeGreen.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
-                                        .border(1.5.dp, TreeGreen, RoundedCornerShape(8.dp))
+                                        .background(TreeGreen.copy(alpha = 0.22f), RoundedCornerShape(7.dp))
+                                        .border(1.5.dp, TreeGreen, RoundedCornerShape(7.dp))
                                         .clickable {
                                             val ready = ensureCloudPublishedForInvite(activeGroup)
                                             quickSendDialogGroupId = ready.id
                                         }
-                                        .padding(horizontal = 10.dp, vertical = 9.dp)
+                                        .padding(horizontal = 9.dp, vertical = 7.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "🚀 Zugangs-Links schnell an alle senden ($sentCount/${activeGroup.participants.size})",
-                                                color = TextPrimary,
-                                                fontSize = 12.5.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Text(
-                                                "WhatsApp, E-Mail oder Alternativ-App – 1-Klick-Reihenfolge für alle Teilnehmer",
-                                                color = TextSecondary,
-                                                fontSize = 10.5.sp
-                                            )
-                                        }
-                                        Text("Öffnen ➔", color = TreeGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            "🚀 Einzeln senden ($sentCount/${activeGroup.participants.size})",
+                                            color = TextPrimary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        InfoHintIcon(
+                                            title = "Schnellversand",
+                                            text = "Sende jedem Teilnehmer seinen persönlichen Direkt-Link nacheinander mit 1 Klick per WhatsApp, E-Mail oder einer anderen App."
+                                        )
                                     }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        "Öffnen ➔",
+                                        color = TreeGreen,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
                                 }
-
-                                Text("Oder gemeinsamen Runden-Link / Auto-SMS nutzen:", color = AccentSteel, fontSize = 11.sp, fontWeight = FontWeight.Bold)
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
-                                    CompactButton("📲 Gruppen-Link (WhatsApp)") {
+                                    CompactButton("📲 Gruppe") {
                                         val ready = ensureCloudPublishedForInvite(activeGroup)
                                         val msg = buildWhatsAppGroupPortalInvite(ready)
                                         val updatedParts = ready.participants.map { p ->
-                                            if (p.notifiedVia.isBlank()) p.copy(notifiedVia = "Gruppen-Link") else p
+                                            if (p.notifiedVia.isBlank()) p.copy(notifiedVia = "Gruppe") else p
                                         }
                                         onSaveGroups(latestGroups.map { if (it.id == ready.id) ready.copy(participants = updatedParts) else it })
                                         runCatching {
@@ -10649,7 +10825,7 @@ fun WichtelScreen(
                                             context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                                         }
                                     }
-                                    CompactButton("📤 Gruppen-Link teilen") {
+                                    CompactButton("📤 Teilen") {
                                         val ready = ensureCloudPublishedForInvite(activeGroup)
                                         val msg = buildWhatsAppGroupPortalInvite(ready).replace("*", "")
                                         runCatching {
@@ -10661,12 +10837,12 @@ fun WichtelScreen(
                                             context.startActivity(Intent.createChooser(shareIntent, "Gruppen-Link teilen"))
                                         }
                                     }
-                                    CompactButton("📩 Auto-SMS an alle ($phoneCount)") {
+                                    CompactButton("📩 SMS ($phoneCount)") {
                                         if (phoneCount == 0) {
-                                            cloudStatusBanner = "⚠️ Keine Telefonnummern bei den Teilnehmern hinterlegt."
+                                            cloudStatusBanner = "⚠️ Keine Telefonnummern hinterlegt."
                                         } else {
                                             onConfirmDelete(
-                                                "Jetzt vollautomatisch im Hintergrund an alle $phoneCount Teilnehmer mit Telefonnummer eine persönliche Wichtel-SMS mit Direkt-Link senden?"
+                                                "An alle $phoneCount Teilnehmer mit Telefonnummer automatisch eine persönliche Wichtel-SMS mit Direkt-Link senden?"
                                             ) {
                                                 val hasPerm = ContextCompat.checkSelfPermission(
                                                     context,
@@ -10682,7 +10858,7 @@ fun WichtelScreen(
                                         }
                                     }
                                     if (emailList.isNotEmpty()) {
-                                        CompactButton("✉️ Sammel-Mail (${emailList.size})") {
+                                        CompactButton("✉️ Mail (${emailList.size})") {
                                             val ready = ensureCloudPublishedForInvite(activeGroup)
                                             runCatching {
                                                 val subj = "🎄 Unsere Wichtelrunde: ${ready.groupName}"
@@ -10694,15 +10870,15 @@ fun WichtelScreen(
                                             }
                                         }
                                     }
-                                    CompactButton("📋 Gruppen-Link kopieren") {
+                                    CompactButton("📋 Link") {
                                         val ready = ensureCloudPublishedForInvite(activeGroup)
                                         val link = WichtelCloudSync.buildGroupPortalUrl(ready.cloudRoundId)
                                         clipboardManager.setText(AnnotatedString(link))
-                                        cloudStatusBanner = "✓ Familien-Portal-Link kopiert: $link"
+                                        cloudStatusBanner = "✓ Link kopiert: $link"
                                     }
                                 }
 
-                                // Anonymer Fragen-Chat Status + neutraler Hinweis
+                                // Anonymer Fragen-Chat Status + neutraler Hinweis (1 Zeile)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -10712,29 +10888,35 @@ fun WichtelScreen(
                                             if (activeGroup.cloudUnreadMessages > 0) WarnAmber else BorderSlate,
                                             RoundedCornerShape(6.dp)
                                         )
-                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                        .padding(horizontal = 8.dp, vertical = 5.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
                                         Text(
                                             if (activeGroup.cloudUnreadMessages > 0) {
-                                                "🕵️ ${activeGroup.cloudUnreadMessages} ungelesene anonyme Nachricht(en) im Portal!"
+                                                "🕵️ ${activeGroup.cloudUnreadMessages} ungelesen"
                                             } else {
-                                                "🕵️ Anonymer Fragen-Chat: ${activeGroup.cloudTotalMessages} Nachrichten (alles gelesen)"
+                                                "🕵️ Chat: ${activeGroup.cloudTotalMessages}"
                                             },
                                             color = if (activeGroup.cloudUnreadMessages > 0) WarnAmber else TextSecondary,
                                             fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
                                         )
-                                        Text(
-                                            "100 % anonym zwischen Wichtel & Wichtelkind – ohne Namen oder Nummer.",
-                                            color = TextMuted,
-                                            fontSize = 10.sp
+                                        InfoHintIcon(
+                                            title = "Anonymer Fragen-Chat",
+                                            text = "Teilnehmer schreiben ihrem Wichtelkind oder Wichtel im Portal 100 % anonym (ohne Namen/Nummer). Mit „📣 Hinweis“ sendest du eine neutrale Erinnerung in die Gruppe."
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    CompactButton("📣 Gruppen-Hinweis") {
+                                    CompactButton("📣 Hinweis") {
                                         if (activeGroup.cloudRoundId.isNotBlank()) {
                                             runCatching {
                                                 val msg = buildNeutralAnonInboxNudge(activeGroup)
@@ -10752,20 +10934,26 @@ fun WichtelScreen(
                                     .background(BgSlate, RoundedCornerShape(6.dp))
                                     .border(1.dp, WarnAmber, RoundedCornerShape(6.dp))
                                     .padding(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Text(
-                                    "🔓 Wichtelrunde aufgelöst ($revealDateFormatted) – Alle Paarungen sind jetzt sichtbar:",
+                                    "🔓 Aufgelöst ($revealDateFormatted):",
                                     color = WarnAmber,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 activeGroup.participants.forEach { p ->
                                     val t = activeGroup.participants.find { it.id == p.drawnTargetId }
                                     Text(
-                                        "🎁 ${p.name} ➔ hat ${t?.name ?: "?"} beschenkt",
+                                        "🎁 ${p.name} ➔ ${t?.name ?: "?"}",
                                         color = TextPrimary,
-                                        fontSize = 12.sp
+                                        fontSize = 11.5.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -10773,9 +10961,9 @@ fun WichtelScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
-                            CompactButton(if (activeGroup.isDrawn) "🎲 Neu würfeln" else "🎲 Jetzt auslosen!") {
+                            CompactButton(if (activeGroup.isDrawn) "🎲 Neu losen" else "🎲 Auslosen") {
                                 if (activeGroup.isDrawn) {
                                     onConfirmDelete("Wirklich komplett neu auslosen? Alle bisherigen Online-Lose & PINs dieser Runde werden ersetzt!") {
                                         rollGroup(activeGroup)
@@ -10784,7 +10972,7 @@ fun WichtelScreen(
                                     rollGroup(activeGroup)
                                 }
                             }
-                            CompactButton("☑️ Teilnehmer (${activeGroup.participants.size})") {
+                            CompactButton("☑️ Teiln. (${activeGroup.participants.size})") {
                                 checklistGroup = activeGroup
                             }
                             CompactButton("⏰ Wecker") {
@@ -10800,7 +10988,7 @@ fun WichtelScreen(
                             if (activeGroup.isDrawn) {
                                 CompactButton(if (revealed) "🔒 Verbergen" else "🔓 Auflösen") {
                                     if (!revealed) {
-                                        onConfirmDelete("ACHTUNG: Wenn du die Wichtelrunde jetzt vorzeitig auflöst, werden alle geheimen Paarungen für dich und im Online-Portal sichtbar! Wirklich auflösen?") {
+                                        onConfirmDelete("ACHTUNG: Wenn du vorzeitig auflöst, werden alle geheimen Paarungen für dich und im Portal sichtbar! Wirklich auflösen?") {
                                             val toggled = activeGroup.copy(forceRevealed = true)
                                             onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) toggled else it })
                                             archiveGroupToHistory(toggled)
@@ -10816,14 +11004,7 @@ fun WichtelScreen(
                                         }
                                     }
                                 }
-                            }
-                        }
-                        if (activeGroup.isDrawn) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                CompactButton("📜 In Historie abschließen & Auflösung teilen") {
+                                CompactButton("📜 Abschließen") {
                                     val finishAction = {
                                         val revealedGroup = activeGroup.copy(forceRevealed = true)
                                         onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) revealedGroup else it })
@@ -10836,7 +11017,7 @@ fun WichtelScreen(
                                         }
                                     }
                                     if (!revealed) {
-                                        onConfirmDelete("Wichtelrunde jetzt auflösen, in der Historie speichern und die Auflösung teilen?") {
+                                        onConfirmDelete("Runde jetzt auflösen, in der Historie speichern und Auflösung teilen?") {
                                             finishAction()
                                         }
                                     } else {
@@ -10867,7 +11048,7 @@ fun WichtelScreen(
                                 if (partnerInGroup != null && activeGroup.excludeCouples) PartnerRose else BorderSlate,
                                 RoundedCornerShape(8.dp)
                             )
-                            .padding(10.dp),
+                            .padding(8.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         val contactPhoto = persons.find {
@@ -10877,105 +11058,104 @@ fun WichtelScreen(
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            PersonAvatar(name = part.name, photoBase64 = contactPhoto, sizeDp = 34)
+                            PersonAvatar(name = part.name, photoBase64 = contactPhoto, sizeDp = 30)
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         part.name,
                                         color = TextPrimary,
-                                        fontSize = 14.sp,
+                                        fontSize = 13.5.sp,
                                         fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f, fill = false)
                                     )
                                     if (isAdminSelf) {
-                                        Text("👑 Admin", color = AccentSteel, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                                        Text("👑", fontSize = 11.sp, maxLines = 1, softWrap = false)
                                     }
                                     if (part.notifiedVia.isNotBlank()) {
                                         Text("✓ ${part.notifiedVia}", color = TreeGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                     }
+                                    if (partnerInGroup != null && activeGroup.excludeCouples) {
+                                        Text("💑 ${partnerInGroup.name.substringBefore(" ")}", color = PartnerRose, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                                    }
+                                    if (activeGroup.excludeLastYear && pastDraws.isNotEmpty()) {
+                                        InfoHintIcon(
+                                            title = "Historie-Sperre (${part.name})",
+                                            text = "Bereits beschenkt:\n" + pastDraws.joinToString("\n") { "• ${it.second} (${it.first})" }
+                                        )
+                                    }
                                 }
-                                if (partnerInGroup != null && activeGroup.excludeCouples) {
-                                    Text(
-                                        "💑 Paar mit ${partnerInGroup.name} (ziehen sich nicht gegenseitig)",
-                                        color = PartnerRose,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                if (activeGroup.excludeLastYear && pastDraws.isNotEmpty()) {
-                                    Text(
-                                        "📜 Keine Wiederholung (Historie): " + pastDraws.joinToString(", ") { "${it.second} (${it.first})" },
-                                        color = AccentSteel,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                                if (!activeGroup.isDrawn) {
-                                    Text("Noch nicht ausgelost", color = TextMuted, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
-                                } else if (revealed && target != null) {
-                                    Text("🎁 Hat gezogen: ${target.name}", color = WarnAmber, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                                } else {
-                                    Row(
-                                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
+                                Row(
+                                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (!activeGroup.isDrawn) {
+                                        Text("⏳ Offen", color = TextMuted, fontSize = 10.5.sp, maxLines = 1, softWrap = false)
+                                    } else if (revealed && target != null) {
+                                        Text("🎁 ➔ ${target.name}", color = WarnAmber, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                                    } else {
                                         Text(
-                                            if (part.cloudOpened) "✅ Los online geöffnet" else "⏳ Los noch ungeöffnet",
+                                            if (part.cloudOpened) "✅ Offen" else "⏳ Ungeöffnet",
                                             color = if (part.cloudOpened) TreeGreen else TextMuted,
-                                            fontSize = 11.sp,
+                                            fontSize = 10.5.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
                                             softWrap = false
                                         )
                                         if (part.cloudHasPush) {
-                                            Text(
-                                                "🔔 Handy-Meldung aktiv",
-                                                color = TreeGreen,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
+                                            Text("🔔 Aktiv", color = TreeGreen, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                                         }
                                         if (part.cloudHasPin) {
-                                            Text(
-                                                "🔒 PIN aktiv",
-                                                color = AccentSteel,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
+                                            Text("🔒 PIN", color = AccentSteel, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                                         }
                                         if (part.cloudHasWishlist || part.wishText.isNotBlank() || allUrls.isNotEmpty()) {
-                                            Text(
-                                                "📝 Wunschzettel",
-                                                color = TreeGreen,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
+                                            Text("📝 Wunsch", color = TreeGreen, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                                         }
+                                    }
+                                    allUrls.forEachIndexed { idx, u ->
+                                        Text(
+                                            "🛒 Link ${idx + 1}",
+                                            color = AccentSteel,
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier.clickable {
+                                                runCatching {
+                                                    val url = if (u.startsWith("http")) u else "https://$u"
+                                                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                                }
+                                            }
+                                        )
                                     }
                                 }
                                 if (part.wishText.isNotBlank()) {
                                     Row(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("🎁 Wunsch: ${part.wishText}", color = TextSecondary, fontSize = 11.5.sp, modifier = Modifier.weight(1f, fill = false))
                                         Text(
-                                            "🔎 Amazon ↗",
+                                            "🎁 ${part.wishText}",
+                                            color = TextSecondary,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Text(
+                                            "🔎",
                                             color = AccentSteel,
                                             fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
                                             modifier = Modifier.clickable {
                                                 runCatching {
                                                     val url = "https://www.amazon.de/s?k=${android.net.Uri.encode(part.wishText)}"
@@ -10985,40 +11165,21 @@ fun WichtelScreen(
                                         )
                                     }
                                 }
-                                if (part.noGos.isNotBlank()) {
-                                    Text("🚫 Bitte NICHT / Hinweis: ${part.noGos}", color = WarnAmber, fontSize = 11.sp)
-                                }
-                                if (part.address.isNotBlank()) {
-                                    Text("📦 Adresse: ${part.address}", color = TextMuted, fontSize = 11.sp)
-                                }
-                                allUrls.forEachIndexed { idx, u ->
-                                    Text(
-                                        "🛒 ${if (idx == 0) "Amazon-Wunschliste öffnen ↗" else "Wunsch-Link ${idx + 1} öffnen ↗"}",
-                                        color = AccentSteel,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.clickable {
-                                            runCatching {
-                                                val url = if (u.startsWith("http")) u else "https://$u"
-                                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                                            }
-                                        }
-                                    )
-                                }
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                                CompactButton("🎁 Wunsch") {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                CompactButton("🎁") {
                                     editingParticipantGroup = activeGroup
                                     editingParticipant = part
                                 }
                                 Text(
                                     "✕",
                                     color = WarnAmber,
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier
                                         .clickable {
-                                            onConfirmDelete("Teilnehmer „${part.name}“ aus der Wichtelrunde entfernen? (Falls schon ausgelost war, muss danach neu gewürfelt werden.)") {
+                                            onConfirmDelete("Teilnehmer „${part.name}“ aus der Runde entfernen?") {
                                                 val oldCloud = activeGroup.cloudRoundId
                                                 val updated = activeGroup.copy(
                                                     isDrawn = false,
@@ -11040,13 +11201,13 @@ fun WichtelScreen(
                         }
 
                         if (activeGroup.isDrawn && activeGroup.cloudRoundId.isNotBlank() && part.cloudPid > 0) {
-                            HorizontalDivider(color = BorderSlate, modifier = Modifier.padding(vertical = 4.dp))
+                            HorizontalDivider(color = BorderSlate, modifier = Modifier.padding(vertical = 2.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 if (isAdminSelf) {
-                                    CompactButton("🌐 Mein Los ↗") {
+                                    CompactButton("🌐 Los") {
                                         markParticipantNotified(activeGroup, part.id, "Eigenes Los")
                                         runCatching {
                                             val myUrl = WichtelCloudSync.buildDirectMemberPortalUrl(
@@ -11058,21 +11219,21 @@ fun WichtelScreen(
                                         }
                                     }
                                 }
-                                CompactButton("💬 WhatsApp") {
+                                CompactButton("💬 WA") {
                                     sendDirectInviteWhatsApp(activeGroup, part)
                                 }
                                 CompactButton("✉️ Mail") {
                                     sendDirectInviteEmail(activeGroup, part)
                                 }
-                                CompactButton("📤 App / Teilen") {
+                                CompactButton("📤 App") {
                                     sendDirectInviteShareApp(activeGroup, part)
                                 }
                                 CompactButton("📋 Link") {
                                     copyDirectInviteLink(activeGroup, part)
                                 }
                                 if (part.cloudHasPin) {
-                                    CompactButton("🔑 PIN Reset") {
-                                        onConfirmDelete("Hat ${part.name} die 4-stellige Portal-PIN vergessen? Die PIN wird im Online-Portal zurückgesetzt (das Los bleibt weiterhin geheim!).") {
+                                    CompactButton("🔑 PIN") {
+                                        onConfirmDelete("4-stellige Portal-PIN für ${part.name} zurücksetzen? (Das Los bleibt geheim!)") {
                                             scope.launch {
                                                 val ok = WichtelCloudSync.resetParticipantPin(activeGroup.cloudRoundId, part.cloudPid)
                                                 if (ok) {
@@ -11082,9 +11243,9 @@ fun WichtelScreen(
                                                         }
                                                     )
                                                     onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) nextG else it })
-                                                    cloudStatusBanner = "✓ PIN für ${part.name} zurückgesetzt – beim nächsten Öffnen kann eine neue PIN gewählt werden."
+                                                    cloudStatusBanner = "✓ PIN für ${part.name} zurückgesetzt."
                                                 } else {
-                                                    cloudStatusBanner = "⚠️ PIN-Reset fehlgeschlagen – bitte Internetverbindung prüfen."
+                                                    cloudStatusBanner = "⚠️ PIN-Reset fehlgeschlagen."
                                                 }
                                             }
                                         }
@@ -11101,41 +11262,49 @@ fun WichtelScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 6.dp)
+                        .padding(top = 4.dp)
                         .background(CardSlate, RoundedCornerShape(8.dp))
                         .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Text(
-                                "📜 Wichtel-Historie (${history.size})",
+                                "📜 Historie (${history.size})",
                                 color = TextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            Text(
-                                "Vergangene Jahre werden bei „🔄 Keine Wiederholungen“ automatisch berücksichtigt. Jeder Teilnehmer kann seine Historie als Admin wiederverwenden, vor Neustart bearbeiten, einsehen oder einzeln löschen.",
-                                color = TextSecondary,
-                                fontSize = 11.sp
+                            InfoHintIcon(
+                                title = "Wichtel-Historie",
+                                text = "Vergangene Jahre werden bei „🔄 Keine Wiederholungen“ automatisch berücksichtigt. Alte Runden können fürs neue Jahr wiederverwendet, geteilt oder importiert werden."
                             )
                         }
                         Spacer(modifier = Modifier.width(6.dp))
-                        CompactButton("📥 Importieren") {
+                        CompactButton("📥 Import") {
                             showImportHistoryDialog = true
                         }
                     }
 
                     if (history.isEmpty()) {
                         Text(
-                            "Noch keine abgeschlossenen Wichtelrunden in der Historie.",
+                            "Keine Einträge.",
                             color = TextMuted,
-                            fontSize = 12.sp
+                            fontSize = 11.5.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     } else {
                         history.sortedByDescending { it.year }.forEach { h ->
@@ -11144,28 +11313,35 @@ fun WichtelScreen(
                                     .fillMaxWidth()
                                     .background(BgSlate, RoundedCornerShape(8.dp))
                                     .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                                    .padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Top
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             "🎄 ${h.groupName} (${h.year})",
                                             color = TextPrimary,
-                                            fontSize = 13.5.sp,
-                                            fontWeight = FontWeight.Bold
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            "👑 Admin: ${h.adminName} • ${h.motto}" +
-                                                if (h.budget.isNotBlank()) " • 💶 ${h.budget}" else "",
+                                            "👑 ${h.adminName} · ${h.motto}" +
+                                                if (h.budget.isNotBlank()) " · 💶 ${h.budget}" else "",
                                             color = TextSecondary,
-                                            fontSize = 11.sp
+                                            fontSize = 10.5.sp,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     CompactButton("🗑️") {
                                         onConfirmDelete("Wichtel-Historie „${h.groupName} (${h.year})“ wirklich löschen?") {
                                             onSaveHistory(history.filter { it.id != h.id })
@@ -11173,13 +11349,13 @@ fun WichtelScreen(
                                     }
                                 }
 
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     h.pairings.forEachIndexed { idx, pr ->
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .background(CardSlate, RoundedCornerShape(6.dp))
-                                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                                .padding(horizontal = 8.dp, vertical = 3.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -11187,6 +11363,9 @@ fun WichtelScreen(
                                                 "🎁 ${pr.giverName} ➔ ${pr.receiverName}",
                                                 color = TextPrimary,
                                                 fontSize = 11.5.sp,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f)
                                             )
                                             Text(
@@ -11196,7 +11375,7 @@ fun WichtelScreen(
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier
                                                     .clickable {
-                                                        onConfirmDelete("Einzelnen Historieneintrag „${pr.giverName} ➔ ${pr.receiverName}“ (${h.year}) löschen?") {
+                                                        onConfirmDelete("Eintrag „${pr.giverName} ➔ ${pr.receiverName}“ (${h.year}) löschen?") {
                                                             val nextPairings = h.pairings.filterIndexed { i, _ -> i != idx }
                                                             val nextHist = if (nextPairings.isEmpty()) {
                                                                 history.filter { it.id != h.id }
@@ -11214,12 +11393,12 @@ fun WichtelScreen(
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
-                                    CompactButton("♻️ Wiederverwenden & Bearbeiten") {
+                                    CompactButton("♻️ Nutzen") {
                                         reuseHistoryEntry(h)
                                     }
-                                    CompactButton("📲 An Teilnehmer") {
+                                    CompactButton("📤 Teilen") {
                                         shareHistoryEntry(h)
                                     }
                                 }
@@ -11231,7 +11410,7 @@ fun WichtelScreen(
         }
     }
 
-    // Dialog: Schnellversand persönlicher Wichtel-Zugangslinks an alle Teilnehmer (WhatsApp, E-Mail, Alternativ-App)
+    // Dialog: Schnellversand persönlicher Wichtel-Zugangslinks an alle Teilnehmer
     val qGroup = quickSendDialogGroupId?.let { qid -> groups.find { it.id == qid } }
     if (qGroup != null && qGroup.isDrawn) {
         val sentCount = qGroup.participants.count { it.notifiedVia.isNotBlank() }
@@ -11243,33 +11422,47 @@ fun WichtelScreen(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, TreeGreen, RoundedCornerShape(10.dp))
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "🚀 Links senden ($sentCount/${qGroup.participants.size})",
-                        color = TextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.weight(1f)
-                    )
+                    ) {
+                        Text(
+                            "🚀 Links ($sentCount/${qGroup.participants.size})",
+                            color = TextPrimary,
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        InfoHintIcon(
+                            title = "Persönliche Zugangs-Links",
+                            text = "Beim Antippen öffnet sich beim Teilnehmer direkt sein persönliches Fenster mit der gezogenen Person, Wunschliste, Handy-Meldung und anonymem Chat – 100 % geheim & Admin-blind!"
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
                     CompactButton("✓ Fertig") { quickSendDialogGroupId = null }
                 }
 
-                Text(
-                    if (isCloudBusy) {
-                        "⏳ Verbinde Runde mit Online-Portal… (Links sind sofort bereit!)"
-                    } else {
-                        "Beim Anklicken öffnet sich beim Teilnehmer direkt ein Fenster mit der gezogenen Person & deren Wunschliste (100 % geheim & Admin-blind)."
-                    },
-                    color = if (isCloudBusy) WarnAmber else TextSecondary,
-                    fontSize = 11.5.sp
-                )
+                if (isCloudBusy) {
+                    Text(
+                        "⏳ Verbinde mit Online-Portal…",
+                        color = WarnAmber,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
                 if (nextOpenMember != null) {
                     val isNextAdmin = nextOpenMember.name.trim().equals(qGroup.adminName.trim(), ignoreCase = true)
@@ -11280,8 +11473,8 @@ fun WichtelScreen(
                             .fillMaxWidth()
                             .background(TreeGreen.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
                             .border(1.5.dp, TreeGreen, RoundedCornerShape(8.dp))
-                            .padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                            .padding(9.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -11289,17 +11482,23 @@ fun WichtelScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "👉 Als Nächstes: ${nextOpenMember.name}",
+                                "👉 ${nextOpenMember.name}",
                                 color = TextPrimary,
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 "⏭️ Abhaken",
                                 color = TextSecondary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.clickable {
                                     markParticipantNotified(qGroup, nextOpenMember.id, "Erledigt")
                                 }
@@ -11310,17 +11509,20 @@ fun WichtelScreen(
                                 listOfNotNull(
                                     nextPhone.takeIf { it.isNotBlank() }?.let { "📱 $it" },
                                     nextEmail.takeIf { it.isNotBlank() }?.let { "✉️ $it" }
-                                ).joinToString(" • "),
+                                ).joinToString(" · "),
                                 color = TextSecondary,
-                                fontSize = 11.sp
+                                fontSize = 10.5.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             if (isNextAdmin) {
-                                CompactButton("🌐 Mein Los öffnen ↗") {
+                                CompactButton("🌐 Los") {
                                     val ready = ensureCloudPublishedForInvite(qGroup)
                                     val mePart = ready.participants.find { it.id == nextOpenMember.id } ?: nextOpenMember
                                     markParticipantNotified(ready, mePart.id, "Eigenes Los")
@@ -11330,13 +11532,13 @@ fun WichtelScreen(
                                     }
                                 }
                             }
-                            CompactButton("💬 WhatsApp") {
+                            CompactButton("💬 WA") {
                                 sendDirectInviteWhatsApp(qGroup, nextOpenMember)
                             }
-                            CompactButton("✉️ E-Mail") {
+                            CompactButton("✉️ Mail") {
                                 sendDirectInviteEmail(qGroup, nextOpenMember)
                             }
-                            CompactButton("📤 Andere App") {
+                            CompactButton("📤 App") {
                                 sendDirectInviteShareApp(qGroup, nextOpenMember)
                             }
                         }
@@ -11347,21 +11549,27 @@ fun WichtelScreen(
                             .fillMaxWidth()
                             .background(TreeGreen.copy(alpha = 0.16f), RoundedCornerShape(8.dp))
                             .border(1.dp, TreeGreen, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                            .padding(horizontal = 9.dp, vertical = 7.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "🎉 Alle ${qGroup.participants.size} Zugangs-Links wurden versendet!",
+                            "🎉 Alle ${qGroup.participants.size} gesendet",
                             color = TreeGreen,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            "↺ Zurücksetzen",
+                            "↺ Reset",
                             color = TextSecondary,
                             fontSize = 11.sp,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier.clickable {
                                 val resetG = qGroup.copy(participants = qGroup.participants.map { it.copy(notifiedVia = "") })
                                 onSaveGroups(latestGroups.map { if (it.id == qGroup.id) resetG else it })
@@ -11376,7 +11584,7 @@ fun WichtelScreen(
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     qGroup.participants.forEach { member ->
                         val isMemberAdmin = member.name.trim().equals(qGroup.adminName.trim(), ignoreCase = true)
@@ -11386,8 +11594,8 @@ fun WichtelScreen(
                                 .fillMaxWidth()
                                 .background(BgSlate, RoundedCornerShape(8.dp))
                                 .border(1.dp, if (isSent) TreeGreen.copy(alpha = 0.6f) else BorderSlate, RoundedCornerShape(8.dp))
-                                .padding(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                                .padding(7.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -11395,17 +11603,23 @@ fun WichtelScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    member.name + if (isMemberAdmin) " (👑 Admin)" else "",
+                                    member.name + if (isMemberAdmin) " 👑" else "",
                                     color = TextPrimary,
-                                    fontSize = 13.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
                                 )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     if (isSent) "✅ ${member.notifiedVia}" else "⏳ Offen",
                                     color = if (isSent) TreeGreen else TextMuted,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                             Row(
@@ -11413,7 +11627,7 @@ fun WichtelScreen(
                                 horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 if (isMemberAdmin) {
-                                    CompactButton("🌐 Öffnen") {
+                                    CompactButton("🌐 Los") {
                                         val ready = ensureCloudPublishedForInvite(qGroup)
                                         val mePart = ready.participants.find { it.id == member.id } ?: member
                                         markParticipantNotified(ready, mePart.id, "Eigenes Los")
@@ -11423,7 +11637,7 @@ fun WichtelScreen(
                                         }
                                     }
                                 }
-                                CompactButton("💬 WhatsApp") {
+                                CompactButton("💬 WA") {
                                     sendDirectInviteWhatsApp(qGroup, member)
                                 }
                                 CompactButton("✉️ Mail") {
@@ -11443,7 +11657,7 @@ fun WichtelScreen(
         }
     }
 
-    // Dialog: Wichtel-Historie importieren (für Teilnehmer nach Abschluss der Wichtelperiode)
+    // Dialog: Wichtel-Historie importieren
     if (showImportHistoryDialog) {
         var rawImport by remember { mutableStateOf("") }
         Dialog(onDismissRequest = { showImportHistoryDialog = false }) {
@@ -11452,25 +11666,36 @@ fun WichtelScreen(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                    .padding(14.dp),
+                    .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("📥 Eigene Wichtel-Historie importieren", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "Füge hier die vom Gruppenadmin geteilte Nachricht (mit WICHTEL_HISTORY_JSON:...) ein. Danach kannst du den alten Wichteleintrag selbst als Admin wiederverwenden, vor Neustart bearbeiten, einsehen oder löschen.",
-                    color = TextSecondary,
-                    fontSize = 11.5.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "📥 Historie-Import",
+                        color = TextPrimary,
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    InfoHintIcon(
+                        title = "Historie importieren",
+                        text = "Füge hier die vom Admin geteilte Nachricht (mit WICHTEL_HISTORY_JSON:...) ein, um vergangene Paarungen zu übernehmen."
+                    )
+                }
                 OutlinedTextField(
                     value = rawImport,
                     onValueChange = { rawImport = it },
-                    label = { Text("Nachricht oder WICHTEL_HISTORY_JSON einfügen") },
+                    label = { Text("WICHTEL_HISTORY_JSON einfügen", maxLines = 1, softWrap = false) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     CompactButton("Abbrechen") { showImportHistoryDialog = false }
                     Spacer(modifier = Modifier.width(6.dp))
-                    CompactButton("Importieren") {
+                    CompactButton("✓ Import") {
                         runCatching {
                             val marker = "WICHTEL_HISTORY_JSON:"
                             val jsonPart = if (rawImport.contains(marker)) {
@@ -11576,27 +11801,40 @@ fun WichtelScreen(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        when {
-                            isReusingHistory -> "♻️ Altes Wichteln wiederverwenden"
-                            isCreatingGroup -> "🎄 Neue Wichtelrunde"
-                            else -> "🎄 Wichtelrunde bearbeiten"
-                        },
-                        color = TextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.weight(1f)
-                    )
+                    ) {
+                        Text(
+                            when {
+                                isReusingHistory -> "♻️ Runde übernehmen"
+                                isCreatingGroup -> "🎄 Neue Runde"
+                                else -> "🎄 Runde bearbeiten"
+                            },
+                            color = TextPrimary,
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (isReusingHistory) {
+                            InfoHintIcon(
+                                title = "Historie übernommen",
+                                text = "${eg.participants.size} Teilnehmer & Wunschzettel aus der Historie wurden übernommen und können vor dem Start frei angepasst werden."
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         CompactButton("✕") { editingGroup = null }
                         CompactButton("✓ Speichern") { saveGroupChanges() }
@@ -11608,46 +11846,61 @@ fun WichtelScreen(
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
-                    if (isReusingHistory) {
-                        Text(
-                            "✨ ${eg.participants.size} Teilnehmer & Wunschzettel aus der Historie wurden übernommen. Du kannst alle Angaben vor dem Neustart frei anpassen und danach auch die Teilnehmerliste bearbeiten.",
-                            color = TreeGreen,
-                            fontSize = 11.5.sp
-                        )
-                    }
-                    OutlinedTextField(value = gName, onValueChange = { gName = it }, label = { Text("Name der Wichtelrunde") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = gAdmin, onValueChange = { gAdmin = it }, label = { Text("👑 Gruppenadmin (Ersteller)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = gName, onValueChange = { gName = it }, label = { Text("Rundenname", maxLines = 1, softWrap = false) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = gAdmin, onValueChange = { gAdmin = it }, label = { Text("👑 Admin", maxLines = 1, softWrap = false) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     if (persons.isNotEmpty()) {
-                        Text("Oder Gruppenadmin per Dropdown-Liste (ABCD, Nachname) wählen:", color = TextSecondary, fontSize = 11.sp)
                         ContactSearchDropdown(
                             persons = persons,
                             selectedPersonId = persons.find { it.name.equals(gAdmin.trim(), ignoreCase = true) }?.id,
                             onSelectPerson = { p -> gAdmin = p.name },
-                            placeholderText = "🔎 Gruppenadmin aus Kontakten wählen"
+                            placeholderText = "🔎 Admin wählen"
                         )
                     }
-                    Text("🎭 Wichtel-Modus / Motto:", color = TextSecondary, fontSize = 11.sp)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         items(mottos) { m ->
                             CompactButton(if (gMotto == m) "✓ $m" else m) { gMotto = m }
                         }
                     }
-                    OutlinedTextField(value = gBudget, onValueChange = { gBudget = it }, label = { Text("💶 Budget / Preisrahmen") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = gBudget, onValueChange = { gBudget = it }, label = { Text("💶 Budget", maxLines = 1, softWrap = false) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     DateInputWithCalendar(
                         value = gReveal,
                         onValueChange = { gReveal = it },
-                        label = "📅 Auflösungs-Frist (TT.MM.JJJJ)"
+                        label = "📅 Auflösung (TT.MM.JJJJ)"
                     )
-                    OutlinedTextField(value = gReminder, onValueChange = { gReminder = it }, label = { Text("⏰ Geschenk-Wecker (Tage vor Frist)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = gReminder, onValueChange = { gReminder = it }, label = { Text("⏰ Wecker (Tage vorher)", maxLines = 1, softWrap = false) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = gCouples, onCheckedChange = { gCouples = it })
-                        Text("💑 Paare aus Stammbaum nicht gegenseitig zulosen", color = TextSecondary, fontSize = 12.sp)
+                        Text(
+                            "💑 Paar-Sperre (Stammbaum)",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        InfoHintIcon(
+                            title = "Paar-Sperre",
+                            text = "Ehe- und Lebenspartner aus dem Stammbaum werden automatisch erkannt und ziehen sich beim Auslosen nicht gegenseitig."
+                        )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = gLastYear, onCheckedChange = { gLastYear = it })
-                        Text("🔄 Keine Wiederholungen (Vorjahre aus Wichtel-Historie mit einbeziehen)", color = TextSecondary, fontSize = 12.sp)
+                        Text(
+                            "🔄 Keine Wiederholung (Historie)",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        InfoHintIcon(
+                            title = "Keine Wiederholung",
+                            text = "Teilnehmer ziehen nicht dieselbe Person, die sie bereits in einer gespeicherten Vorjahres-Historie beschenkt haben."
+                        )
                     }
                 }
 
@@ -11658,7 +11911,7 @@ fun WichtelScreen(
                 ) {
                     CompactButton("Abbrechen") { editingGroup = null }
                     Spacer(modifier = Modifier.width(6.dp))
-                    CompactButton(if (isReusingHistory) "♻️ Übernehmen & Runde anlegen" else "✓ Speichern") {
+                    CompactButton("✓ Speichern") {
                         saveGroupChanges()
                     }
                 }
@@ -11666,7 +11919,7 @@ fun WichtelScreen(
         }
     }
 
-    // Dialog: Teilnehmer per Ankreuzliste (Multi-Select) einladen – Paare besonders hervorgehoben!
+    // Dialog: Teilnehmer per Ankreuzliste (Multi-Select) einladen
     checklistGroup?.let { cg ->
         var checkedIds by remember(cg) {
             mutableStateOf(cg.participants.mapNotNull { it.personId }.toSet())
@@ -11680,7 +11933,6 @@ fun WichtelScreen(
 
         val sortedWichtelPersons = remember(persons) { persons.sortedByLastName() }
 
-        // Gruppiere Paare zusammen für besondere visuelle Darstellung (nach Nachname sortiert)
         val groupedContacts = remember(sortedWichtelPersons, relations, checklistSearchQuery, checklistSelectedLetter) {
             val filtered = sortedWichtelPersons.filter {
                 matchesPersonSearchAndLetter(it, checklistSearchQuery, checklistSelectedLetter)
@@ -11759,38 +12011,30 @@ fun WichtelScreen(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                // Fixierte Leiste oben im Dialog (kein Scrollen nötig zum Bestätigen)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "☑️ Teilnehmer einladen (${checkedIds.size})",
+                        "☑️ Teilnehmer (${checkedIds.size})",
                         color = TextPrimary,
-                        fontSize = 15.sp,
+                        fontSize = 14.5.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
+                        softWrap = false,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        CompactButton("✕") { checklistGroup = null }
-                        CompactButton("✓ Übernehmen") { confirmChecklistParticipants() }
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Nachname, Vorname (ABCD-Schnellwahl):", color = TextSecondary, fontSize = 11.5.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         CompactButton("Alle") { checkedIds = persons.map { it.id }.toSet() }
                         CompactButton("Keine") { checkedIds = emptySet() }
+                        CompactButton("✕") { checklistGroup = null }
+                        CompactButton("✓ OK") { confirmChecklistParticipants() }
                     }
                 }
                 ContactSearchDropdown(
@@ -11799,8 +12043,8 @@ fun WichtelScreen(
                     onSelectPerson = { p ->
                         checkedIds = if (checkedIds.contains(p.id)) checkedIds - p.id else checkedIds + p.id
                     },
-                    placeholderText = "🔎 Teilnehmer per Dropdown-Liste (ABCD) an-/abwählen",
-                    confirmButtonLabel = "✓ Übernehmen",
+                    placeholderText = "🔎 Teilnehmer suchen",
+                    confirmButtonLabel = "✓ OK",
                     onConfirmAction = { confirmChecklistParticipants() },
                     showInlineAlphabet = true,
                     externalSearchQuery = checklistSearchQuery,
@@ -11818,7 +12062,7 @@ fun WichtelScreen(
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     groupedContacts.forEach { groupMembers ->
                         if (groupMembers.size == 2) {
@@ -11829,17 +12073,27 @@ fun WichtelScreen(
                                     .fillMaxWidth()
                                     .background(BgSlate, RoundedCornerShape(8.dp))
                                     .border(1.5.dp, PartnerRose, RoundedCornerShape(8.dp))
-                                    .padding(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    .padding(7.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text("💑 Ehe-/Lebenspartner (Paar-Sperre)", color = PartnerRose, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    Text("🔒 Ziehen sich nicht gegenseitig!", color = PartnerRose, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "💑 Paar-Sperre",
+                                        color = PartnerRose,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    InfoHintIcon(
+                                        title = "Paar-Sperre",
+                                        text = "${p1.name} & ${p2.name} sind im Stammbaum als Paar verknüpft und ziehen sich nicht gegenseitig."
+                                    )
                                 }
-                                listOf(p1 to p2, p2 to p1).forEach { (member, spouse) ->
+                                listOf(p1 to p2, p2 to p1).forEach { (member, _) ->
                                     val isChecked = checkedIds.contains(member.id)
                                     Row(
                                         modifier = Modifier
@@ -11855,10 +12109,16 @@ fun WichtelScreen(
                                                 checkedIds = if (ch) checkedIds + member.id else checkedIds - member.id
                                             }
                                         )
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(formatLastNameFirst(member.name), color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                                            Text("💑 Paar mit ${formatLastNameFirst(spouse.name)}", color = PartnerRose, fontSize = 10.5.sp)
-                                        }
+                                        Text(
+                                            formatLastNameFirst(member.name),
+                                            color = TextPrimary,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
                                 }
                             }
@@ -11873,7 +12133,7 @@ fun WichtelScreen(
                                     .clickable {
                                         checkedIds = if (isChecked) checkedIds - member.id else checkedIds + member.id
                                     }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    .padding(horizontal = 6.dp, vertical = 1.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(
@@ -11882,20 +12142,28 @@ fun WichtelScreen(
                                         checkedIds = if (ch) checkedIds + member.id else checkedIds - member.id
                                     }
                                 )
-                                Text(formatLastNameFirst(member.name), color = TextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                Text(
+                                    formatLastNameFirst(member.name),
+                                    color = TextPrimary,
+                                    fontSize = 12.5.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     }
 
                     HorizontalDivider(color = BorderSlate)
-                    Text("Oder weitere Person frei hinzufügen (optional):", color = TextSecondary, fontSize = 11.5.sp)
+                    Text("Weitere Person frei ergänzen:", color = TextSecondary, fontSize = 11.sp, maxLines = 1, softWrap = false)
                     FirstAndLastNameFields(
                         firstName = customFirstName,
                         onFirstNameChange = { customFirstName = it },
                         lastName = customLastName,
                         onLastNameChange = { customLastName = it }
                     )
-                    OutlinedTextField(value = customPhone, onValueChange = { customPhone = it }, label = { Text("Telefon (WhatsApp)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = customPhone, onValueChange = { customPhone = it }, label = { Text("Telefon", maxLines = 1, softWrap = false) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
 
                 HorizontalDivider(color = BorderSlate)
@@ -11905,7 +12173,7 @@ fun WichtelScreen(
                 ) {
                     CompactButton("Abbrechen") { checklistGroup = null }
                     Spacer(modifier = Modifier.width(6.dp))
-                    CompactButton("✓ Teilnehmer übernehmen") { confirmChecklistParticipants() }
+                    CompactButton("✓ OK") { confirmChecklistParticipants() }
                 }
             }
         }
@@ -11975,8 +12243,8 @@ fun WichtelScreen(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -11984,12 +12252,16 @@ fun WichtelScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "🎁 Wunschliste: ${pItem.name}",
+                        "🎁 ${pItem.name}",
                         color = TextPrimary,
-                        fontSize = 15.sp,
+                        fontSize = 14.5.sp,
                         fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         CompactButton("✕") {
                             editingParticipantGroup = null
@@ -12004,7 +12276,7 @@ fun WichtelScreen(
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     FirstAndLastNameFields(
                         firstName = pFirstName,
@@ -12012,8 +12284,8 @@ fun WichtelScreen(
                         lastName = pLastName,
                         onLastNameChange = { pLastName = it }
                     )
-                    OutlinedTextField(value = pPhone, onValueChange = { pPhone = it }, label = { Text("Telefon (für WhatsApp / Auto-SMS)") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = pEmail, onValueChange = { pEmail = it }, label = { Text("E-Mail (optional für Sammel-Mail)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = pPhone, onValueChange = { pPhone = it }, label = { Text("Telefon", maxLines = 1, softWrap = false) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = pEmail, onValueChange = { pEmail = it }, label = { Text("E-Mail", maxLines = 1, softWrap = false) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -12022,10 +12294,10 @@ fun WichtelScreen(
                         OutlinedTextField(
                             value = pWish,
                             onValueChange = { pWish = it },
-                            label = { Text("🎁 Wunschzettel / Geschenk-Ideen") },
+                            label = { Text("🎁 Wünsche", maxLines = 1, softWrap = false) },
                             modifier = Modifier.weight(1f)
                         )
-                        CompactButton("🔎 Amazon") {
+                        CompactButton("🔎") {
                             runCatching {
                                 val q = pWish.trim()
                                 val url = if (q.isNotBlank()) "https://www.amazon.de/s?k=${android.net.Uri.encode(q)}" else "https://www.amazon.de"
@@ -12036,19 +12308,20 @@ fun WichtelScreen(
                     OutlinedTextField(
                         value = pNoGos,
                         onValueChange = { pNoGos = it },
-                        label = { Text("🚫 Bitte NICHT schenken / Allergien & Größen") },
+                        label = { Text("🚫 Nicht schenken / Größen", maxLines = 1, softWrap = false) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = pAddress,
                         onValueChange = { pAddress = it },
-                        label = { Text("📦 Post-Adresse (für Fern-Wichteln)") },
+                        label = { Text("📦 Post-Adresse", maxLines = 1, softWrap = false) },
                         modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = pUrl,
                         onValueChange = { pUrl = it },
-                        label = { Text("🛒 Haupt-Wunschliste (Amazon-Wunschliste)") },
+                        label = { Text("🛒 Wunsch-Link (z. B. Amazon)", maxLines = 1, softWrap = false) },
+                        singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     pExtraUrls.forEachIndexed { idx, extraUrl ->
@@ -12062,7 +12335,7 @@ fun WichtelScreen(
                                 onValueChange = { newVal ->
                                     pExtraUrls = pExtraUrls.toMutableList().also { it[idx] = newVal.replace("\n", "").replace("\r", "") }
                                 },
-                                label = { Text("🔗 Weiterer Wunsch-Link ${idx + 2}", maxLines = 1, softWrap = false, fontSize = 11.sp) },
+                                label = { Text("🔗 Link ${idx + 2}", maxLines = 1, softWrap = false, fontSize = 11.sp) },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 maxLines = 1
@@ -12077,7 +12350,7 @@ fun WichtelScreen(
                             )
                         }
                     }
-                    CompactButton("+ Weiterer Link") {
+                    CompactButton("+ Link") {
                         pExtraUrls = pExtraUrls + ""
                     }
                 }
@@ -12098,7 +12371,7 @@ fun WichtelScreen(
         }
     }
 
-    // Dialog: Anonyme Wichtel-Frage („Geheimer Bote“)
+    // Dialog: Anonyme Wichtel-Frage
     anonQuestionTarget?.let { (g, target) ->
         var qText by remember(target) { mutableStateOf("") }
         Dialog(onDismissRequest = { anonQuestionTarget = null }) {
@@ -12107,19 +12380,30 @@ fun WichtelScreen(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
-                    .padding(14.dp),
+                    .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("🕵️ Anonyme Wichtel-Frage („Geheimer Bote“)", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "Stelle ${target.name} anonym eine Frage (z. B. nach Größe, Lieblingsfarbe oder Buchtitel), ohne deine Identität als Wichtel zu verraten!",
-                    color = TextSecondary,
-                    fontSize = 12.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "🕵️ Anonyme Frage",
+                        color = TextPrimary,
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    InfoHintIcon(
+                        title = "Geheimer Bote",
+                        text = "Stelle ${target.name} über den Gruppenadmin eine Frage (z. B. nach Größe oder Farbe), ohne deine Identität zu verraten."
+                    )
+                }
                 OutlinedTextField(
                     value = qText,
                     onValueChange = { qText = it },
-                    label = { Text("Geheime Frage an ${target.name.substringBefore(" ")}") },
+                    label = { Text("Frage an ${target.name.substringBefore(" ")}", maxLines = 1, softWrap = false) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(
@@ -12128,7 +12412,7 @@ fun WichtelScreen(
                 ) {
                     CompactButton("Abbrechen") { anonQuestionTarget = null }
                     Spacer(modifier = Modifier.width(6.dp))
-                    CompactButton("📲 Per WhatsApp fragen") {
+                    CompactButton("💬 Fragen") {
                         if (qText.isNotBlank()) {
                             runCatching {
                                 val msg = "🕵️🎄 *Geheime Wichtel-Frage* aus der Runde „${g.groupName}“:\n\nDein geheimer Wichtel lässt über Gruppenadmin ${g.adminName} fragen:\n„${qText.trim()}“\n\nAntworte einfach hier – deine Antwort wird anonym weitergeleitet! 🤫"
@@ -12157,35 +12441,49 @@ fun WichtelScreen(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, TreeGreen, RoundedCornerShape(10.dp))
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("🤫 Geheimes Wichtel-Los für ${giver.name}", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text("${g.groupName} (${g.motto}) • Budget: ${g.budget}", color = TextSecondary, fontSize = 12.sp)
+                Text(
+                    "🤫 Los: ${giver.name}",
+                    color = TextPrimary,
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "${g.groupName} · ${g.budget}",
+                    color = TextSecondary,
+                    fontSize = 11.5.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(BgSlate, RoundedCornerShape(8.dp))
                         .border(1.dp, TreeGreen, RoundedCornerShape(8.dp))
-                        .padding(12.dp),
+                        .padding(10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("Du beschenkst zu Weihnachten:", color = TextMuted, fontSize = 11.sp)
-                    Text("🎁 ${target.name}", color = TreeGreen, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("Du beschenkst:", color = TextMuted, fontSize = 11.sp, maxLines = 1, softWrap = false)
+                    Text("🎁 ${target.name}", color = TreeGreen, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     if (target.wishText.isNotBlank()) {
-                        Text("📝 Wunschzettel: ${target.wishText}", color = TextPrimary, fontSize = 12.sp, textAlign = TextAlign.Center)
+                        Text("📝 ${target.wishText}", color = TextPrimary, fontSize = 12.sp, textAlign = TextAlign.Center)
                     }
                     if (target.noGos.isNotBlank()) {
-                        Text("🚫 Bitte NICHT: ${target.noGos}", color = WarnAmber, fontSize = 11.5.sp, textAlign = TextAlign.Center)
+                        Text("🚫 ${target.noGos}", color = WarnAmber, fontSize = 11.5.sp, textAlign = TextAlign.Center)
                     }
                     if (target.address.isNotBlank()) {
-                        Text("📦 Adresse: ${target.address}", color = TextSecondary, fontSize = 11.sp, textAlign = TextAlign.Center)
+                        Text("📦 ${target.address}", color = TextSecondary, fontSize = 11.sp, textAlign = TextAlign.Center)
                     }
                     allUrls.forEachIndexed { idx, u ->
-                        Spacer(modifier = Modifier.height(2.dp))
-                        CompactButton("🛒 ${if (idx == 0) "Amazon-Wunschliste öffnen ↗" else "Wunsch-Link ${idx + 1} öffnen ↗"}") {
+                        CompactButton("🛒 Link ${idx + 1}") {
                             runCatching {
                                 val url = if (u.startsWith("http")) u else "https://$u"
                                 context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
@@ -12193,21 +12491,18 @@ fun WichtelScreen(
                         }
                     }
                 }
-                CompactButton("🕵️ Anonyme Frage an ${target.name.substringBefore(" ")}") {
-                    secretPeekPair = null
-                    anonQuestionTarget = g to target
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CompactButton("🕵️ Frage") {
+                        secretPeekPair = null
+                        anonQuestionTarget = g to target
+                    }
+                    CompactButton("✓ OK") { secretPeekPair = null }
                 }
-                Text(
-                    "🔒 Geheim bis zur Auflösung am ${formatIsoToDdMmYyyy(g.revealDateIso)}!",
-                    color = WarnAmber,
-                    fontSize = 11.sp
-                )
-                CompactButton("Verstanden & schließen") { secretPeekPair = null }
             }
         }
     }
 
-    // Dialog: Verschlüsselten Wichtel-Los-Code (WICHTEL_SECRET:...) entschlüsseln
+    // Dialog: Verschlüsselten Wichtel-Los-Code entschlüsseln
     if (showDecodeSecretDialog) {
         var rawCodeInput by remember { mutableStateOf("") }
         var decodedObj by remember { mutableStateOf<JSONObject?>(null) }
@@ -12219,45 +12514,51 @@ fun WichtelScreen(
                     .fillMaxWidth()
                     .background(CardSlate, RoundedCornerShape(10.dp))
                     .border(1.dp, AccentSteel, RoundedCornerShape(10.dp))
-                    .padding(14.dp)
+                    .padding(12.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    "🔐 Geheimen Wichtel-Los-Code entschlüsseln",
-                    color = TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Füge hier die WhatsApp-Nachricht oder den Code (WICHTEL_SECRET:...) ein, den dir der Gruppenadmin geschickt hat. So erfährst nur du allein, wen du beschenkst!",
-                    color = TextSecondary,
-                    fontSize = 11.5.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "🔐 Code öffnen",
+                        color = TextPrimary,
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    InfoHintIcon(
+                        title = "Geheim-Code öffnen",
+                        text = "Füge hier den Code (WICHTEL_SECRET:...) ein, um dein Offline-Los anzuzeigen."
+                    )
+                }
                 OutlinedTextField(
                     value = rawCodeInput,
                     onValueChange = {
                         rawCodeInput = it
                         decodeError = false
                     },
-                    label = { Text("Nachricht mit WICHTEL_SECRET:... einfügen") },
+                    label = { Text("WICHTEL_SECRET:...", maxLines = 1, softWrap = false) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (decodeError) {
                     Text(
-                        "⚠️ Kein gültiger WICHTEL_SECRET-Code gefunden.",
+                        "⚠️ Ungültiger Code.",
                         color = WarnAmber,
                         fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
                 decodedObj?.let { d ->
                     val targetName = d.optString("t", "?")
                     val giverName = d.optString("f", "")
                     val groupName = d.optString("g", "Wichtelrunde")
-                    val motto = d.optString("m", "")
                     val budget = d.optString("b", "")
-                    val revealDate = d.optString("r", "24.12.")
                     val wish = d.optString("w", "")
                     val noGos = d.optString("n", "")
                     val addr = d.optString("d", "")
@@ -12270,45 +12571,51 @@ fun WichtelScreen(
                             .fillMaxWidth()
                             .background(BgSlate, RoundedCornerShape(8.dp))
                             .border(1.5.dp, TreeGreen, RoundedCornerShape(8.dp))
-                            .padding(12.dp),
+                            .padding(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            "🎄 $groupName ($motto)" + if (budget.isNotBlank()) " • Budget: $budget" else "",
+                            "🎄 $groupName" + if (budget.isNotBlank()) " · $budget" else "",
                             color = TextSecondary,
                             fontSize = 11.5.sp,
-                            textAlign = TextAlign.Center
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            "Hallo $giverName, du beschenkst:",
+                            "$giverName beschenkt:",
                             color = TextMuted,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         Text(
                             "🎁 $targetName",
                             color = TreeGreen,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (wish.isNotBlank()) {
-                            Text("📝 Wunschzettel: $wish", color = TextPrimary, fontSize = 12.sp, textAlign = TextAlign.Center)
+                            Text("📝 $wish", color = TextPrimary, fontSize = 12.sp, textAlign = TextAlign.Center)
                         }
                         if (noGos.isNotBlank()) {
-                            Text("🚫 Bitte NICHT: $noGos", color = WarnAmber, fontSize = 11.5.sp, textAlign = TextAlign.Center)
+                            Text("🚫 $noGos", color = WarnAmber, fontSize = 11.5.sp, textAlign = TextAlign.Center)
                         }
                         if (addr.isNotBlank()) {
-                            Text("📦 Adresse: $addr", color = TextSecondary, fontSize = 11.sp, textAlign = TextAlign.Center)
+                            Text("📦 $addr", color = TextSecondary, fontSize = 11.sp, textAlign = TextAlign.Center)
                         }
                         urls.forEachIndexed { idx, u ->
-                            CompactButton("🛒 ${if (idx == 0) "Amazon-Wunschliste öffnen ↗" else "Wunsch-Link ${idx + 1} öffnen ↗"}") {
+                            CompactButton("🛒 Link ${idx + 1}") {
                                 runCatching {
                                     val url = if (u.startsWith("http")) u else "https://$u"
                                     context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                                 }
                             }
                         }
-                        Text("🔒 Geheimhaltung bis $revealDate!", color = WarnAmber, fontSize = 11.sp)
                     }
                 }
                 Row(
@@ -12317,7 +12624,7 @@ fun WichtelScreen(
                 ) {
                     CompactButton("Schließen") { showDecodeSecretDialog = false }
                     Spacer(modifier = Modifier.width(6.dp))
-                    CompactButton("🔓 Los entschlüsseln") {
+                    CompactButton("🔓 Öffnen") {
                         val match = Regex("WICHTEL_SECRET:([A-Za-z0-9+/=_\\-]+)").find(rawCodeInput.trim())
                         val b64Part = match?.groupValues?.getOrNull(1) ?: rawCodeInput.trim()
                         val parsed = runCatching {

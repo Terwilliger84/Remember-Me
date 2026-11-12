@@ -46,35 +46,43 @@
     .hero {
       background: linear-gradient(135deg, rgba(239,68,68,0.20), rgba(16,185,129,0.18));
       border: 1.5px solid rgba(251,191,36,0.45);
-      border-radius: 16px;
-      padding: 15px 16px;
+      border-radius: 14px;
+      padding: 12px 14px;
     }
     .hero-title {
-      font-size: 21px;
+      font-size: 19px;
       font-weight: 800;
       line-height: 1.25;
       margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .chips {
       display: flex;
-      flex-wrap: wrap;
-      gap: 7px;
-      margin-top: 10px;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      gap: 6px;
+      margin-top: 8px;
+      scrollbar-width: none;
     }
+    .chips::-webkit-scrollbar { display: none; }
     .chip {
-      font-size: 13px;
+      font-size: 12.5px;
       font-weight: 700;
-      padding: 5px 11px;
+      padding: 4px 10px;
       border-radius: 999px;
       background: rgba(15,23,42,0.75);
       border: 1px solid var(--border);
       color: #f1f5f9;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .card {
       background: var(--card);
       border: 1.5px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
+      border-radius: 14px;
+      padding: 13px 14px;
       box-shadow: 0 6px 18px rgba(0,0,0,0.22);
     }
     .card.highlight-alert {
@@ -85,26 +93,84 @@
       border: 2px solid var(--green);
       background: linear-gradient(180deg, rgba(16,185,129,0.18) 0%, #1e293b 100%);
     }
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .title-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      flex: 1;
+    }
     .section-title {
-      font-size: 18px;
+      font-size: 16.5px;
       font-weight: 800;
-      margin: 0 0 6px;
+      margin: 0;
       color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .info-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid var(--blue);
+      background: rgba(56,189,248,0.16);
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 900;
+      font-family: Georgia, serif;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 0;
+      line-height: 1;
+    }
+    .info-btn:active { transform: scale(0.92); }
+    .info-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2,6,23,0.72);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 1200;
+    }
+    .info-dialog {
+      background: var(--card);
+      border: 1.5px solid var(--blue);
+      border-radius: 14px;
+      padding: 16px;
+      max-width: 380px;
+      width: 100%;
+      box-shadow: 0 14px 36px rgba(0,0,0,0.55);
     }
     .btn {
       border: 1.5px solid var(--border);
       background: var(--card-soft);
       color: var(--text);
-      font-size: 16px;
+      font-size: 15.5px;
       font-weight: 800;
-      padding: 13px 16px;
-      border-radius: 12px;
+      padding: 11px 14px;
+      border-radius: 11px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
       width: 100%;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       transition: transform 0.08s ease;
     }
     .btn:active { transform: scale(0.98); }
@@ -121,32 +187,37 @@
     .btn.small {
       width: auto;
       font-size: 13px;
-      padding: 7px 12px;
+      padding: 6px 11px;
       font-weight: 700;
+      flex-shrink: 0;
     }
     .member-grid {
       display: flex;
       flex-direction: column;
-      gap: 9px;
-      margin-top: 12px;
+      gap: 8px;
+      margin-top: 10px;
     }
     .member-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 14px 15px;
-      border-radius: 12px;
+      gap: 8px;
+      padding: 12px 14px;
+      border-radius: 11px;
       background: var(--card-soft);
       border: 1.5px solid var(--border);
       cursor: pointer;
-      font-size: 16px;
+      font-size: 15.5px;
     }
     .field-label {
       display: block;
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 700;
       color: #e2e8f0;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .input, .textarea {
       width: 100%;
@@ -254,8 +325,32 @@
     </div>
   </div>
   <div id="toast-root"></div>
+  <div id="info-root"></div>
 
   <script>
+    const INFO_MAP = {};
+    function infoBtn(key, title, text) {
+      INFO_MAP[key] = { title, text };
+      return `<button type="button" class="info-btn" onclick="event.stopPropagation(); openInfo('${key}')" aria-label="Info">i</button>`;
+    }
+    function openInfo(key) {
+      const item = INFO_MAP[key];
+      if (!item) return;
+      const root = document.getElementById("info-root");
+      root.innerHTML = `
+        <div class="info-backdrop" onclick="closeInfo()">
+          <div class="info-dialog" onclick="event.stopPropagation()">
+            <div style="font-weight:800; font-size:17px; margin-bottom:8px; color:#fff;">ℹ️ ${esc(item.title)}</div>
+            <div style="font-size:15px; color:#e2e8f0; line-height:1.48; margin-bottom:14px;">${esc(item.text).replace(/\n/g, "<br/>")}</div>
+            <button type="button" class="btn primary" onclick="closeInfo()">✓ OK</button>
+          </div>
+        </div>
+      `;
+    }
+    function closeInfo() {
+      const root = document.getElementById("info-root");
+      if (root) root.innerHTML = "";
+    }
     // =========================================================================
     // Pure-JS SHA-256 + Symmetrische Los-Versiegelung
     // =========================================================================
@@ -946,20 +1041,27 @@
     function renderPushNotificationBox() {
       if (state.pushStatus === "active") {
         return `
-          <div class="card" style="padding:12px 15px; border-color:rgba(16,185,129,0.6); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-            <div style="font-size:14.5px; font-weight:700; color:#a7f3d0;">
-              ✅ Handy-Meldungen sind eingeschaltet
+          <div class="card" style="padding:10px 13px; border-color:rgba(16,185,129,0.6);">
+            <div class="title-row">
+              <div class="title-left">
+                <div style="font-size:14.5px; font-weight:800; color:#a7f3d0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                  ✅ Meldungen aktiv
+                </div>
+                ${infoBtn("push_active", "Handy-Meldungen", "Dein Handy meldet sich automatisch mit Ton, sobald eine neue Frage oder ein Wunsch eintrifft – auch wenn der Browser geschlossen ist.")}
+              </div>
+              <button class="btn small" onclick="sendTestHandyNotification()">🔔 Test</button>
             </div>
-            <button class="btn small" onclick="sendTestHandyNotification()">🔔 Testen</button>
           </div>
         `;
       }
       if (state.pushStatus === "ios-homescreen") {
         return `
           <div class="card push-card">
-            <div class="section-title">🔔 Automatische Handy-Meldungen (iPhone)</div>
-            <div style="font-size:15px; color:#e2e8f0;">
-              Damit dein iPhone bei neuen Nachrichten klingelt, tippe einmal unten im Browser auf <b>Teilen ⬆️</b> und wähle <b>„Zum Home-Bildschirm“</b>. Öffne danach das 🎄-Symbol auf deinem Bildschirm.
+            <div class="title-row">
+              <div class="title-left">
+                <div class="section-title">🔔 iPhone-Meldungen</div>
+                ${infoBtn("push_ios", "Meldungen auf dem iPhone", "Damit dein iPhone bei neuen Nachrichten klingelt, tippe unten im Browser auf „Teilen ⬆️“ und wähle „Zum Home-Bildschirm“. Öffne danach das 🎄-Symbol.")}
+              </div>
             </div>
           </div>
         `;
@@ -967,8 +1069,11 @@
       if (state.pushStatus === "denied") {
         return `
           <div class="card" style="border-color:#f59e0b;">
-            <div style="font-size:14.5px; color:#fde68a;">
-              ⚠️ Handy-Meldungen wurden im Browser blockiert. Du kannst sie oben links neben der Internetadresse über das Schloss-/Glocken-Symbol wieder erlauben.
+            <div class="title-row">
+              <div class="title-left">
+                <div class="section-title" style="color:#fde68a; font-size:15px;">⚠️ Meldungen blockiert</div>
+                ${infoBtn("push_denied", "Meldungen erlauben", "Tippe oben links neben der Internetadresse auf das Schloss- oder Glocken-Symbol und erlaube Benachrichtigungen.")}
+              </div>
             </div>
           </div>
         `;
@@ -977,20 +1082,21 @@
         return "";
       }
       return `
-        <div class="card push-card" style="display:flex; flex-direction:column; gap:10px;">
-          <div class="section-title">🔔 Nichts verpassen!</div>
-          <div style="font-size:15px; color:#e2e8f0;">
-            Tippe einmal auf den grünen Knopf und wähle <b>„Zulassen“</b> – dann meldet sich dein Handy automatisch mit Ton, sobald eine Frage oder ein Wunsch reinkommt (auch wenn diese Seite geschlossen ist).
+        <div class="card push-card" style="display:flex; flex-direction:column; gap:9px;">
+          <div class="title-row">
+            <div class="title-left">
+              <div class="section-title">🔔 Handy-Meldungen</div>
+              ${infoBtn("push_prompt", "Automatische Meldungen", "Tippe auf „🔔 Einschalten“ und wähle im Handy-Fenster „Zulassen“ – dann meldet sich dein Handy automatisch bei Fragen oder Wünschen (auch wenn der Browser geschlossen ist).")}
+            </div>
           </div>
           <button class="btn primary" onclick="enableHandyNotifications()">
-            ${state.pushBusy ? "⏳ Wird eingeschaltet…" : "🔔 Handy-Meldungen jetzt einschalten"}
+            ${state.pushBusy ? "⏳ Bitte warten…" : "🔔 Einschalten"}
           </button>
         </div>
       `;
     }
 
     function renderMessagesBubbles(msgs, perspective) {
-      // perspective: "asSanta" (ich schreibe mit meiner gezogenen Person) | "asTarget" (mein geheimer Wichtel schreibt mir)
       if (!msgs || msgs.length === 0) return "";
       const target = state.assignment ? state.partsByPid.get(Number(state.assignment.targetPid)) : null;
       const targetFirst = (target ? target.name : (state.assignment ? state.assignment.targetName : "")).split(" ")[0] || "Wichtelkind";
@@ -1001,7 +1107,7 @@
             const mine = perspective === "asSanta" ? (m.fromRole === "SANTA") : (m.fromRole === "TARGET");
             const sender = mine
               ? "Ich"
-              : (perspective === "asSanta" ? esc(targetFirst) : "🎅 Dein geheimer Wichtel");
+              : (perspective === "asSanta" ? esc(targetFirst) : "🎅 Geheimer Wichtel");
             const timeStr = m.ts
               ? new Date(m.ts).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
               : "";
@@ -1020,10 +1126,10 @@
       const app = document.getElementById("app");
       if (state.errorMsg) {
         app.innerHTML = `
-          <div class="card" style="text-align:center; padding:28px 16px;">
-            <div style="font-size:40px; margin-bottom:8px;">⚠️</div>
-            <div style="font-weight:800; font-size:18px; margin-bottom:6px;">Hinweis</div>
-            <div style="font-size:15.5px; color:var(--muted);">${esc(state.errorMsg)}</div>
+          <div class="card" style="text-align:center; padding:24px 14px;">
+            <div style="font-size:36px; margin-bottom:6px;">⚠️</div>
+            <div style="font-weight:800; font-size:17px; margin-bottom:6px;">Hinweis</div>
+            <div style="font-size:15px; color:var(--muted);">${esc(state.errorMsg)}</div>
           </div>
         `;
         return;
@@ -1036,9 +1142,9 @@
         <div class="hero">
           <h1 class="hero-title">🎄 ${esc(rm.groupName)}</h1>
           <div class="chips">
-            <span class="chip">${esc(rm.motto || "🎁 Klassisches Wichteln")}</span>
-            ${rm.budget ? `<span class="chip">💶 Preisrahmen: ${esc(rm.budget)}</span>` : ""}
-            <span class="chip">📅 Bescherung: ${esc(revealFormatted)}</span>
+            <span class="chip">${esc(rm.motto || "🎁 Wichteln")}</span>
+            ${rm.budget ? `<span class="chip">💶 ${esc(rm.budget)}</span>` : ""}
+            <span class="chip">📅 ${esc(revealFormatted)}</span>
           </div>
         </div>
       `;
@@ -1050,28 +1156,28 @@
           const sel = state.partsByPid.get(state.selectedLoginPid);
           const hasPin = Boolean(sel && sel.pinHash);
           app.innerHTML = headerHtml + `
-            <div class="card" style="display:flex; flex-direction:column; gap:12px;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-weight:800; font-size:18px;">👤 ${esc(sel.name)}</div>
+            <div class="card" style="display:flex; flex-direction:column; gap:10px;">
+              <div class="title-row">
+                <div class="title-left">
+                  <div class="section-title">👤 ${esc(sel.name)}</div>
+                  ${infoBtn("pin_help", "Geheim-PIN", hasPin
+                    ? "Gib deine 4-stellige Geheim-PIN ein. Falls du sie vergessen hast, kann der Gruppenleiter sie zurücksetzen."
+                    : "Denke dir beim ersten Öffnen eine einfache 4-stellige Zahl (z. B. 1234) aus, damit niemand sonst dein Los öffnen kann.")}
+                </div>
                 <button class="btn small" onclick="state.selectedLoginPid=0; render();">← Zurück</button>
               </div>
-              <div style="font-size:15px; color:var(--muted);">
-                ${hasPin
-                  ? "Bitte gib deine 4-stellige Geheim-PIN ein:"
-                  : "Bitte denke dir eine einfache 4-stellige Zahl (z. B. 1234) als PIN aus:"}
-              </div>
               <div>
-                <label class="field-label">${hasPin ? "Deine PIN" : "Neue 4-stellige PIN"}</label>
+                <label class="field-label">${hasPin ? "4-stellige PIN" : "Neue 4-stellige PIN"}</label>
                 <input id="pin-1" type="password" inputmode="numeric" maxlength="12" class="input pin-input" placeholder="••••" onkeydown="if(event.key==='Enter') submitMemberPin()" />
               </div>
               ${!hasPin ? `
                 <div>
-                  <label class="field-label">PIN kurz wiederholen</label>
+                  <label class="field-label">PIN wiederholen</label>
                   <input id="pin-2" type="password" inputmode="numeric" maxlength="12" class="input pin-input" placeholder="••••" onkeydown="if(event.key==='Enter') submitMemberPin()" />
                 </div>
               ` : ""}
               <button class="btn primary" onclick="submitMemberPin()">
-                🔓 Mein Los jetzt öffnen
+                🔓 Öffnen
               </button>
             </div>
           `;
@@ -1081,12 +1187,17 @@
 
         app.innerHTML = headerHtml + `
           <div class="card">
-            <div class="section-title">Wer bist du? Bitte tippe auf deinen Namen:</div>
+            <div class="title-row">
+              <div class="title-left">
+                <div class="section-title">👤 Name wählen</div>
+                ${infoBtn("login_help", "Los öffnen", "Tippe auf deinen eigenen Namen, um dein persönliches Wichtel-Los zu sehen.")}
+              </div>
+            </div>
             <div class="member-grid">
               ${roster.map(p => `
                 <div class="member-row" onclick="state.selectedLoginPid=${p.pid}; render();">
-                  <div style="font-weight:800;">🎄 ${esc(p.name)}</div>
-                  <span style="font-size:14px; color:var(--gold); font-weight:800;">Öffnen →</span>
+                  <div style="font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🎄 ${esc(p.name)}</div>
+                  <span style="font-size:13.5px; color:var(--gold); font-weight:800; white-space:nowrap; flex-shrink:0;">Öffnen →</span>
                 </div>
               `).join("")}
             </div>
@@ -1096,7 +1207,7 @@
       }
 
       // =======================================================================
-      // EINFACHE 1-SEITEN-ANSICHT FÜR TEILNEHMER (0 Tabs, große klare Kästen!)
+      // SCHLANKE 1-SEITEN-ANSICHT MIT (i)-SYMBOLEN & KURZ-BUTTONS
       // =======================================================================
       const me = state.partsByPid.get(state.unlockedPid);
       const myFirstName = (me && me.name ? me.name.split(" ")[0] : "") || "Hallo";
@@ -1117,102 +1228,109 @@
       const wd = state.wishDraft || { wishText: "", noGos: "", address: "", wishlistUrl: "" };
       const hasExtraFieldsFilled = Boolean((wd.wishlistUrl && wd.wishlistUrl.trim()) || (wd.noGos && wd.noGos.trim()) || (wd.address && wd.address.trim()));
 
-      // Kasten A: Nachrichten vom geheimen Wichtel an mich (wenn vorhanden -> ganz oben gelb leuchtend!)
+      // Kasten A: Nachrichten vom geheimen Wichtel an mich
       const hasSantaConversation = state.inMessages.length > 0;
       const santaBoxHtml = `
-        <div class="card ${hasSantaConversation ? "highlight-alert" : ""}" style="display:flex; flex-direction:column; gap:10px;">
-          <div class="section-title">
-            ${hasSantaConversation ? "🎅 Dein geheimer Wichtel hat dir geschrieben!" : "🎅 Nachricht an deinen geheimen Wichtel"}
-          </div>
-          <div style="font-size:14.5px; color:var(--muted);">
-            ${hasSantaConversation
-              ? "Hier kannst du deinem Wichtel direkt antworten (er bleibt für dich geheim):"
-              : "Falls die Person, die dich beschenkt, eine Rückfrage hat, erscheint sie hier oben. Du kannst ihr hier auch selbst einen Tipp schicken:"}
+        <div class="card ${hasSantaConversation ? "highlight-alert" : ""}" style="display:flex; flex-direction:column; gap:9px;">
+          <div class="title-row">
+            <div class="title-left">
+              <div class="section-title">
+                ${hasSantaConversation ? "🎅 Post vom Wichtel!" : "🎅 An deinen Wichtel"}
+              </div>
+              ${infoBtn("santa_chat", "Nachricht an deinen Wichtel", "Hier kannst du der Person, die dich gezogen hat, direkt antworten oder einen Tipp schicken. Wer dein Wichtel ist, bleibt geheim!")}
+            </div>
           </div>
           ${renderMessagesBubbles(state.inMessages, "asTarget")}
-          <textarea id="msg-to-santa" class="textarea" style="min-height:70px;" placeholder="${hasSantaConversation ? "Deine Antwort an deinen Wichtel hier eintippen…" : "Optional: Nachricht an deinen geheimen Wichtel…"}"></textarea>
+          <textarea id="msg-to-santa" class="textarea" style="min-height:66px;" placeholder="${hasSantaConversation ? "Antwort eintippen…" : "Nachricht an deinen Wichtel…"}"></textarea>
           <button class="btn ${hasSantaConversation ? "gold" : ""}" onclick="sendChatMessage('toSanta')">
-            📨 ${hasSantaConversation ? "Antwort an meinen Wichtel senden" : "Nachricht an meinen Wichtel senden"}
+            📨 ${hasSantaConversation ? "Antworten" : "Senden"}
           </button>
         </div>
       `;
 
       // Kasten 1: Wen du gezogen hast + Wunschliste + Frage stellen
       const drawnAndTargetWishHtml = `
-        <div class="card" style="display:flex; flex-direction:column; gap:14px;">
-          <div class="gift-banner">
-            <div style="font-size:16px; color:#e2e8f0; margin-bottom:4px;">Hallo <b>${esc(myFirstName)}</b>! 👋</div>
-            <div style="font-size:14px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px;">Du beschenkst:</div>
-            <div class="target-name">🎁 ${esc(targetName)}</div>
-            <div style="font-size:13.5px; color:var(--muted);">Bitte bis zum ${esc(revealFormatted)} geheim halten!</div>
+        <div class="card" style="display:flex; flex-direction:column; gap:12px;">
+          <div class="gift-banner" style="padding:14px 12px;">
+            <div style="display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:2px;">
+              <span style="font-size:14px; font-weight:800; color:var(--muted); white-space:nowrap;">Hallo ${esc(myFirstName)} · Du beschenkst:</span>
+              ${infoBtn("secret_info", "Geheimes Wichtel-Los", `Du hast ${targetName} gezogen. Bitte behalte das bis zur Bescherung am ${revealFormatted} für dich!`)}
+            </div>
+            <div class="target-name" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🎁 ${esc(targetName)}</div>
 
-            <div class="wish-box">
-              <div style="font-size:16px; font-weight:800; color:#fff; margin-bottom:6px;">
-                📋 Wunschliste von ${esc(targetFirstName)}:
+            <div class="wish-box" style="padding:11px 12px; margin-top:10px;">
+              <div class="title-row" style="margin-bottom:4px;">
+                <div class="title-left">
+                  <div style="font-size:15px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    📋 Wunschliste (${esc(targetFirstName)})
+                  </div>
+                  ${!hasAnyTargetWish ? infoBtn("target_wish_empty", "Noch kein Wunsch", `Sobald ${targetFirstName} einen Wunsch einträgt, erscheint er automatisch hier und du erhältst eine Handy-Meldung.`) : ""}
+                </div>
               </div>
               ${hasAnyTargetWish ? `
-                ${target.wishText ? `<div style="margin-bottom:8px;">${esc(target.wishText).replace(/\n/g, "<br/>")}</div>` : ""}
+                ${target.wishText ? `<div style="margin-bottom:6px;">${esc(target.wishText).replace(/\n/g, "<br/>")}</div>` : ""}
                 ${allTargetUrls.map((u, i) => `
-                  <div style="margin-top:6px;">
-                    <a href="${esc(u.startsWith("http") ? u : "https://" + u)}" target="_blank" rel="noopener" style="font-weight:800; font-size:15.5px;">
-                      🛒 ${allTargetUrls.length === 1 ? "Wunschlisten-Link öffnen ↗" : `Wunsch-Link ${i + 1} öffnen ↗`}
+                  <div style="margin-top:5px;">
+                    <a href="${esc(u.startsWith("http") ? u : "https://" + u)}" target="_blank" rel="noopener" style="font-weight:800; font-size:15px; white-space:nowrap;">
+                      🛒 ${allTargetUrls.length === 1 ? "Wunsch-Link ↗" : `Link ${i + 1} ↗`}
                     </a>
                   </div>
                 `).join("")}
-                ${target.noGos ? `<div style="margin-top:8px; color:#fde68a;"><b>🚫 Bitte NICHT:</b> ${esc(target.noGos)}</div>` : ""}
-                ${target.address ? `<div style="margin-top:6px; color:var(--muted);"><b>📦 Größe / Adresse:</b> ${esc(target.address)}</div>` : ""}
+                ${target.noGos ? `<div style="margin-top:6px; color:#fde68a;"><b>🚫 Nicht:</b> ${esc(target.noGos)}</div>` : ""}
+                ${target.address ? `<div style="margin-top:4px; color:var(--muted);"><b>📦 Info:</b> ${esc(target.address)}</div>` : ""}
               ` : `
-                <div style="color:var(--muted);">
-                  <b>${esc(targetFirstName)}</b> hat bisher noch keinen Wunsch eingetragen.<br/>
-                  <span style="font-size:14px;">Sobald ${esc(targetFirstName)} etwas einträgt, erscheint es automatisch hier!</span>
-                </div>
+                <div style="color:var(--muted); font-size:14.5px;">Noch kein Wunsch eingetragen.</div>
               `}
             </div>
           </div>
 
-          <div style="border-top:1px solid var(--border); padding-top:12px; display:flex; flex-direction:column; gap:9px;">
-            <div style="font-size:16.5px; font-weight:800; color:#fff;">
-              💬 Anonyme Frage an ${esc(targetFirstName)}
-            </div>
-            <div style="font-size:14px; color:var(--muted);">
-              Du möchtest ${esc(targetFirstName)} etwas fragen (z. B. Größe, Farbe oder Geschmack)? Dein Name bleibt dabei 100 % geheim:
+          <div style="border-top:1px solid var(--border); padding-top:10px; display:flex; flex-direction:column; gap:8px;">
+            <div class="title-row">
+              <div class="title-left">
+                <div class="section-title" style="font-size:15.5px;">
+                  💬 Frage an ${esc(targetFirstName)}
+                </div>
+                ${infoBtn("ask_target", "Anonyme Frage", `Stelle ${targetFirstName} eine Frage (z. B. nach Größe, Farbe oder Geschmack). Dein Name bleibt 100 % geheim!`)}
+              </div>
             </div>
             ${renderMessagesBubbles(state.outMessages, "asSanta")}
-            <textarea id="msg-to-target" class="textarea" style="min-height:70px;" placeholder="Frage an ${esc(targetFirstName)} hier eintippen…"></textarea>
+            <textarea id="msg-to-target" class="textarea" style="min-height:66px;" placeholder="Frage an ${esc(targetFirstName)}…"></textarea>
             <button class="btn" onclick="sendChatMessage('toTarget')">
-              📨 Frage anonym an ${esc(targetFirstName)} senden
+              📨 Senden
             </button>
           </div>
         </div>
       `;
 
-      // Kasten 2: Eigener Wunschzettel (nur 1 klares Hauptfeld + Speichern!)
+      // Kasten 2: Eigener Wunschzettel
       const myOwnWishHtml = `
-        <div class="card" style="display:flex; flex-direction:column; gap:11px;">
-          <div class="section-title">📝 Dein eigener Wunschzettel</div>
-          <div style="font-size:14.5px; color:var(--muted);">
-            Schreib hier einfach rein, worüber du dich selbst freuen würdest. Nur die Person, die dich gezogen hat, kann das lesen:
+        <div class="card" style="display:flex; flex-direction:column; gap:9px;">
+          <div class="title-row">
+            <div class="title-left">
+              <div class="section-title">📝 Eigener Wunsch</div>
+              ${infoBtn("own_wish", "Dein Wunschzettel", "Schreibe hier rein, worüber du dich freuen würdest. Nur die Person, die dich gezogen hat, kann das lesen und wird automatisch benachrichtigt.")}
+            </div>
           </div>
-          <textarea id="w-text" class="textarea" placeholder="z. B. Spannendes Buch, dunkle Schokolade, warme Socken Gr. 42…">${esc(wd.wishText)}</textarea>
+          <textarea id="w-text" class="textarea" style="min-height:76px;" placeholder="z. B. Buch, dunkle Schokolade, Socken Gr. 42…">${esc(wd.wishText)}</textarea>
           <details ${hasExtraFieldsFilled ? "open" : ""}>
-            <summary>Optional: Internet-Link oder Adresse ergänzen</summary>
-            <div style="display:flex; flex-direction:column; gap:9px; margin-top:8px;">
+            <summary>➕ Link / Größe / Allergien</summary>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
               <div>
-                <label class="field-label">Link zu einem Wunsch / Amazon-Liste (optional)</label>
+                <label class="field-label">🛒 Wunsch-Link</label>
                 <input id="w-url" class="input" placeholder="https://..." value="${esc(wd.wishlistUrl)}" />
               </div>
               <div>
-                <label class="field-label">Bitte NICHT schenken / Allergien (optional)</label>
+                <label class="field-label">🚫 Nicht schenken / Allergien</label>
                 <input id="w-nogos" class="input" placeholder="z. B. Keine Nüsse…" value="${esc(wd.noGos)}" />
               </div>
               <div>
-                <label class="field-label">Größe oder Postadresse (optional)</label>
-                <input id="w-addr" class="input" placeholder="z. B. Größe L / Musterstr. 1…" value="${esc(wd.address)}" />
+                <label class="field-label">📦 Größe / Adresse</label>
+                <input id="w-addr" class="input" placeholder="z. B. Gr. L / Musterstr. 1…" value="${esc(wd.address)}" />
               </div>
             </div>
           </details>
           <button class="btn primary" onclick="saveMyWishlist()">
-            ✓ Meinen Wunsch speichern
+            ✓ Speichern
           </button>
         </div>
       `;
@@ -1230,10 +1348,10 @@
         }).filter(Boolean);
         revealAllHtml = `
           <div class="card highlight-alert">
-            <div class="section-title" style="color:var(--gold);">🎉 Offizielle Wichtel-Auflösung</div>
-            <div style="display:flex; flex-direction:column; gap:7px; margin-top:8px;">
+            <div class="section-title" style="color:var(--gold);">🎉 Auflösung</div>
+            <div style="display:flex; flex-direction:column; gap:6px; margin-top:8px;">
               ${allPairs.map(pr => `
-                <div style="background:var(--card-soft); padding:10px 12px; border-radius:10px; font-size:15.5px;">
+                <div style="background:var(--card-soft); padding:9px 11px; border-radius:10px; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                   🎅 <b>${esc(pr.giver)}</b> ➔ 🎁 <b>${esc(pr.receiver)}</b>
                 </div>
               `).join("")}
@@ -1243,7 +1361,7 @@
       }
 
       const switchFooterHtml = !state.openedViaDirectLink
-        ? `<div style="text-align:center; margin-top:4px;"><button class="btn small" style="background:transparent; color:var(--muted); border:none;" onclick="logoutSwitchPerson()">Nicht ${esc(me.name)}? Namen wechseln</button></div>`
+        ? `<div style="text-align:center;"><button class="btn small" style="background:transparent; color:var(--muted); border:none;" onclick="logoutSwitchPerson()">👤 Wechseln</button></div>`
         : "";
 
       app.innerHTML =

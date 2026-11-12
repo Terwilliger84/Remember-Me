@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.45 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.46 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -235,7 +235,34 @@
       transition: all 0.15s ease;
       user-select: none;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
       flex-shrink: 0;
+    }
+
+    .info-hint-btn {
+      width: 19px;
+      height: 19px;
+      border-radius: 50%;
+      border: 1.2px solid var(--accent-steel);
+      background: rgba(59, 130, 196, 0.15);
+      color: var(--accent-steel);
+      font-size: 11px;
+      font-weight: 800;
+      font-family: Georgia, serif;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .info-hint-btn:hover {
+      background: var(--accent-steel);
+      color: #FFFFFF;
     }
 
     .compact-btn:hover {
@@ -1019,10 +1046,39 @@
 
   <div id="modal-root"></div>
   <div id="calendar-root"></div>
+  <div id="info-hint-root"></div>
   <input type="file" id="backup-file-input" accept=".json" style="display:none;" onchange="importBackupFile(event)" />
   <input type="file" id="contact-photo-file-input" accept="image/*" style="display:none;" onchange="handleContactPhotoFile(event)" />
 
   <script>
+    const APP_INFO_HINTS = {};
+    function infoHintBtn(key, title, text) {
+      APP_INFO_HINTS[key] = { title, text };
+      return `<button type="button" class="info-hint-btn" onclick="event.stopPropagation(); openAppInfoHint('${key}')" title="Info anzeigen">i</button>`;
+    }
+    function openAppInfoHint(key) {
+      const item = APP_INFO_HINTS[key];
+      if (!item) return;
+      const root = document.getElementById("info-hint-root");
+      if (!root) return;
+      root.innerHTML = `
+        <div class="modal-backdrop" style="z-index:260;" onclick="closeAppInfoHint()">
+          <div class="modal" style="max-width:340px;" onclick="event.stopPropagation()">
+            <div class="modal-title" style="color:var(--accent-steel);">ℹ️ ${escapeHtml(item.title)}</div>
+            <div style="font-size:12.5px; color:var(--text-primary); line-height:1.45;">
+              ${escapeHtml(item.text).replace(/\n/g, "<br/>")}
+            </div>
+            <div class="modal-footer" style="justify-content:flex-end;">
+              <button class="compact-btn primary" onclick="closeAppInfoHint()">OK</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    function closeAppInfoHint() {
+      const root = document.getElementById("info-hint-root");
+      if (root) root.innerHTML = "";
+    }
     const RELATION_PRESETS = [
       "Kind von",
       "Mutter von",
@@ -2171,13 +2227,10 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div>
-            <div class="app-title">Remember Me v1.0.45</div>
-            <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
-          </div>
+          <div class="app-title">Remember Me v1.0.46</div>
           <div class="btn-row">
-            <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Design-Theme umschalten (Sanftes Blau / Nachtblau / Weihnachten / Klassisch)">${themeEmoji}</button>
-            <button class="compact-btn" onclick="syncDeviceContacts()">Sync</button>
+            <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
+            <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
             <button class="compact-btn primary" onclick="openCreateModal()">+ Neu</button>
             <button class="compact-btn" title="Optionen & Backup" onclick="openOptionsModal()">⚙</button>
           </div>
@@ -3334,13 +3387,13 @@
       const dupGroupsCount = findDuplicateSuggestionGroups(visibleList).length;
       const headerBar = `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; overflow-x:auto;">
             <div class="btn-row">
-              <button class="compact-btn" onclick="cycleContactSortMode()" title="Sortierreihenfolge umschalten (Nachname / Geburtstag / Vorname)">
+              <button class="compact-btn" onclick="cycleContactSortMode()">
                 ${getSortModeButtonLabel()}
               </button>
-              <button class="compact-btn ${dupGroupsCount > 0 ? 'primary' : ''}" onclick="openMergeContactsModal()" title="Doppelte oder mehrere Kontakte ohne doppelte Nummern/Mails/Adressen zusammenführen">
-                🔗 Zusammenführen${dupGroupsCount > 0 ? ` (${dupGroupsCount})` : ""}
+              <button class="compact-btn ${dupGroupsCount > 0 ? 'primary' : ''}" onclick="openMergeContactsModal()">
+                🔗 Vereinen${dupGroupsCount > 0 ? ` (${dupGroupsCount})` : ""}
               </button>
             </div>
             <div class="btn-row">
@@ -3348,7 +3401,7 @@
                 Alle (${visibleCount})
               </button>
               <button class="compact-btn ${allContactsFilter === 'hidden' ? 'primary' : ''}" onclick="allContactsFilter='hidden'; renderPhoneApp();">
-                Ausgeblendet (${hiddenCount})
+                👁 (${hiddenCount})
               </button>
             </div>
           </div>
@@ -4647,26 +4700,26 @@
 
       const unconnected = visiblePersons.filter(p => !genMap.has(p.id));
       const unconnectedHtml = unconnected.length > 0 ? `
-        <div class="card" style="padding:10px 11px; display:flex; flex-direction:column; gap:7px; border-radius:12px;">
-          <div style="font-size:12px; font-weight:600; color:var(--text-secondary);">
-            Weitere Kontakte (${unconnected.length}, noch nicht mit ${escapeHtml(formatLastNameFirst(rootPerson.name))} verknüpft):
-          </div>
-          <div style="font-size:11px; color:var(--text-muted);">
-            Tippe auf einen Kontakt, um ihn direkt mit ${escapeHtml(rootPerson.name)} im Stammbaum zu verknüpfen:
+        <div class="card" style="padding:9px 10px; display:flex; flex-direction:column; gap:6px; border-radius:12px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:12px; font-weight:700; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              Nicht verknüpft (${unconnected.length})
+            </span>
+            ${infoHintBtn("tree_unconnected", "Nicht verknüpfte Kontakte", `Tippe auf einen Kontakt, um ihn direkt mit ${rootPerson.name} im Stammbaum zu verknüpfen.`)}
           </div>
           ${renderContactSearchDropdownHtml({
             key: "tab_family_tree_unconnected",
             persons: unconnected,
             selectedPersonId: null,
-            placeholder: `🔗 Kontakt direkt mit ${rootPerson.name.split(" ")[0]} verknüpfen (${unconnected.length})...`,
+            placeholder: `🔗 Verknüpfen (${unconnected.length})...`,
             onSelectPersonJs: (pid) => `openTreeConnectionModal(${pid}, ${rootPerson.id})`,
             showInlineAlphabet: true,
             inModal: false
           })}
-          <div style="display:flex; flex-wrap:nowrap; overflow-x:auto; gap:6px; padding-bottom:2px;">
+          <div style="display:flex; flex-wrap:nowrap; overflow-x:auto; gap:5px; padding-bottom:2px;">
             ${unconnected.map(up => `
-              <button class="compact-btn" style="padding:5px 10px; font-size:11.5px; color:var(--accent-steel); flex-shrink:0;" onclick="openTreeConnectionModal(${up.id}, ${rootPerson.id})">
-                ➕ ${escapeHtml(formatLastNameFirst(up.name))}
+              <button class="compact-btn" style="padding:4px 9px; font-size:11px; color:var(--accent-steel); flex-shrink:0;" onclick="openTreeConnectionModal(${up.id}, ${rootPerson.id})">
+                + ${escapeHtml(formatLastNameFirst(up.name))}
               </button>
             `).join("")}
           </div>
@@ -4678,57 +4731,47 @@
       const pickedFirstObj = treeFirstPickedPersonId ? personMap.get(treeFirstPickedPersonId) : null;
 
       return `
-        <div class="card" style="padding:10px 12px; display:flex; flex-direction:column; gap:8px; border-radius:14px; background:linear-gradient(180deg, rgba(59,130,196,0.08) 0%, var(--card-slate) 100%);">
+        <div class="card" style="padding:9px 11px; display:flex; flex-direction:column; gap:7px; border-radius:14px; background:linear-gradient(180deg, rgba(59,130,196,0.08) 0%, var(--card-slate) 100%);">
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="section-icon-badge" style="border-color:var(--tree-green); background:rgba(21,128,61,0.14);">🌳</span>
             <div style="min-width:0; flex:1;">
-              <div style="font-size:14px; font-weight:700; color:var(--text-primary); white-space:nowrap;">Familien-Stammbaum</div>
-              <div style="font-size:10.5px; color:var(--text-secondary); white-space:nowrap; overflow-x:auto;">
-                ${positionedNodes.length} Personen · ${sortedLevels.length} ${sortedLevels.length === 1 ? 'Ebene' : 'Generationen'} · ${treeEdges.length} Verbindungen
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:14px; font-weight:700; color:var(--text-primary); white-space:nowrap;">Familien-Stammbaum</span>
+                ${infoHintBtn("tree_legend", "Stammbaum & Linien", "Linien-Farben:\n• Blau (━━): Eltern ↔ Kind\n• Rosa (━❤️━): Partner / Ehe\n• Grün (━🤝━): Geschwister\n• Violett (╌╌): Weitere Familie\n\nBedienung: Ziehen & Zoomen per Maus/Touch. Über „✏️ Linien“ Verbindungen antippen oder 2 Personen wählen.")}
+              </div>
+              <div style="font-size:10.5px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                ${positionedNodes.length} Pers. · ${sortedLevels.length} Ebenen · ${treeEdges.length} Linien
               </div>
             </div>
           </div>
 
           ${focusDropdownHtml}
 
-          <div style="display:flex; gap:6px; align-items:center; overflow-x:auto; white-space:nowrap;">
-            <button class="compact-btn ${treeEditConnectionsMode ? 'primary' : ''}" style="font-weight:700; padding:5px 10px;" onclick="toggleTreeEditConnectionsMode()">
-              ${treeEditConnectionsMode ? '✓ Bearbeiten aktiv' : '✏️ Verbindungen ändern'}
+          <div style="display:flex; gap:5px; align-items:center; overflow-x:auto; white-space:nowrap;">
+            <button class="compact-btn ${treeEditConnectionsMode ? 'primary' : ''}" style="font-weight:700; padding:5px 9px;" onclick="toggleTreeEditConnectionsMode()">
+              ${treeEditConnectionsMode ? '✓ Linien' : '✏️ Linien'}
             </button>
             ${defaultOtherId > 0 ? `
-              <button class="compact-btn" style="padding:5px 10px; font-weight:600;" onclick="openTreeConnectionModal(${rootPerson.id}, ${defaultOtherId})">
-                ➕ Verknüpfen
+              <button class="compact-btn" style="padding:5px 9px; font-weight:600;" onclick="openTreeConnectionModal(${rootPerson.id}, ${defaultOtherId})">
+                + Neu
               </button>
             ` : ""}
             ${treeEdges.length > 0 ? `
-              <button class="compact-btn" style="padding:5px 10px; font-weight:600;" onclick="showAllTreeEdgesModal=true; renderModals();">
-                📋 Alle Linien (${treeEdges.length})
+              <button class="compact-btn" style="padding:5px 9px; font-weight:600;" onclick="showAllTreeEdgesModal=true; renderModals();">
+                📋 (${treeEdges.length})
               </button>
             ` : ""}
-          </div>
-
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
-            <span style="font-size:11px; color:var(--text-muted);">🔍 Zoom & ✋ Ziehen:</span>
-            <div class="btn-row" style="gap:4px;">
-              <button class="compact-btn" style="padding:3px 8px; font-weight:700;" onclick="zoomTreeBy(-0.15)" title="Rauszoomen">➖</button>
-              <button class="compact-btn ${zoomPct === 100 && treePanX === 0 && treePanY === 0 ? 'primary' : ''}" style="padding:3px 8px; font-size:11px;" onclick="resetTreeZoom()" title="Auf 100% & Mitte zurücksetzen">${zoomPct}%</button>
-              <button class="compact-btn" style="padding:3px 8px; font-weight:700;" onclick="zoomTreeBy(0.15)" title="Reinzoomen">➕</button>
-              <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="fitTreeZoom(${maxRowCount}, ${sortedLevels.length})" title="Stammbaum komplett einpassen">⛶ Passend</button>
-            </div>
-          </div>
-
-          <div style="display:flex; gap:10px; align-items:center; overflow-x:auto; white-space:nowrap; font-size:10.5px; color:var(--text-secondary);">
-            <span><b style="color:var(--accent-steel);">━━</b> Eltern ↔ Kind</span>
-            <span><b style="color:var(--partner-rose);">━❤️━</b> Partner / Ehe</span>
-            <span><b style="color:var(--tree-green);">━🤝━</b> Geschwister</span>
-            <span><b style="color:#8B5CF6;">╌╌</b> Weitere Familie</span>
+            <button class="compact-btn" style="padding:4px 8px; font-weight:700;" onclick="zoomTreeBy(-0.15)">➖</button>
+            <button class="compact-btn ${zoomPct === 100 && treePanX === 0 && treePanY === 0 ? 'primary' : ''}" style="padding:4px 8px; font-size:11px;" onclick="resetTreeZoom()">${zoomPct}%</button>
+            <button class="compact-btn" style="padding:4px 8px; font-weight:700;" onclick="zoomTreeBy(0.15)">➕</button>
+            <button class="compact-btn" style="padding:4px 8px; font-size:11px;" onclick="fitTreeZoom(${maxRowCount}, ${sortedLevels.length})">⛶</button>
           </div>
         </div>
 
         ${treeEditConnectionsMode ? `
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; background:rgba(59,130,196,0.14); border:1px solid var(--accent-steel); border-radius:10px; padding:8px 11px; font-size:11.5px; color:var(--text-primary);">
-            <span>${pickedFirstObj ? `1. Person: <b>${escapeHtml(pickedFirstObj.name)}</b> gewählt — tippe jetzt auf die 2. Person!` : '✏️ Tippe auf ein ✏️-Badge einer Linie ODER tippe nacheinander 2 Personen an, um ihre Verbindung zu ändern.'}</span>
-            ${pickedFirstObj ? `<button class="compact-btn" onclick="treeFirstPickedPersonId=null; renderPhoneApp();">Auswahl ✕</button>` : ""}
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; background:rgba(59,130,196,0.14); border:1px solid var(--accent-steel); border-radius:8px; padding:6px 10px; font-size:11.5px; color:var(--text-primary); white-space:nowrap; overflow:hidden;">
+            <span style="overflow:hidden; text-overflow:ellipsis;">${pickedFirstObj ? `1.: <b>${escapeHtml(pickedFirstObj.name)}</b> → 2. Person wählen` : '✏️ Linie oder 2 Personen nacheinander antippen'}</span>
+            ${pickedFirstObj ? `<button class="compact-btn" style="padding:3px 7px;" onclick="treeFirstPickedPersonId=null; renderPhoneApp();">✕</button>` : ""}
           </div>
         ` : ""}
 
@@ -4876,14 +4919,14 @@
       const searchCard = `
         <div class="card" style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-            <span style="font-size:13.5px; font-weight:700; color:var(--text-primary);">⏳ Melde-Timer (${allTimerPersons.length})</span>
-            <button class="compact-btn primary" onclick="openTimerEntryModal()">＋ Timer-Eintrag</button>
+            <span style="font-size:13.5px; font-weight:700; color:var(--text-primary); white-space:nowrap;">⏳ Timer (${allTimerPersons.length})</span>
+            <button class="compact-btn primary" onclick="openTimerEntryModal()">+ Neu</button>
           </div>
           ${renderContactSearchDropdownHtml({
             key: "tab_timer",
             persons: allTimerPersons,
             selectedPersonId: null,
-            placeholder: `🔎 Timer-Kontakt suchen / per Dropdown wählen (${timerPersons.length}/${allTimerPersons.length})...`,
+            placeholder: `🔎 Suchen (${timerPersons.length}/${allTimerPersons.length})...`,
             onSelectPersonJs: (pid) => `openTimerEntryModal(${pid})`,
             showInlineAlphabet: true,
             inModal: false,
@@ -4893,15 +4936,14 @@
       `;
 
       const emptyHtml = timerPersons.length === 0 ? `
-        <div class="card" style="display:flex; flex-direction:column; gap:8px;">
-          <div style="font-size:12px; color:var(--text-secondary);">
-            ${allTimerPersons.length === 0
-              ? "Noch keine aktiven Melde-Timer vorhanden. Tippe auf „＋ Timer-Eintrag“, um manuell einen Timer für einen Kontakt zu erstellen."
-              : "Keine Timer-Einträge für diesen ABCD-/Suchfilter gefunden."}
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+            <span style="font-size:12px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              ${allTimerPersons.length === 0 ? "Keine Timer aktiv." : "Keine Treffer."}
+            </span>
+            ${allTimerPersons.length === 0 ? infoHintBtn("timer_empty", "Melde-Timer", "Erinnert dich automatisch in frei wählbaren Abständen (z. B. alle 14 Tage), dich wieder bei einem Kontakt zu melden.") : ""}
           </div>
-          <div>
-            <button class="compact-btn primary" onclick="openTimerEntryModal()">＋ Manuell Timer-Eintrag erstellen</button>
-          </div>
+          ${allTimerPersons.length === 0 ? `<button class="compact-btn primary" onclick="openTimerEntryModal()">+ Timer</button>` : ""}
         </div>
       ` : "";
 
@@ -5176,17 +5218,17 @@
         : WICHTEL_PORTAL_BASE_URL;
 
       const topBar = `
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
-          <div style="display:flex; gap:5px; flex-wrap:wrap;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; overflow-x:auto; margin-bottom:4px;">
+          <div style="display:flex; gap:5px; overflow-x:auto; flex:1; min-width:0;">
             ${groups.map(g => `
               <button class="compact-btn ${g.id === selectedWichtelGroupId ? 'primary' : ''}" onclick="selectedWichtelGroupId=${g.id}; renderPhoneApp(); if (g && g.isDrawn && g.cloudRoundId) syncWichtelRoundLiveStatus(${g.id}, false);">
                 🎄 ${escapeHtml(g.groupName)}
               </button>
             `).join("")}
           </div>
-          <div style="display:flex; gap:5px;">
-            <a href="${escapeHtml(portalTopHref)}" target="_blank" rel="noopener" class="compact-btn" style="text-decoration:none;" title="Öffentliches Familien-Wichtelportal öffnen">🌐 Portal ↗</a>
-            <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">+ Neue Runde</button>
+          <div style="display:flex; gap:4px; flex-shrink:0;">
+            <a href="${escapeHtml(portalTopHref)}" target="_blank" rel="noopener" class="compact-btn" style="text-decoration:none;">🌐 Portal</a>
+            <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">+ Neu</button>
           </div>
         </div>
       `;
@@ -5194,12 +5236,12 @@
       const group = groups.find(g => g.id === selectedWichtelGroupId);
       if (!group) {
         return topBar + `
-          <div class="card">
-            <div style="font-size:14px; font-weight:600; margin-bottom:4px;">🎄 Noch keine Wichtelrunde erstellt</div>
-            <div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">
-              Erstelle als Gruppenadmin eine neue Wichtelrunde, kreuze Kontakte an und lade danach ALLE Familienmitglieder mit 1 Klick über das Appwrite-Online-Wichtelportal ein – ganz ohne App und 100 % Admin-blind!
+          <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+              <span style="font-size:13.5px; font-weight:700; white-space:nowrap;">🎄 Keine Wichtelrunde</span>
+              ${infoHintBtn("wichtel_empty", "Online-Wichteln", "Erstelle eine Runde, kreuze Kontakte (inkl. Paar-Sperre) an und sende die geheimen Lose mit 1 Klick über das Online-Portal – ohne App-Zwang und 100 % Admin-blind!")}
             </div>
-            <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">🎄 Erste Wichtelrunde starten</button>
+            <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">+ Starten</button>
           </div>
         `;
       }
@@ -5211,10 +5253,8 @@
 
       const revealed = isWichtelGroupRevealed(group);
       const revealDateFormatted = formatIsoToDdMmYyyy(group.revealDateIso) || "24.12.";
-      const daysUntilReveal = group.revealDateIso ? daysBetween(todayIso(), group.revealDateIso) : 0;
 
       const openedCount = group.participants.filter(p => p.cloudOpened).length;
-      const pinCount = group.participants.filter(p => p.cloudHasPin).length;
       const pushCount = group.participants.filter(p => p.cloudHasPush).length;
       const wishCount = group.participants.filter(p => p.cloudHasWishlist || (p.wishText && p.wishText.trim()) || (p.wishlistUrl && p.wishlistUrl.trim())).length;
       const sentCount = group.participants.filter(p => p.notifiedVia && p.notifiedVia.trim()).length;
@@ -5226,120 +5266,112 @@
 
       const statusBanner = !group.isDrawn
         ? `
-          <div style="background:rgba(56, 189, 248, 0.12); border:1px solid var(--accent-steel); border-radius:8px; padding:9px 11px; margin-top:8px; font-size:12px; color:var(--text-primary);">
-            🎲 <b>Bereit zum Würfeln:</b> Sobald alle Teilnehmer eingetragen sind, tippe auf <b>„🎲 Jetzt auslosen!“</b>. Alle Lose werden automatisch verschlüsselt ins Appwrite-Familienportal geladen – selbst du als Admin siehst nicht, wer wen gezogen hat!
+          <div style="display:flex; align-items:center; gap:6px; background:rgba(56, 189, 248, 0.12); border:1px solid var(--accent-steel); border-radius:8px; padding:7px 10px; margin-top:7px; font-size:12px; color:var(--text-primary);">
+            <span style="font-weight:700; white-space:nowrap;">🎲 Bereit (${group.participants.length} Teiln.)</span>
+            ${infoHintBtn("wichtel_ready", "Geheime Auslosung", "Kreuze über „☑️ Teiln.“ alle Personen an und tippe auf „🎲 Auslosen“. Alle Lose werden automatisch verschlüsselt ins Online-Portal geladen – selbst du als Admin siehst nicht, wer wen gezogen hat!")}
           </div>
         `
         : (!revealed
           ? `
-            <div style="background:rgba(16, 185, 129, 0.12); border:1.5px solid var(--tree-green); border-radius:9px; padding:10px 12px; margin-top:8px; font-size:12px; color:var(--text-primary); display:flex; flex-direction:column; gap:7px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-                <span style="font-weight:700; color:var(--tree-green);">🔒 100 % Admin-Blind & Online-Portal aktiv (bis ${escapeHtml(revealDateFormatted)}${daysUntilReveal > 0 ? ` • ${daysUntilReveal}T` : ""})</span>
-                <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="syncWichtelRoundLiveStatus(${group.id}, true)">
-                  ${wichtelCloudBusy ? "⏳ Sync…" : "🔄 Live-Status"}
-                </button>
-              </div>
-              <div style="font-size:11px; color:var(--text-secondary); line-height:1.38;">
-                Seniorenfreundliche 1-Seiten-Maske ohne Untermenüs – inkl. automatischer Handy-Meldung (Web-Push) bei neuen Nachrichten & Wünschen, auch wenn der Browser geschlossen ist!
-              </div>
-              <div style="font-size:11.5px; font-weight:600; color:var(--text-primary);">
-                📊 Versendet: <b>${sentCount}/${group.participants.length}</b> • 👀 Geöffnet: <b>${openedCount}/${group.participants.length}</b> • 🔔 Meldungen: <b>${pushCount}</b> • 📝 Wunschlisten: <b>${wishCount}</b>
-                ${group.cloudSyncedAt ? `<span style="color:var(--text-muted); font-weight:400;"> • Stand: ${escapeHtml(group.cloudSyncedAt)}</span>` : ""}
-              </div>
-              <div onclick="openWichtelQuickSendModal(${group.id})" style="cursor:pointer; background:rgba(16, 185, 129, 0.22); border:1.5px solid var(--tree-green); border-radius:8px; padding:9px 11px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
-                <div>
-                  <div style="font-size:12.5px; font-weight:700; color:var(--text-primary);">🚀 Zugangs-Links schnell an alle senden (${sentCount}/${group.participants.length})</div>
-                  <div style="font-size:10.5px; color:var(--text-secondary);">WhatsApp, E-Mail oder Alternativ-App – 1-Klick-Reihenfolge für alle Teilnehmer</div>
+            <div style="background:rgba(16, 185, 129, 0.12); border:1.5px solid var(--tree-green); border-radius:9px; padding:8px 10px; margin-top:7px; font-size:12px; color:var(--text-primary); display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+                  <span style="font-weight:700; color:var(--tree-green); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🔒 Portal aktiv (${escapeHtml(revealDateFormatted)})</span>
+                  ${infoHintBtn("wichtel_portal", "Online-Portal & Handy-Meldungen", "Beim Antippen des persönlichen Links öffnet sich sofort eine einfache 1-Seiten-Maske mit gezogener Person, Wunschliste, automatischen Handy-Meldungen (Web-Push) und anonymem Chat – 100 % Admin-blind!")}
                 </div>
-                <span style="font-size:12px; font-weight:700; color:var(--tree-green); white-space:nowrap;">Öffnen ➔</span>
-              </div>
-              <div style="font-size:11px; font-weight:700; color:var(--accent-steel);">Oder gemeinsamen Runden-Link senden:</div>
-              <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                <button class="compact-btn" style="padding:5px 10px; font-size:11.5px; font-weight:600;" onclick="shareWichtelGroupPortalWhatsApp(${group.id})">
-                  📲 Gruppen-Link (WhatsApp)
+                <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="syncWichtelRoundLiveStatus(${group.id}, true)">
+                  ${wichtelCloudBusy ? "⏳ Sync" : "🔄 Sync"}
                 </button>
-                <button class="compact-btn" style="padding:5px 10px; font-size:11.5px;" onclick="shareWichtelGroupPortalAnyApp(${group.id})">
-                  📤 Gruppen-Link teilen
+              </div>
+              <div style="font-size:11px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                📊 Gesendet ${sentCount}/${group.participants.length} · 👀 ${openedCount} · 🔔 ${pushCount} · 📝 ${wishCount}${group.cloudSyncedAt ? ` · ${escapeHtml(group.cloudSyncedAt)}` : ""}
+              </div>
+              <div onclick="openWichtelQuickSendModal(${group.id})" style="cursor:pointer; background:rgba(16, 185, 129, 0.22); border:1.5px solid var(--tree-green); border-radius:7px; padding:7px 10px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+                  <span style="font-size:12px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🚀 Einzeln senden (${sentCount}/${group.participants.length})</span>
+                  ${infoHintBtn("wichtel_quicksend", "Schnellversand", "Sende jedem Teilnehmer seinen persönlichen Direkt-Link nacheinander mit 1 Klick per WhatsApp, E-Mail oder einer anderen App.")}
+                </div>
+                <span style="font-size:11.5px; font-weight:700; color:var(--tree-green); white-space:nowrap;">Öffnen ➔</span>
+              </div>
+              <div style="display:flex; gap:5px; overflow-x:auto;">
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px; font-weight:600;" onclick="shareWichtelGroupPortalWhatsApp(${group.id})">
+                  📲 Gruppe
+                </button>
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="shareWichtelGroupPortalAnyApp(${group.id})">
+                  📤 Teilen
                 </button>
                 ${emailCount > 0 ? `
-                  <button class="compact-btn" style="padding:5px 10px; font-size:11.5px;" onclick="sendWichtelBulkEmailInvite(${group.id})">
-                    ✉️ Sammel-Mail (${emailCount})
+                  <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="sendWichtelBulkEmailInvite(${group.id})">
+                    ✉️ Mail (${emailCount})
                   </button>
                 ` : ""}
-                <button class="compact-btn" style="padding:5px 10px; font-size:11.5px;" onclick="copyWichtelGroupPortalUrl(${group.id})">
-                  📋 Gruppen-Link kopieren
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="copyWichtelGroupPortalUrl(${group.id})">
+                  📋 Link
                 </button>
               </div>
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; background:var(--card-slate); border:1px solid ${(group.cloudUnreadMessages || 0) > 0 ? 'var(--warn-amber)' : 'var(--border-slate)'}; border-radius:7px; padding:6px 9px;">
-                <div>
-                  <div style="font-size:11px; font-weight:700; color:${(group.cloudUnreadMessages || 0) > 0 ? 'var(--warn-amber)' : 'var(--text-secondary)'};">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; background:var(--card-slate); border:1px solid ${(group.cloudUnreadMessages || 0) > 0 ? 'var(--warn-amber)' : 'var(--border-slate)'}; border-radius:7px; padding:5px 8px;">
+                <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+                  <span style="font-size:11px; font-weight:700; color:${(group.cloudUnreadMessages || 0) > 0 ? 'var(--warn-amber)' : 'var(--text-secondary)'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                     ${(group.cloudUnreadMessages || 0) > 0
-                      ? `🕵️ ${group.cloudUnreadMessages} ungelesene anonyme Nachricht(en) im Portal!`
-                      : `🕵️ Anonymer Fragen-Chat: ${group.cloudTotalMessages || 0} Nachrichten (alles gelesen)`}
-                  </div>
-                  <div style="font-size:10px; color:var(--text-muted);">100 % anonym zwischen Wichtel & Wichtelkind – Teilnehmer mit aktivierter 🔔 Handy-Meldung werden automatisch benachrichtigt!</div>
+                      ? `🕵️ ${group.cloudUnreadMessages} ungelesen`
+                      : `🕵️ Chat: ${group.cloudTotalMessages || 0}`}
+                  </span>
+                  ${infoHintBtn("wichtel_chat", "Anonymer Fragen-Chat", "Teilnehmer schreiben ihrem Wichtelkind oder Wichtel im Portal 100 % anonym. Mit „📣 Hinweis“ sendest du eine neutrale Erinnerung in die Gruppe.")}
                 </div>
-                <button class="compact-btn" style="padding:4px 8px; font-size:11px; white-space:nowrap;" onclick="shareNeutralWichtelInboxNudge(${group.id})">
-                  📣 Gruppen-Hinweis
+                <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="shareNeutralWichtelInboxNudge(${group.id})">
+                  📣 Hinweis
                 </button>
               </div>
             </div>
           `
           : `
-            <div style="background:rgba(245, 158, 11, 0.16); border:1px solid var(--warn-amber); border-radius:8px; padding:10px 11px; margin-top:8px; font-size:12px; color:var(--text-primary);">
-              <div style="font-weight:700; color:var(--warn-amber); margin-bottom:6px;">🔓 Wichtelrunde aufgelöst (${escapeHtml(revealDateFormatted)}) – Alle Paarungen sind jetzt sichtbar:</div>
-              <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="background:rgba(245, 158, 11, 0.16); border:1px solid var(--warn-amber); border-radius:8px; padding:8px 10px; margin-top:7px; font-size:12px; color:var(--text-primary);">
+              <div style="font-weight:700; color:var(--warn-amber); margin-bottom:4px; white-space:nowrap;">🔓 Aufgelöst (${escapeHtml(revealDateFormatted)}):</div>
+              <div style="display:flex; flex-direction:column; gap:3px;">
                 ${group.participants.map(p => {
                   const target = group.participants.find(x => x.id === p.drawnTargetId);
-                  return `<div style="background:var(--bg-slate); padding:5px 8px; border-radius:5px; border:1px solid var(--border-slate); font-size:12px;">🎁 <b>${escapeHtml(p.name)}</b> ➔ hat <b>${escapeHtml(target ? target.name : '?')}</b> beschenkt</div>`;
+                  return `<div style="font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🎁 <b>${escapeHtml(p.name)}</b> ➔ <b>${escapeHtml(target ? target.name : '?')}</b></div>`;
                 }).join("")}
               </div>
             </div>
           `);
 
       const groupHeaderCard = `
-        <div class="card" style="border-color:var(--accent-steel);">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-            <div>
-              <div style="font-size:16px; font-weight:700; color:var(--text-primary);">🎄 ${escapeHtml(group.groupName)}</div>
-              <div style="font-size:12px; color:var(--text-secondary); margin-top:3px;">
-                👑 Admin: <b>${escapeHtml(group.adminName || "Admin")}</b>
-                ${group.budget ? ` • 💶 Budget: <b>${escapeHtml(group.budget)}</b>` : ""}
+        <div class="card" style="padding:10px 11px; border-color:var(--accent-steel);">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <div style="min-width:0; flex:1;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:15px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🎄 ${escapeHtml(group.groupName)}</span>
+                ${infoHintBtn("wichtel_meta", "Runden-Details", `👑 Admin: ${group.adminName || "Admin"}\n🎭 Modus: ${group.motto || "🎁 Klassisches Wichteln"}\n💶 Budget: ${group.budget || "—"}\n📅 Auflösung: ${revealDateFormatted}\n⏰ Wecker: ${group.reminderDaysBefore || 7}T vorher\n💑 Paar-Sperre: ${group.excludeCouples ? "Aktiv" : "Aus"}\n🔄 Keine Wiederholung: ${group.excludeLastYear !== false ? "Aktiv" : "Aus"}`)}
               </div>
-              <div style="font-size:11.5px; color:var(--tree-green); font-weight:600; margin-top:2px;">
-                ${escapeHtml(group.motto || "🎁 Klassisches Wichteln")}
-                ${group.reminderDaysBefore ? ` • ⏰ Wecker: ${group.reminderDaysBefore}T vorher` : ""}
-              </div>
-              <div style="font-size:11px; color:var(--accent-steel); margin-top:2px;">
-                📅 Auflösungs-Frist: <b>${escapeHtml(revealDateFormatted)}</b>
-                ${group.excludeCouples ? ` • 💑 Paar-Sperre` : ""}
-                ${group.excludeLastYear !== false ? ` • 📜 Keine Wiederholungen (Historie aktiv)` : ""}
+              <div style="font-size:11px; color:var(--text-secondary); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                👑 ${escapeHtml(group.adminName || "Admin")}${group.budget ? ` · 💶 ${escapeHtml(group.budget)}` : ""} · 📅 ${escapeHtml(revealDateFormatted)}
               </div>
             </div>
             <div class="btn-row">
-              <button class="compact-btn" onclick="openWichtelGroupModal('edit', ${group.id})" title="Runde bearbeiten">✏️</button>
-              <button class="compact-btn danger" onclick="deleteWichtelGroup(${group.id})" title="Runde löschen">🗑️</button>
+              <button class="compact-btn" onclick="openWichtelGroupModal('edit', ${group.id})" title="Bearbeiten">✏️</button>
+              <button class="compact-btn danger" onclick="deleteWichtelGroup(${group.id})" title="Löschen">🗑️</button>
             </div>
           </div>
 
           ${statusBanner}
 
-          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
-            <button class="compact-btn primary" style="flex:1; font-weight:700;" onclick="rollWichtelGroup(${group.id})">
-              🎲 ${group.isDrawn ? "Neu würfeln" : "Jetzt auslosen!"}
+          <div style="display:flex; gap:5px; overflow-x:auto; margin-top:8px;">
+            <button class="compact-btn primary" style="font-weight:700;" onclick="rollWichtelGroup(${group.id})">
+              🎲 ${group.isDrawn ? "Neu losen" : "Auslosen"}
             </button>
             <button class="compact-btn" onclick="openWichtelParticipantModal('add', ${group.id})">
-              ☑️ Teilnehmer (${group.participants.length})
+              ☑️ Teiln. (${group.participants.length})
             </button>
-            <button class="compact-btn" onclick="sendWichtelDeadlineReminder(${group.id})" title="Geschenk-Besorgungs-Wecker an alle senden">
+            <button class="compact-btn" onclick="sendWichtelDeadlineReminder(${group.id})">
               ⏰ Wecker
             </button>
             ${group.isDrawn ? `
-              <button class="compact-btn" onclick="toggleWichtelForceReveal(${group.id})" title="Wichtelrunde auflösen / verbergen">
+              <button class="compact-btn" onclick="toggleWichtelForceReveal(${group.id})">
                 ${revealed ? "🔒 Verbergen" : "🔓 Auflösen"}
               </button>
-              <button class="compact-btn" onclick="archiveAndShareWichtelGroup(${group.id})" title="Wichtelperiode abschließen, in Historie speichern & an alle Teilnehmer senden">
-                📜 In Historie abschließen
+              <button class="compact-btn" onclick="archiveAndShareWichtelGroup(${group.id})">
+                📜 Abschließen
               </button>
             ` : ""}
           </div>
@@ -5356,91 +5388,75 @@
         const isAdminSelf = (part.name || "").trim().toLowerCase() === (group.adminName || "").trim().toLowerCase();
 
         const secretLine = !group.isDrawn
-          ? `<span style="color:var(--text-muted);">Noch nicht ausgelost</span>`
+          ? `<span style="color:var(--text-muted);">⏳ Offen</span>`
           : (revealed && target
-            ? `<span style="color:var(--warn-amber); font-weight:700;">🎁 Hat gezogen: ${escapeHtml(target.name)}</span>`
-            : `<span style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <span style="color:${part.cloudOpened ? 'var(--tree-green)' : 'var(--text-muted)'}; font-weight:600;">${part.cloudOpened ? '✅ Los online geöffnet' : '⏳ Los noch ungeöffnet'}</span>
-                ${part.cloudHasPush ? `<span style="color:var(--tree-green); font-weight:700;">🔔 Handy-Meldung aktiv</span>` : ""}
-                ${part.cloudHasPin ? `<span style="color:var(--accent-steel); font-weight:600;">🔒 PIN aktiv</span>` : ""}
-                ${(part.cloudHasWishlist || (part.wishText && part.wishText.trim()) || allUrls.length > 0) ? `<span style="color:var(--tree-green); font-weight:600;">📝 Wunschzettel</span>` : ""}
+            ? `<span style="color:var(--warn-amber); font-weight:700;">🎁 ➔ ${escapeHtml(target.name)}</span>`
+            : `<span style="display:inline-flex; gap:7px; align-items:center; white-space:nowrap;">
+                <span style="color:${part.cloudOpened ? 'var(--tree-green)' : 'var(--text-muted)'}; font-weight:600;">${part.cloudOpened ? '✅ Offen' : '⏳ Ungeöffnet'}</span>
+                ${part.cloudHasPush ? `<span style="color:var(--tree-green); font-weight:700;">🔔 Aktiv</span>` : ""}
+                ${part.cloudHasPin ? `<span style="color:var(--accent-steel); font-weight:600;">🔒 PIN</span>` : ""}
+                ${(part.cloudHasWishlist || (part.wishText && part.wishText.trim()) || allUrls.length > 0) ? `<span style="color:var(--tree-green); font-weight:600;">📝 Wunsch</span>` : ""}
               </span>`);
 
         const historyExclusionBadges = [];
         if (lastYearTarget && !pastHistoryTargets.some(h => h.receiverName === lastYearTarget.name)) {
-          historyExclusionBadges.push(`≠ ${lastYearTarget.name.split(" ")[0]}`);
+          historyExclusionBadges.push(`${lastYearTarget.name}`);
         }
         pastHistoryTargets.forEach(h => {
-          const shortR = (h.receiverName || "").split(" ")[0];
-          const label = h.year ? `≠ ${shortR} (${h.year})` : `≠ ${shortR}`;
+          const label = h.year ? `${h.receiverName} (${h.year})` : `${h.receiverName}`;
           if (!historyExclusionBadges.includes(label)) historyExclusionBadges.push(label);
         });
 
         return `
-          <div class="card" style="padding:10px 12px; ${partnerInGroup && group.excludeCouples ? 'border-left: 3px solid var(--partner-rose);' : ''}">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+          <div class="card" style="padding:8px 10px; ${partnerInGroup && group.excludeCouples ? 'border-left: 3px solid var(--partner-rose);' : ''}">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
               ${renderPersonAvatarHtml(part.name)}
               <div style="flex:1; min-width:0;">
-                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                  <span style="font-size:14px; font-weight:600; color:var(--text-primary);">${escapeHtml(part.name)}</span>
-                  ${isAdminSelf ? `<span class="badge-app">👑 Admin</span>` : ""}
-                  ${partnerInGroup && group.excludeCouples ? `<span style="font-size:10.5px; padding:1px 6px; border-radius:4px; background:rgba(244,63,94,0.16); color:var(--partner-rose); font-weight:700;">💑 Paar mit ${escapeHtml(partnerInGroup.name.split(" ")[0])} (gesperrt füreinander)</span>` : ""}
-                  ${part.notifiedVia ? `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(16,185,129,0.16); color:var(--tree-green); font-weight:600;">✓ ${escapeHtml(part.notifiedVia)}</span>` : ""}
+                <div style="display:flex; align-items:center; gap:5px; white-space:nowrap; overflow:hidden;">
+                  <span style="font-size:13.5px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis;">${escapeHtml(part.name)}</span>
+                  ${isAdminSelf ? `<span>👑</span>` : ""}
+                  ${partnerInGroup && group.excludeCouples ? `<span style="font-size:10px; color:var(--partner-rose); font-weight:700;">💑 ${escapeHtml(partnerInGroup.name.split(" ")[0])}</span>` : ""}
+                  ${part.notifiedVia ? `<span style="font-size:10px; color:var(--tree-green); font-weight:700;">✓ ${escapeHtml(part.notifiedVia)}</span>` : ""}
+                  ${group.excludeLastYear !== false && historyExclusionBadges.length > 0 ? infoHintBtn(`hist_${part.id}`, `Historie-Sperre (${part.name})`, "Bereits beschenkt:\n• " + historyExclusionBadges.join("\n• ")) : ""}
                 </div>
-                <div style="font-size:11.5px; margin-top:3px;">
+                <div style="font-size:11px; margin-top:2px; overflow-x:auto; white-space:nowrap;">
                   ${secretLine}
                 </div>
-                ${group.excludeLastYear !== false && historyExclusionBadges.length > 0 ? `
-                  <div style="font-size:10.5px; color:var(--accent-steel); margin-top:2px;">
-                    📜 <b>Keine Wiederholung (Historie):</b> ${escapeHtml(historyExclusionBadges.join(", "))}
-                  </div>
-                ` : ""}
                 ${part.wishText ? `
-                  <div style="font-size:11.5px; color:var(--text-secondary); margin-top:4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                    <span>🎁 <b>Wunsch:</b> ${escapeHtml(part.wishText)}</span>
-                    <a href="https://www.amazon.de/s?k=${encodeURIComponent(part.wishText)}" target="_blank" rel="noopener" style="font-size:10.5px; color:var(--accent-steel); text-decoration:none; background:rgba(56,189,248,0.12); padding:1px 6px; border-radius:4px; font-weight:600;">🔎 Amazon-Suche ↗</a>
-                  </div>
-                ` : ""}
-                ${part.noGos ? `<div style="font-size:11px; color:var(--warn-amber); margin-top:3px;">🚫 <b>Bitte NICHT / Hinweis:</b> ${escapeHtml(part.noGos)}</div>` : ""}
-                ${part.address ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">📦 <b>Adresse:</b> ${escapeHtml(part.address)}</div>` : ""}
-                ${allUrls.length > 0 ? `
-                  <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                    ${allUrls.map((u, idx) => `
-                      <a href="${escapeHtml(u)}" target="_blank" rel="noopener" style="font-size:11px; color:var(--accent-steel); text-decoration:none; font-weight:600;">
-                        🛒 ${idx === 0 ? 'Amazon-Wunschliste' : `Wunsch-Link ${idx + 1}`} ↗
-                      </a>
-                    `).join(" • ")}
+                  <div style="font-size:11px; color:var(--text-secondary); margin-top:2px; display:flex; align-items:center; gap:5px; white-space:nowrap; overflow:hidden;">
+                    <span style="overflow:hidden; text-overflow:ellipsis;">🎁 ${escapeHtml(part.wishText)}</span>
+                    <a href="https://www.amazon.de/s?k=${encodeURIComponent(part.wishText)}" target="_blank" rel="noopener" style="font-size:11px; color:var(--accent-steel); text-decoration:none; flex-shrink:0;">🔎</a>
                   </div>
                 ` : ""}
               </div>
-              <div style="display:flex; gap:4px; align-items:center;">
-                <button class="compact-btn" style="padding:4px 7px; font-size:11px;" onclick="openWichtelParticipantModal('edit', ${group.id}, ${part.id})" title="Wunschliste, No-Gos, Adresse & Links bearbeiten">🎁 Wunsch</button>
-                <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeWichtelParticipant(${group.id}, ${part.id})" title="Teilnehmer entfernen">✕</span>
+              <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
+                <button class="compact-btn" style="padding:4px 7px; font-size:11px;" onclick="openWichtelParticipantModal('edit', ${group.id}, ${part.id})" title="Wunschliste bearbeiten">🎁</button>
+                <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeWichtelParticipant(${group.id}, ${part.id})" title="Entfernen">✕</span>
               </div>
             </div>
 
             ${group.isDrawn && group.cloudRoundId && part.cloudPid ? `
-              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-slate);">
+              <div style="display:flex; gap:5px; overflow-x:auto; margin-top:6px; padding-top:6px; border-top:1px solid var(--border-slate);">
                 ${isAdminSelf ? `
-                  <button class="compact-btn primary" style="padding:4px 9px; font-size:11px;" onclick="openOwnAdminWichtelPortal(${group.id}, ${part.id})">
-                    🌐 Mein Los ↗
+                  <button class="compact-btn primary" style="padding:4px 8px; font-size:11px;" onclick="openOwnAdminWichtelPortal(${group.id}, ${part.id})">
+                    🌐 Los
                   </button>
                 ` : ""}
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'WhatsApp')" title="Sendet den persönlichen Zugangs-Link per WhatsApp">
-                  💬 WhatsApp
+                <button class="compact-btn" style="padding:4px 8px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'WhatsApp')">
+                  💬 WA
                 </button>
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'Email')" title="Sendet den persönlichen Zugangs-Link per E-Mail">
+                <button class="compact-btn" style="padding:4px 8px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'Email')">
                   ✉️ Mail
                 </button>
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'ShareApp')" title="Sendet den persönlichen Zugangs-Link über eine Alternativ-App (Signal, Telegram, SMS, etc.)">
-                  📤 App / Teilen
+                <button class="compact-btn" style="padding:4px 8px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'ShareApp')">
+                  📤 App
                 </button>
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="copyWichtelDirectMemberUrl(${group.id}, ${part.id})">
+                <button class="compact-btn" style="padding:4px 8px; font-size:11px;" onclick="copyWichtelDirectMemberUrl(${group.id}, ${part.id})">
                   📋 Link
                 </button>
                 ${part.cloudHasPin ? `
-                  <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="resetWichtelMemberPinOnline(${group.id}, ${part.id})" title="Setzt nur die 4-stellige Portal-PIN zurück (Los bleibt geheim)">
-                    🔑 PIN Reset
+                  <button class="compact-btn" style="padding:4px 8px; font-size:11px;" onclick="resetWichtelMemberPinOnline(${group.id}, ${part.id})">
+                    🔑 PIN
                   </button>
                 ` : ""}
               </div>
@@ -5456,53 +5472,48 @@
     function renderWichtelHistorySection() {
       const historyList = Array.isArray(state.wichtelHistory) ? state.wichtelHistory : [];
       const itemsHtml = historyList.length === 0
-        ? `<div style="font-size:12px; color:var(--text-muted);">Noch keine abgeschlossenen Wichtelrunden in der Historie.</div>`
+        ? `<div style="font-size:11.5px; color:var(--text-muted);">Keine Einträge.</div>`
         : historyList.map(h => `
-            <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:10px; display:flex; flex-direction:column; gap:6px;">
-              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-                <div>
-                  <div style="font-size:13.5px; font-weight:700; color:var(--text-primary);">
+            <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:8px; padding:8px 10px; display:flex; flex-direction:column; gap:5px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div style="min-width:0; flex:1;">
+                  <div style="font-size:13px; font-weight:700; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                     📜 ${escapeHtml(h.groupName)} ${h.year ? `<span class="badge-app">${escapeHtml(String(h.year))}</span>` : ""}
                   </div>
-                  <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">
-                    👑 Admin: <b>${escapeHtml(h.adminName || "Admin")}</b> • ${escapeHtml(h.motto || "🎁 Klassisches Wichteln")} ${h.budget ? `• 💶 ${escapeHtml(h.budget)}` : ""}
+                  <div style="font-size:10.5px; color:var(--text-secondary); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    👑 ${escapeHtml(h.adminName || "Admin")} · ${escapeHtml(h.motto || "🎁 Wichteln")} ${h.budget ? `· 💶 ${escapeHtml(h.budget)}` : ""}
                   </div>
                 </div>
-                <button class="compact-btn danger" style="padding:3px 7px; font-size:11px;" onclick="deleteWichtelHistoryEntry(${h.id})" title="Diesen Wichtel-Historie-Eintrag einzeln löschen">🗑️</button>
+                <button class="compact-btn danger" style="padding:3px 7px; font-size:11px;" onclick="deleteWichtelHistoryEntry(${h.id})">🗑️</button>
               </div>
-              <div style="display:flex; flex-direction:column; gap:3px; padding:6px 8px; background:var(--card-slate); border-radius:6px; border:1px solid var(--border-slate);">
+              <div style="display:flex; flex-direction:column; gap:2px; padding:5px 7px; background:var(--card-slate); border-radius:6px; border:1px solid var(--border-slate);">
                 ${(h.pairings || []).map((pair, pIdx) => `
-                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--text-primary);">
-                    <span>🎁 <b>${escapeHtml(pair.giverName)}</b> ➔ hat <b>${escapeHtml(pair.receiverName)}</b> gezogen</span>
-                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="deleteSingleWichtelHistoryPairing(${h.id}, ${pIdx})" title="Einzelne Paarung aus Historie löschen">✕</span>
+                  <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--text-primary); gap:6px;">
+                    <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🎁 <b>${escapeHtml(pair.giverName)}</b> ➔ <b>${escapeHtml(pair.receiverName)}</b></span>
+                    <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="deleteSingleWichtelHistoryPairing(${h.id}, ${pIdx})">✕</span>
                   </div>
                 `).join("")}
               </div>
-              <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;">
-                <button class="compact-btn primary" style="padding:4px 9px; font-size:11px; font-weight:700;" onclick="reuseWichtelHistoryEntry(${h.id})" title="Altes Wichteln für neues Jahr als Admin wiederverwenden & vor Neustart bearbeiten">
-                  ♻️ Wiederverwenden & Bearbeiten
+              <div style="display:flex; gap:5px; overflow-x:auto;">
+                <button class="compact-btn primary" style="padding:4px 9px; font-size:11px; font-weight:700;" onclick="reuseWichtelHistoryEntry(${h.id})">
+                  ♻️ Nutzen
                 </button>
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="shareWichtelHistoryToParticipants(${h.id}, 'WhatsApp')" title="Wichtel-Historie nach Abschluss an alle Teilnehmer per WhatsApp verteilen">
-                  📲 Historie an Teilnehmer
-                </button>
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="shareWichtelHistoryToParticipants(${h.id}, 'In-App')" title="Wichtel-Historie In-App an alle Teilnehmer senden">
-                  💬 In-App verteilen
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="shareWichtelHistoryToParticipants(${h.id}, 'WhatsApp')">
+                  📤 Teilen
                 </button>
               </div>
             </div>
           `).join("");
 
       return `
-        <div class="card" style="margin-top:8px; border-color:var(--border-slate); display:flex; flex-direction:column; gap:8px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
-            <div>
-              <div style="font-size:14.5px; font-weight:700; color:var(--accent-steel);">📜 Wichtel-Historie (${historyList.length})</div>
-              <div style="font-size:11px; color:var(--text-secondary);">
-                Vergangene Jahre für „Keine Wiederholungen“ • Einzeln löschbar • Als Admin wiederverwendbar & vor Neustart bearbeitbar
-              </div>
+        <div class="card" style="margin-top:6px; padding:10px 11px; border-color:var(--border-slate); display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <div style="display:flex; align-items:center; gap:6px; min-width:0;">
+              <span style="font-size:14px; font-weight:700; color:var(--accent-steel); white-space:nowrap;">📜 Historie (${historyList.length})</span>
+              ${infoHintBtn("wichtel_history", "Wichtel-Historie", "Vergangene Jahre werden bei „🔄 Keine Wiederholungen“ automatisch berücksichtigt. Alte Runden können fürs neue Jahr wiederverwendet, geteilt oder importiert werden.")}
             </div>
-            <button class="compact-btn" style="padding:4px 8px; font-size:11px;" onclick="wichtelHistoryImportModalOpen=true; renderModals();" title="Empfangene Wichtel-Historie von einem anderen Gruppenadmin importieren">
-              📥 Historie importieren
+            <button class="compact-btn" style="padding:4px 8px; font-size:11px;" onclick="wichtelHistoryImportModalOpen=true; renderModals();">
+              📥 Import
             </button>
           </div>
           ${itemsHtml}
@@ -9528,7 +9539,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.45",
+        version: "1.0.46",
         createdAt: dateStr,
         state
       };
@@ -9546,7 +9557,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.45",
+        version: "1.0.46",
         createdAt: dateStr,
         state
       };
@@ -9621,7 +9632,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.45 gestartet.");
+    addLog("Remember Me v1.0.46 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>
