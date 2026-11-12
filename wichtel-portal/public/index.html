@@ -396,6 +396,12 @@
     function qLimit(n) {
       return encodeURIComponent(JSON.stringify({ method: "limit", values: [n] }));
     }
+    function qOrderDesc(attr) {
+      return encodeURIComponent(JSON.stringify({ method: "orderDesc", attribute: attr }));
+    }
+    function qSelect(attrs) {
+      return encodeURIComponent(JSON.stringify({ method: "select", values: attrs }));
+    }
 
     function esc(s) {
       return String(s || "")
@@ -435,6 +441,8 @@
       outMessages: [],
       inMessages: [],
       wishDraft: null,
+      lastCloudSig: "",
+      lastPollTs: 0,
       errorMsg: ""
     };
 
@@ -442,18 +450,43 @@
       return `rm_wichtel_auth_${rid}`;
     }
 
-    async function loadRoundData(silent = false) {
+    async function loadRoundData(silent = false, forceFull = false) {
       if (!state.roundId) {
         state.errorMsg = "Kein Runden-Code in der Adresse gefunden. Bitte öffne den vollständigen Wichtel-Link aus eurer Einladung!";
         render();
         return;
       }
       try {
+        // Leichtgewichtiger 1-Dokument-Head-Check (nur $id + $updatedAt = ~150B statt 50+ Dokumente!):
+        // Lädt die komplette Runde nur dann neu, wenn sich tatsächlich eine Nachricht oder ein Wunsch geändert hat!
+        if (silent && !forceFull && state.roundMeta && state.lastCloudSig) {
+          try {
+            const headRes = await apiCall(
+              "GET",
+              `/databases/${DB_ID}/collections/${COL_ID}/documents?queries[]=${qEqual("roundId", state.roundId)}&queries[]=${qOrderDesc("$updatedAt")}&queries[]=${qLimit(1)}&queries[]=${qSelect(["$id", "$updatedAt"])}`
+            );
+            const liveTotal = typeof headRes?.total === "number" ? headRes.total : -1;
+            const liveUp = headRes?.documents?.[0]?.$updatedAt || "";
+            const liveSig = `${liveTotal}|${liveUp}`;
+            if (liveTotal >= 0 && liveSig === state.lastCloudSig) {
+              state.lastPollTs = Date.now();
+              return;
+            }
+          } catch (_) {}
+        }
+
         const docsRes = await apiCall(
           "GET",
           `/databases/${DB_ID}/collections/${COL_ID}/documents?queries[]=${qEqual("roundId", state.roundId)}&queries[]=${qLimit(250)}`
         );
         const docs = docsRes.documents || [];
+        let maxUpdatedAt = "";
+        for (const d of docs) {
+          if (d && d.$updatedAt && d.$updatedAt > maxUpdatedAt) maxUpdatedAt = d.$updatedAt;
+        }
+        const repTotal = typeof docsRes.total === "number" ? docsRes.total : docs.length;
+        state.lastCloudSig = `${repTotal}|${maxUpdatedAt}`;
+        state.lastPollTs = Date.now();
         const roundDoc = docs.find(d => d.docType === "ROUND");
         if (!roundDoc) {
           state.errorMsg = "Diese Wichtelrunde wurde nicht gefunden oder wurde bereits beendet.";
@@ -539,7 +572,7 @@
       const copy = { ...partObj };
       const docId = copy._docId || `p_${state.roundId}_${copy.pid}`;
       delete copy._docId;
-      await apiCall("PATCH", `/databases/${DB_ID}/collections/${COL_ID}/documents/${docId}`, {
+      const savedDoc = await apiCall("PATCH", `/databases/${DB_ID}/collections/${COL_ID}/documents/${docId}`, {
         data: {
           roundId: state.roundId,
           docType: "PART",
@@ -547,6 +580,9 @@
           payload: JSON.stringify(copy)
         }
       });
+      if (savedDoc && savedDoc.$updatedAt && state.lastCloudSig) {
+        state.lastCloudSig = `${state.lastCloudSig.split("|")[0]}|${savedDoc.$updatedAt}`;
+      }
       partObj._docId = docId;
       state.partsByPid.set(Number(partObj.pid), partObj);
     }
@@ -679,6 +715,10 @@
           const clean = { fromRole: m.fromRole, text: m.text, ts: m.ts, readByTarget: m.readByTarget, readBySanta: m.readBySanta };
           apiCall("PATCH", `/databases/${DB_ID}/collections/${COL_ID}/documents/${m._docId}`, {
             data: { roundId: state.roundId, docType: "MSG", slotKey: m._slotKey, payload: JSON.stringify(clean) }
+          }).then(d => {
+            if (d && d.$updatedAt && state.lastCloudSig) {
+              state.lastCloudSig = `${state.lastCloudSig.split("|")[0]}|${d.$updatedAt}`;
+            }
           }).catch(() => {});
         }
       }
@@ -707,8 +747,28 @@
       return today >= rev;
     }
 
+    function switchPortalTab(nextTab) {
+      state.activeTab = nextTab;
+      render();
+      if (nextTab !== "wish" && state.roundId && state.unlockedPid) {
+        loadRoundData(true);
+      }
+    }
+
     function updateChatDomIfNeeded() {
-      if (state.activeTab === "chat") render();
+      if (state.activeTab === "chat" || state.activeTab === "lot") {
+        const prevInput = document.getElementById("anon-msg-input");
+        const draftVal = prevInput ? prevInput.value : "";
+        const hadFocus = prevInput && document.activeElement === prevInput;
+        render();
+        if (draftVal) {
+          const nextInput = document.getElementById("anon-msg-input");
+          if (nextInput) {
+            nextInput.value = draftVal;
+            if (hadFocus) nextInput.focus();
+          }
+        }
+      }
     }
 
     function render() {
@@ -816,9 +876,9 @@
 
       const tabsHtml = `
         <div class="tabs">
-          <button class="tab-btn ${state.activeTab === 'lot' ? 'active' : ''}" onclick="state.activeTab='lot'; render();">🎁 Mein Los</button>
-          <button class="tab-btn ${state.activeTab === 'wish' ? 'active' : ''}" onclick="state.activeTab='wish'; render();">📝 Meine Wünsche</button>
-          <button class="tab-btn ${state.activeTab === 'chat' ? 'active' : ''}" onclick="state.activeTab='chat'; render();">
+          <button class="tab-btn ${state.activeTab === 'lot' ? 'active' : ''}" onclick="switchPortalTab('lot')">🎁 Mein Los</button>
+          <button class="tab-btn ${state.activeTab === 'wish' ? 'active' : ''}" onclick="switchPortalTab('wish')">📝 Meine Wünsche</button>
+          <button class="tab-btn ${state.activeTab === 'chat' ? 'active' : ''}" onclick="switchPortalTab('chat')">
             🕵️ Anonym-Chat${totalUnread > 0 ? `<span class="badge-dot">${totalUnread}</span>` : ""}
           </button>
         </div>
@@ -1000,12 +1060,20 @@
       if (sc) sc.scrollTop = sc.scrollHeight;
     }
 
-    loadRoundData(false);
+    loadRoundData(false, true);
+    // Intelligenter 1-Read-Head-Check: Im Anonym-Chat alle 15s, auf "Mein Los" alle 60s, beim Bearbeiten von Wünschen pausiert
     setInterval(() => {
-      if (document.visibilityState === "visible" && state.roundId && state.unlockedPid && state.activeTab !== "wish") {
-        loadRoundData(true);
+      if (document.visibilityState !== "visible" || !state.roundId || !state.unlockedPid || state.activeTab === "wish") return;
+      const intervalNeeded = state.activeTab === "chat" ? 15000 : 60000;
+      if (Date.now() - (state.lastPollTs || 0) >= intervalNeeded) {
+        loadRoundData(true, false);
       }
-    }, 12000);
+    }, 15000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && state.roundId && state.unlockedPid && state.activeTab !== "wish") {
+        loadRoundData(true, false);
+      }
+    });
   </script>
 </body>
 </html>
