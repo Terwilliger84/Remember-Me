@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>🎄 Geheimes Online-Wichtelportal – Remember Me</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-soft: #263349;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --gold: #f59e0b;
+      --green: #10b981;
+      --red: #ef4444;
+      --rose: #ec4899;
+      --blue: #38bdf8;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at top, #1e293b 0%, #0f172a 70%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 14px 12px 42px;
+    }
+    .wrap {
+      max-width: 480px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .hero {
+      background: linear-gradient(135deg, rgba(239,68,68,0.18), rgba(16,185,129,0.16));
+      border: 1px solid rgba(245,158,11,0.4);
+      border-radius: 16px;
+      padding: 14px 15px;
+      box-shadow: 0 10px 26px rgba(0,0,0,0.28);
+    }
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .hero-title {
+      font-size: 19px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin: 0;
+    }
+    .hero-sub {
+      font-size: 12.5px;
+      color: #cbd5e1;
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .chip {
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.65);
+      border: 1px solid var(--border);
+      color: #e2e8f0;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      padding: 14px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.22);
+    }
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--card-soft);
+      color: var(--text);
+      font-size: 13.5px;
+      font-weight: 700;
+      padding: 10px 14px;
+      border-radius: 11px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.08s ease, opacity 0.15s ease;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn.primary {
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-color: #10b981;
+      color: #fff;
+    }
+    .btn.gold {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      border-color: #f59e0b;
+      color: #fff;
+    }
+    .btn.ghost {
+      background: transparent;
+      font-size: 12px;
+      padding: 6px 10px;
+      color: var(--muted);
+    }
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      background: rgba(15,23,42,0.7);
+      padding: 5px;
+      border-radius: 13px;
+      border: 1px solid var(--border);
+    }
+    .tab-btn {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 9px 6px;
+      border-radius: 9px;
+      cursor: pointer;
+      position: relative;
+      white-space: nowrap;
+    }
+    .tab-btn.active {
+      background: var(--card-soft);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .badge-dot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 17px;
+      height: 17px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: var(--red);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      margin-left: 3px;
+    }
+    .member-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin-top: 10px;
+    }
+    .member-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 13px;
+      border-radius: 11px;
+      background: var(--card-soft);
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .member-row:hover { border-color: var(--gold); }
+    .field-label {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .input, .textarea {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .textarea { min-height: 76px; resize: vertical; }
+    .input:focus, .textarea:focus { outline: none; border-color: var(--blue); }
+    .pin-input {
+      font-size: 24px;
+      letter-spacing: 10px;
+      text-align: center;
+      font-weight: 800;
+    }
+    .gift-box {
+      text-align: center;
+      padding: 20px 14px;
+      border-radius: 14px;
+      background: radial-gradient(circle, rgba(245,158,11,0.18) 0%, rgba(30,41,59,0.9) 75%);
+      border: 1.5px dashed rgba(245,158,11,0.6);
+    }
+    .target-name {
+      font-size: 24px;
+      font-weight: 900;
+      color: var(--gold);
+      margin: 8px 0 4px;
+    }
+    .wish-item {
+      background: rgba(15,23,42,0.6);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      text-align: left;
+      font-size: 13.5px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .chat-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 290px;
+      overflow-y: auto;
+      padding: 8px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+    }
+    .bubble {
+      max-width: 85%;
+      padding: 9px 12px;
+      border-radius: 12px;
+      font-size: 13.5px;
+      line-height: 1.38;
+      word-break: break-word;
+    }
+    .bubble.me {
+      align-self: flex-end;
+      background: rgba(16,185,129,0.22);
+      border: 1px solid rgba(16,185,129,0.5);
+    }
+    .bubble.them {
+      align-self: flex-start;
+      background: var(--card-soft);
+      border: 1px solid var(--border);
+    }
+    .bubble-meta {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #10b981;
+      color: #fff;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      z-index: 999;
+    }
+    a { color: var(--blue); }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="app">
+    <div class="card" style="text-align:center; padding:28px 16px;">
+      <div style="font-size:32px; margin-bottom:8px;">🎄</div>
+      <div style="font-weight:700;">Wichtelrunde wird geladen…</div>
+    </div>
+  </div>
+  <div id="toast-root"></div>
+
+  <script>
+    // =========================================================================
+    // Pure-JS SHA-256 + Symmetrische Los-Versiegelung (identisch zu Android/Web)
+    // =========================================================================
+    function utf8ToBytes(str) {
+      return new TextEncoder().encode(String(str || ""));
+    }
+    function bytesToUtf8(bytes) {
+      return new TextDecoder().decode(bytes);
+    }
+    function sha256Bytes(asciiBytes) {
+      const K = [
+        0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+        0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+        0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+        0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+        0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+        0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+        0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+        0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+      ];
+      let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+      const l = asciiBytes.length;
+      const bitLenHi = Math.floor((l * 8) / 0x100000000);
+      const bitLenLo = (l * 8) >>> 0;
+      const padLen = ((l + 9 + 63) >> 6) << 6;
+      const m = new Uint8Array(padLen);
+      m.set(asciiBytes);
+      m[l] = 0x80;
+      const dv = new DataView(m.buffer);
+      dv.setUint32(padLen - 8, bitLenHi, false);
+      dv.setUint32(padLen - 4, bitLenLo, false);
+      const W = new Uint32Array(64);
+      const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+      for (let i = 0; i < padLen; i += 64) {
+        for (let t = 0; t < 16; t++) W[t] = dv.getUint32(i + t * 4, false);
+        for (let t = 16; t < 64; t++) {
+          const s0 = rotr(W[t - 15], 7) ^ rotr(W[t - 15], 18) ^ (W[t - 15] >>> 3);
+          const s1 = rotr(W[t - 2], 17) ^ rotr(W[t - 2], 19) ^ (W[t - 2] >>> 10);
+          W[t] = (W[t - 16] + s0 + W[t - 7] + s1) >>> 0;
+        }
+        let [a, b, c, d, e, f, g, h] = H;
+        for (let t = 0; t < 64; t++) {
+          const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+          const ch = (e & f) ^ (~e & g);
+          const temp1 = (h + S1 + ch + K[t] + W[t]) >>> 0;
+          const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+          const maj = (a & b) ^ (a & c) ^ (b & c);
+          const temp2 = (S0 + maj) >>> 0;
+          h = g; g = f; f = e; e = (d + temp1) >>> 0;
+          d = c; c = b; b = a; a = (temp1 + temp2) >>> 0;
+        }
+        H = [(H[0]+a)>>>0,(H[1]+b)>>>0,(H[2]+c)>>>0,(H[3]+d)>>>0,(H[4]+e)>>>0,(H[5]+f)>>>0,(H[6]+g)>>>0,(H[7]+h)>>>0];
+      }
+      const out = new Uint8Array(32);
+      const outDv = new DataView(out.buffer);
+      for (let i = 0; i < 8; i++) outDv.setUint32(i * 4, H[i], false);
+      return out;
+    }
+    function sha256Hex(str) {
+      return Array.from(sha256Bytes(utf8ToBytes(str))).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+    function unsealWichtelBox(cipherB64, roundId, pid) {
+      const binStr = atob(String(cipherB64 || "").trim());
+      const cipher = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) cipher[i] = binStr.charCodeAt(i);
+      const plain = new Uint8Array(cipher.length);
+      let blockIdx = 0;
+      for (let offset = 0; offset < cipher.length; offset += 32) {
+        const keyBlock = sha256Bytes(utf8ToBytes(`RM_WICHTEL_V1:${roundId}:${pid}:${blockIdx++}`));
+        const chunk = Math.min(32, cipher.length - offset);
+        for (let j = 0; j < chunk; j++) plain[offset + j] = cipher[offset + j] ^ keyBlock[j];
+      }
+      return JSON.parse(bytesToUtf8(plain));
+    }
+
+    // =========================================================================
+    // Appwrite Verbindung (über CORS-freien Worker-Proxy /v1)
+    // =========================================================================
+    const WORKER_PROXY_BASE = (location.hostname.endsWith(".workers.dev"))
+      ? `${location.origin}/v1`
+      : "https://wichteln.kirchnerapp.workers.dev/v1";
+    const FALLBACK_APPWRITE_BASE = "https://fra.cloud.appwrite.io/v1";
+    const PROJECT_ID = "6981eb5a00304f3ed7a3";
+    const DB_ID = "remember_me_db";
+    const COL_ID = "wichteln";
+
+    async function apiCall(method, path, body) {
+      const bases = [WORKER_PROXY_BASE, FALLBACK_APPWRITE_BASE];
+      let lastErr = null;
+      for (const base of bases) {
+        try {
+          const res = await fetch(base + path, {
+            method,
+            headers: {
+              "Content-Type": "application/json",
+              "x-appwrite-project": PROJECT_ID
+            },
+            body: body ? JSON.stringify(body) : undefined
+          });
+          if (res.status === 204) return null;
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.message || `HTTP ${res.status}`);
+          return json;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error("Netzwerkfehler");
+    }
+
+    function qEqual(attr, val) {
+      return encodeURIComponent(JSON.stringify({ method: "equal", attribute: attr, values: [val] }));
+    }
+    function qLimit(n) {
+      return encodeURIComponent(JSON.stringify({ method: "limit", values: [n] }));
+    }
+
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function formatDeDate(iso) {
+      if (!iso || iso.length < 10) return iso || "";
+      return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+    }
+
+    function showToast(msg) {
+      const root = document.getElementById("toast-root");
+      root.innerHTML = `<div class="toast">${esc(msg)}</div>`;
+      setTimeout(() => { root.innerHTML = ""; }, 2800);
+    }
+
+    // =========================================================================
+    // Portal State
+    // =========================================================================
+    const params = new URLSearchParams(location.search);
+    const state = {
+      roundId: (params.get("r") || "").trim(),
+      urlPid: parseInt(params.get("p") || "0", 10) || 0,
+      urlToken: (params.get("k") || "").trim(),
+      roundMeta: null,
+      partsByPid: new Map(),
+      unlockedPid: 0,
+      selectedLoginPid: 0,
+      assignment: null,     // { targetPid, targetName, outThreadId, inThreadId }
+      boxRevealedNow: false,
+      activeTab: "lot",     // "lot" | "wish" | "chat"
+      chatSubTab: "toTarget", // "toTarget" | "fromSanta"
+      outMessages: [],
+      inMessages: [],
+      wishDraft: null,
+      errorMsg: ""
+    };
+
+    function storageKeyForRound(rid) {
+      return `rm_wichtel_auth_${rid}`;
+    }
+
+    async function loadRoundData(silent = false) {
+      if (!state.roundId) {
+        state.errorMsg = "Kein Runden-Code in der Adresse gefunden. Bitte öffne den vollständigen Wichtel-Link aus eurer Einladung!";
+        render();
+        return;
+      }
+      try {
+        const docsRes = await apiCall(
+          "GET",
+          `/databases/${DB_ID}/collections/${COL_ID}/documents?queries[]=${qEqual("roundId", state.roundId)}&queries[]=${qLimit(250)}`
+        );
+        const docs = docsRes.documents || [];
+        const roundDoc = docs.find(d => d.docType === "ROUND");
+        if (!roundDoc) {
+          state.errorMsg = "Diese Wichtelrunde wurde nicht gefunden oder wurde bereits beendet.";
+          render();
+          return;
+        }
+        state.roundMeta = JSON.parse(roundDoc.payload);
+        state.partsByPid.clear();
+        const allMsgs = [];
+        for (const d of docs) {
+          if (d.docType === "PART") {
+            const pObj = JSON.parse(d.payload);
+            pObj._docId = d.$id;
+            state.partsByPid.set(Number(pObj.pid), pObj);
+          } else if (d.docType === "MSG") {
+            const mObj = JSON.parse(d.payload);
+            mObj._docId = d.$id;
+            mObj._slotKey = d.slotKey;
+            allMsgs.push(mObj);
+          }
+        }
+
+        // Auto-Unlock via Direkt-Token (?p=...&k=...) oder gemerkter lokaler Sitzung
+        if (!state.unlockedPid) {
+          if (state.urlPid > 0 && state.urlToken) {
+            const cand = state.partsByPid.get(state.urlPid);
+            if (cand && cand.tokenHash && sha256Hex(state.urlToken) === cand.tokenHash) {
+              completeUnlock(cand);
+              localStorage.setItem(storageKeyForRound(state.roundId), JSON.stringify({ pid: cand.pid, token: state.urlToken }));
+            }
+          }
+          if (!state.unlockedPid) {
+            try {
+              const saved = JSON.parse(localStorage.getItem(storageKeyForRound(state.roundId)) || "null");
+              if (saved && saved.pid) {
+                const cand = state.partsByPid.get(Number(saved.pid));
+                if (cand) {
+                  const okToken = saved.token && cand.tokenHash && sha256Hex(saved.token) === cand.tokenHash;
+                  const okPin = saved.pinHash && cand.pinHash && saved.pinHash === cand.pinHash;
+                  if (okToken || okPin) completeUnlock(cand);
+                }
+              }
+            } catch (_) {}
+          }
+        } else {
+          const refreshedMe = state.partsByPid.get(state.unlockedPid);
+          if (refreshedMe) state.assignment = unsealWichtelBox(refreshedMe.sealedBox, state.roundId, refreshedMe.pid);
+        }
+
+        if (state.unlockedPid && state.assignment) {
+          state.outMessages = allMsgs
+            .filter(m => m._slotKey === state.assignment.outThreadId)
+            .sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")));
+          state.inMessages = allMsgs
+            .filter(m => m._slotKey === state.assignment.inThreadId)
+            .sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")));
+        }
+
+        if (!silent) render();
+        else updateChatDomIfNeeded();
+      } catch (e) {
+        if (!silent) {
+          state.errorMsg = "Verbindungsfehler: " + (e.message || e);
+          render();
+        }
+      }
+    }
+
+    function completeUnlock(partObj) {
+      state.unlockedPid = Number(partObj.pid);
+      state.assignment = unsealWichtelBox(partObj.sealedBox, state.roundId, partObj.pid);
+      state.boxRevealedNow = Boolean(partObj.openedAt);
+      state.wishDraft = {
+        wishText: partObj.wishText || "",
+        noGos: partObj.noGos || "",
+        address: partObj.address || "",
+        wishlistUrl: partObj.wishlistUrl || "",
+        extraWishUrls: Array.isArray(partObj.extraWishUrls) ? [...partObj.extraWishUrls] : []
+      };
+    }
+
+    async function saveParticipantDoc(partObj) {
+      const copy = { ...partObj };
+      const docId = copy._docId || `p_${state.roundId}_${copy.pid}`;
+      delete copy._docId;
+      await apiCall("PATCH", `/databases/${DB_ID}/collections/${COL_ID}/documents/${docId}`, {
+        data: {
+          roundId: state.roundId,
+          docType: "PART",
+          slotKey: `P_${copy.pid}`,
+          payload: JSON.stringify(copy)
+        }
+      });
+      partObj._docId = docId;
+      state.partsByPid.set(Number(partObj.pid), partObj);
+    }
+
+    async function submitMemberPin() {
+      const part = state.partsByPid.get(state.selectedLoginPid);
+      if (!part) return;
+      const p1El = document.getElementById("pin-1");
+      const p2El = document.getElementById("pin-2");
+      const pin1 = (p1El ? p1El.value : "").trim();
+      if (pin1.length < 4) {
+        showToast("Bitte mindestens 4 Ziffern/Zeichen eingeben!");
+        return;
+      }
+      const hash = sha256Hex(`PIN:${state.roundId}:${part.pid}:${pin1}`);
+      if (!part.pinHash) {
+        const pin2 = (p2El ? p2El.value : "").trim();
+        if (pin1 !== pin2) {
+          showToast("Die beiden PIN-Eingaben stimmen nicht überein!");
+          return;
+        }
+        part.pinHash = hash;
+        await saveParticipantDoc(part);
+        localStorage.setItem(storageKeyForRound(state.roundId), JSON.stringify({ pid: part.pid, pinHash: hash }));
+        completeUnlock(part);
+        await loadRoundData(false);
+        showToast("Geheim-PIN gespeichert!");
+      } else {
+        if (hash !== part.pinHash) {
+          showToast("❌ Falsche Geheim-PIN! (Bei Vergessen kann der Admin deine PIN zurücksetzen)");
+          return;
+        }
+        localStorage.setItem(storageKeyForRound(state.roundId), JSON.stringify({ pid: part.pid, pinHash: hash }));
+        completeUnlock(part);
+        await loadRoundData(false);
+      }
+    }
+
+    async function revealMyTargetBox() {
+      const me = state.partsByPid.get(state.unlockedPid);
+      if (!me) return;
+      state.boxRevealedNow = true;
+      if (!me.openedAt) {
+        me.openedAt = new Date().toISOString();
+        try { await saveParticipantDoc(me); } catch (_) {}
+      }
+      render();
+    }
+
+    function addExtraUrlField() {
+      syncWishDraftFromInputs();
+      state.wishDraft.extraWishUrls.push("");
+      render();
+    }
+    function removeExtraUrlField(idx) {
+      syncWishDraftFromInputs();
+      state.wishDraft.extraWishUrls.splice(idx, 1);
+      render();
+    }
+    function syncWishDraftFromInputs() {
+      if (!state.wishDraft) return;
+      const wEl = document.getElementById("w-text");
+      const nEl = document.getElementById("w-nogos");
+      const aEl = document.getElementById("w-addr");
+      const uEl = document.getElementById("w-url");
+      if (wEl) state.wishDraft.wishText = wEl.value;
+      if (nEl) state.wishDraft.noGos = nEl.value;
+      if (aEl) state.wishDraft.address = aEl.value;
+      if (uEl) state.wishDraft.wishlistUrl = uEl.value;
+      state.wishDraft.extraWishUrls = state.wishDraft.extraWishUrls.map((old, i) => {
+        const el = document.getElementById(`w-extra-${i}`);
+        return el ? el.value : old;
+      });
+    }
+
+    async function saveMyWishlist() {
+      syncWishDraftFromInputs();
+      const me = state.partsByPid.get(state.unlockedPid);
+      if (!me || !state.wishDraft) return;
+      me.wishText = state.wishDraft.wishText.trim();
+      me.noGos = state.wishDraft.noGos.trim();
+      me.address = state.wishDraft.address.trim();
+      me.wishlistUrl = state.wishDraft.wishlistUrl.trim();
+      me.extraWishUrls = state.wishDraft.extraWishUrls.map(x => x.trim()).filter(Boolean);
+      me.wishUpdatedAt = new Date().toISOString();
+      await saveParticipantDoc(me);
+      showToast("✓ Dein Wunschzettel wurde gespeichert!");
+      render();
+    }
+
+    async function sendAnonChatMessage() {
+      const inp = document.getElementById("anon-msg-input");
+      if (!inp) return;
+      const text = inp.value.trim();
+      if (!text || !state.assignment) return;
+      inp.value = "";
+
+      const isToTarget = state.chatSubTab === "toTarget";
+      const slotKey = isToTarget ? state.assignment.outThreadId : state.assignment.inThreadId;
+      const fromRole = isToTarget ? "SANTA" : "TARGET";
+      const msgPayload = {
+        fromRole,
+        text,
+        ts: new Date().toISOString(),
+        readByTarget: !isToTarget,
+        readBySanta: isToTarget
+      };
+      const docId = `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      await apiCall("POST", `/databases/${DB_ID}/collections/${COL_ID}/documents`, {
+        documentId: docId,
+        data: {
+          roundId: state.roundId,
+          docType: "MSG",
+          slotKey,
+          payload: JSON.stringify(msgPayload)
+        }
+      });
+      await loadRoundData(false);
+      showToast("🕵️ Anonyme Nachricht gesendet!");
+    }
+
+    async function markCurrentThreadRead() {
+      if (state.activeTab !== "chat" || !state.assignment) return;
+      const isToTarget = state.chatSubTab === "toTarget";
+      const list = isToTarget ? state.outMessages : state.inMessages;
+      for (const m of list) {
+        const unread = isToTarget ? (m.fromRole === "TARGET" && !m.readBySanta) : (m.fromRole === "SANTA" && !m.readByTarget);
+        if (unread && m._docId) {
+          if (isToTarget) m.readBySanta = true; else m.readByTarget = true;
+          const clean = { fromRole: m.fromRole, text: m.text, ts: m.ts, readByTarget: m.readByTarget, readBySanta: m.readBySanta };
+          apiCall("PATCH", `/databases/${DB_ID}/collections/${COL_ID}/documents/${m._docId}`, {
+            data: { roundId: state.roundId, docType: "MSG", slotKey: m._slotKey, payload: JSON.stringify(clean) }
+          }).catch(() => {});
+        }
+      }
+    }
+
+    function shareNeutralGroupNudge() {
+      const groupUrl = `${location.origin}${location.pathname}?r=${encodeURIComponent(state.roundId)}`;
+      const msg = `🕵️🎄 Pssst! Im anonymen Wichtel-Postfach unserer Runde „${state.roundMeta.groupName}“ gibt es eine neue Nachricht! Schaut mal kurz über unseren Link rein, ob euer Wichtel euch geschrieben hat:\n${groupUrl}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+    }
+
+    function logoutSwitchPerson() {
+      localStorage.removeItem(storageKeyForRound(state.roundId));
+      state.unlockedPid = 0;
+      state.selectedLoginPid = 0;
+      state.assignment = null;
+      render();
+    }
+
+    function isRoundRevealedForAll() {
+      if (!state.roundMeta) return false;
+      if (state.roundMeta.forceRevealed) return true;
+      const rev = (state.roundMeta.revealDateIso || "").trim();
+      if (!rev || rev.length < 10) return false;
+      const today = new Date().toISOString().slice(0, 10);
+      return today >= rev;
+    }
+
+    function updateChatDomIfNeeded() {
+      if (state.activeTab === "chat") render();
+    }
+
+    function render() {
+      const app = document.getElementById("app");
+      if (state.errorMsg) {
+        app.innerHTML = `
+          <div class="card" style="text-align:center; padding:24px 16px;">
+            <div style="font-size:34px; margin-bottom:8px;">⚠️</div>
+            <div style="font-weight:800; font-size:16px; margin-bottom:6px;">Hinweis</div>
+            <div style="font-size:13.5px; color:var(--muted); line-height:1.45;">${esc(state.errorMsg)}</div>
+          </div>
+        `;
+        return;
+      }
+      if (!state.roundMeta) return;
+
+      const rm = state.roundMeta;
+      const revealFormatted = formatDeDate(rm.revealDateIso) || "Weihnachten";
+      const headerHtml = `
+        <div class="hero">
+          <div class="hero-top">
+            <div>
+              <h1 class="hero-title">🎄 ${esc(rm.groupName)}</h1>
+              <div class="hero-sub">Geheimes Familien-Wichteln • 100 % ohne App & Admin-blind</div>
+            </div>
+            ${state.unlockedPid ? `<button class="btn ghost" onclick="logoutSwitchPerson()">Wechseln</button>` : ""}
+          </div>
+          <div class="chips">
+            <span class="chip">${esc(rm.motto || "🎁 Klassisches Wichteln")}</span>
+            ${rm.budget ? `<span class="chip">💶 Budget: ${esc(rm.budget)}</span>` : ""}
+            <span class="chip">🔓 Auflösung: ${esc(revealFormatted)}</span>
+          </div>
+        </div>
+      `;
+
+      // 1. Falls noch nicht eingeloggt -> Namensauswahl + 4-stellige Geheim-PIN
+      if (!state.unlockedPid) {
+        const roster = [...state.partsByPid.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), "de"));
+        if (state.selectedLoginPid) {
+          const sel = state.partsByPid.get(state.selectedLoginPid);
+          const hasPin = Boolean(sel && sel.pinHash);
+          app.innerHTML = headerHtml + `
+            <div class="card" style="display:flex; flex-direction:column; gap:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:800; font-size:16px;">👤 ${esc(sel.name)}</div>
+                <button class="btn ghost" onclick="state.selectedLoginPid=0; render();">← Zurück</button>
+              </div>
+              <div style="font-size:13px; color:#cbd5e1; line-height:1.45;">
+                ${hasPin
+                  ? "Bitte gib deine persönliche Geheim-PIN ein, um dein Los & deine anonymen Wichtel-Fragen zu öffnen:"
+                  : "Willkommen! Bitte denke dir jetzt eine kurze <b>4-stellige Geheim-PIN</b> (z. B. 1234) aus, damit niemand anderes aus der Runde dein Los spicken kann:"}
+              </div>
+              <div>
+                <label class="field-label">${hasPin ? "Deine Geheim-PIN" : "Neue 4-stellige Geheim-PIN festlegen"}</label>
+                <input id="pin-1" type="password" inputmode="numeric" maxlength="12" class="input pin-input" placeholder="••••" onkeydown="if(event.key==='Enter') submitMemberPin()" />
+              </div>
+              ${!hasPin ? `
+                <div>
+                  <label class="field-label">Geheim-PIN kurz wiederholen</label>
+                  <input id="pin-2" type="password" inputmode="numeric" maxlength="12" class="input pin-input" placeholder="••••" onkeydown="if(event.key==='Enter') submitMemberPin()" />
+                </div>
+              ` : ""}
+              <button class="btn primary" style="width:100%; padding:12px;" onclick="submitMemberPin()">
+                ${hasPin ? "🔓 Mein geheimes Los öffnen" : "✓ PIN speichern & Los öffnen"}
+              </button>
+            </div>
+          `;
+          setTimeout(() => { const el = document.getElementById("pin-1"); if (el) el.focus(); }, 50);
+          return;
+        }
+
+        app.innerHTML = headerHtml + `
+          <div class="card">
+            <div style="font-weight:800; font-size:15.5px;">Wer bist du? Tippe auf deinen Namen:</div>
+            <div style="font-size:12.5px; color:var(--muted); margin-top:4px;">
+              Jeder schützt sein Los beim ersten Öffnen mit einer eigenen 4-stelligen PIN – selbst Gruppenadmin ${esc(rm.adminName)} sieht nicht, wer wen gezogen hat!
+            </div>
+            <div class="member-grid">
+              ${roster.map(p => `
+                <div class="member-row" onclick="state.selectedLoginPid=${p.pid}; render();">
+                  <div style="font-weight:700; font-size:14.5px;">🎄 ${esc(p.name)}</div>
+                  <span style="font-size:11.5px; color:${p.pinHash ? 'var(--green)' : 'var(--gold)'}; font-weight:700;">
+                    ${p.pinHash ? "🔒 PIN aktiv →" : "✨ Jetzt öffnen →"}
+                  </span>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // 2. Eingeloggtes Teilnehmer-Dashboard
+      const me = state.partsByPid.get(state.unlockedPid);
+      const target = state.assignment ? state.partsByPid.get(Number(state.assignment.targetPid)) : null;
+      const targetName = target ? target.name : (state.assignment ? state.assignment.targetName : "Unbekannt");
+
+      const unreadFromTarget = state.outMessages.filter(m => m.fromRole === "TARGET" && !m.readBySanta).length;
+      const unreadFromSanta = state.inMessages.filter(m => m.fromRole === "SANTA" && !m.readByTarget).length;
+      const totalUnread = unreadFromTarget + unreadFromSanta;
+
+      if (state.activeTab === "chat") {
+        markCurrentThreadRead();
+      }
+
+      const tabsHtml = `
+        <div class="tabs">
+          <button class="tab-btn ${state.activeTab === 'lot' ? 'active' : ''}" onclick="state.activeTab='lot'; render();">🎁 Mein Los</button>
+          <button class="tab-btn ${state.activeTab === 'wish' ? 'active' : ''}" onclick="state.activeTab='wish'; render();">📝 Meine Wünsche</button>
+          <button class="tab-btn ${state.activeTab === 'chat' ? 'active' : ''}" onclick="state.activeTab='chat'; render();">
+            🕵️ Anonym-Chat${totalUnread > 0 ? `<span class="badge-dot">${totalUnread}</span>` : ""}
+          </button>
+        </div>
+      `;
+
+      let contentHtml = "";
+      if (state.activeTab === "lot") {
+        if (!state.boxRevealedNow) {
+          contentHtml = `
+            <div class="card">
+              <div class="gift-box">
+                <div style="font-size:48px; margin-bottom:8px;">🎁</div>
+                <div style="font-size:16px; font-weight:800;">Hallo ${esc(me.name.split(" ")[0])}!</div>
+                <div style="font-size:13px; color:#cbd5e1; margin:6px 0 16px;">
+                  Dein geheimes Wichtel-Los liegt bereit. Stelle sicher, dass gerade niemand auf dein Display schaut!
+                </div>
+                <button class="btn gold" style="width:100%; padding:13px; font-size:15px;" onclick="revealMyTargetBox()">
+                  ✨ Jetzt geheimes Los aufdecken!
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          const allTargetUrls = target
+            ? [target.wishlistUrl, ...(Array.isArray(target.extraWishUrls) ? target.extraWishUrls : [])].filter(u => u && u.trim())
+            : [];
+          const hasAnyTargetWish = target && (target.wishText || target.noGos || target.address || allTargetUrls.length > 0);
+          contentHtml = `
+            <div class="card" style="display:flex; flex-direction:column; gap:10px;">
+              <div class="gift-box">
+                <div style="font-size:12px; font-weight:700; color:#cbd5e1; text-transform:uppercase; letter-spacing:0.6px;">Du beschenkst geheim:</div>
+                <div class="target-name">🎁 ${esc(targetName)}</div>
+                <div style="font-size:11.5px; color:var(--muted);">Pssst – bleibt bis zum ${esc(revealFormatted)} dein Geheimnis!</div>
+
+                ${hasAnyTargetWish ? `
+                  ${target.wishText ? `<div class="wish-item"><b>📝 Wünsche & Ideen:</b><br/>${esc(target.wishText).replace(/\n/g, "<br/>")}</div>` : ""}
+                  ${target.noGos ? `<div class="wish-item"><b>🚫 Bitte NICHT / Allergien:</b><br/>${esc(target.noGos).replace(/\n/g, "<br/>")}</div>` : ""}
+                  ${target.address ? `<div class="wish-item"><b>📦 Größe / Postadresse:</b><br/>${esc(target.address).replace(/\n/g, "<br/>")}</div>` : ""}
+                  ${allTargetUrls.length > 0 ? `
+                    <div class="wish-item">
+                      <b>🛒 Wunsch-Links:</b><br/>
+                      ${allTargetUrls.map((u, i) => `<div style="margin-top:4px;"><a href="${esc(u.startsWith('http') ? u : 'https://' + u)}" target="_blank" rel="noopener">🔗 Wunsch-Link ${i + 1} öffnen ↗</a></div>`).join("")}
+                    </div>
+                  ` : ""}
+                ` : `
+                  <div class="wish-item" style="text-align:center; color:var(--muted);">
+                    ${esc(targetName.split(" ")[0])} hat noch keinen Wunschzettel ausgefüllt – du kannst unten direkt <b>anonym nachfragen</b>!
+                  </div>
+                `}
+              </div>
+
+              <button class="btn primary" style="width:100%;" onclick="state.activeTab='chat'; state.chatSubTab='toTarget'; render();">
+                🕵️ ${esc(targetName.split(" ")[0])} anonym eine Frage stellen
+              </button>
+              <button class="btn" style="width:100%;" onclick="state.activeTab='wish'; render();">
+                📝 Meinen eigenen Wunschzettel ausfüllen
+              </button>
+            </div>
+          `;
+        }
+
+        if (isRoundRevealedForAll()) {
+          const allPairs = [...state.partsByPid.values()].map(p => {
+            try {
+              const b = unsealWichtelBox(p.sealedBox, state.roundId, p.pid);
+              return { giver: p.name, receiver: b.targetName };
+            } catch {
+              return null;
+            }
+          }).filter(Boolean);
+          contentHtml += `
+            <div class="card">
+              <div style="font-weight:800; font-size:15px; color:var(--gold); margin-bottom:8px;">🎉 Offizielle Wichtel-Auflösung</div>
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                ${allPairs.map(pr => `
+                  <div style="background:var(--card-soft); padding:8px 11px; border-radius:9px; font-size:13px;">
+                    🎅 <b>${esc(pr.giver)}</b> ➔ 🎁 <b>${esc(pr.receiver)}</b>
+                  </div>
+                `).join("")}
+              </div>
+            </div>
+          `;
+        }
+      } else if (state.activeTab === "wish") {
+        const wd = state.wishDraft || { wishText: "", noGos: "", address: "", wishlistUrl: "", extraWishUrls: [] };
+        contentHtml = `
+          <div class="card" style="display:flex; flex-direction:column; gap:11px;">
+            <div>
+              <div style="font-weight:800; font-size:15.5px;">📝 Mein Wunschzettel (${esc(me.name)})</div>
+              <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+                Nur die Person, die dich geheim gezogen hat, sieht diese Angaben live bei ihrem Los!
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Worüber würdest du dich freuen?</label>
+              <textarea id="w-text" class="textarea" placeholder="z. B. Lieblingsschokolade, spannender Krimi, Wollsocken…">${esc(wd.wishText)}</textarea>
+            </div>
+            <div>
+              <label class="field-label">Bitte NICHT / Allergien / No-Gos (optional)</label>
+              <input id="w-nogos" class="input" placeholder="z. B. Keine Deko, Nussallergie…" value="${esc(wd.noGos)}" />
+            </div>
+            <div>
+              <label class="field-label">Kleider-/Schuhgröße oder Postadresse (optional)</label>
+              <input id="w-addr" class="input" placeholder="z. B. Schuhgröße 42 / Musterstr. 1…" value="${esc(wd.address)}" />
+            </div>
+            <div>
+              <label class="field-label">Amazon-Wunschliste / Shop-Link (optional)</label>
+              <input id="w-url" class="input" placeholder="https://www.amazon.de/hz/wishlist/..." value="${esc(wd.wishlistUrl)}" />
+            </div>
+            ${wd.extraWishUrls.map((eu, idx) => `
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input id="w-extra-${idx}" class="input" style="flex:1;" placeholder="Weiterer Link #${idx + 2}..." value="${esc(eu)}" />
+                <button class="btn" style="padding:9px 11px;" onclick="removeExtraUrlField(${idx})">✕</button>
+              </div>
+            `).join("")}
+            <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+              <button class="btn" onclick="addExtraUrlField()">➕ Weiterer Link</button>
+              <button class="btn primary" style="flex:1;" onclick="saveMyWishlist()">✓ Wunschzettel speichern</button>
+            </div>
+          </div>
+        `;
+      } else {
+        const isToTarget = state.chatSubTab === "toTarget";
+        const msgs = isToTarget ? state.outMessages : state.inMessages;
+        contentHtml = `
+          <div class="card" style="display:flex; flex-direction:column; gap:10px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+              <button class="btn ${isToTarget ? 'primary' : ''}" style="font-size:12px; padding:9px 8px;" onclick="state.chatSubTab='toTarget'; render();">
+                🎁 An ${esc(state.boxRevealedNow ? targetName.split(" ")[0] : "mein Los")}
+                ${unreadFromTarget > 0 ? `<span class="badge-dot">${unreadFromTarget}</span>` : ""}
+              </button>
+              <button class="btn ${!isToTarget ? 'primary' : ''}" style="font-size:12px; padding:9px 8px;" onclick="state.chatSubTab='fromSanta'; render();">
+                🎅 Mein Wichtel an mich
+                ${unreadFromSanta > 0 ? `<span class="badge-dot">${unreadFromSanta}</span>` : ""}
+              </button>
+            </div>
+
+            <div style="font-size:12px; color:#cbd5e1; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.3); padding:8px 10px; border-radius:9px; line-height:1.38;">
+              ${isToTarget
+                ? `🕵️ <b>100 % Anonym:</b> Du schreibst hier als geheimer Wichtel an <b>${esc(state.boxRevealedNow ? targetName : "deine gezogene Person")}</b>. Dein Name und deine Handynummer bleiben komplett unsichtbar!`
+                : `🎅 <b>Postfach von deinem geheimen Wichtel:</b> Hier siehst du Fragen der Person, die <b>dich</b> beschenkt – und kannst ihr anonym antworten!`}
+            </div>
+
+            <div class="chat-box" id="anon-chat-scroll">
+              ${msgs.length === 0 ? `
+                <div style="text-align:center; color:var(--muted); font-size:12.5px; padding:26px 10px;">
+                  ${isToTarget
+                    ? "Noch keine anonymen Fragen gestellt. Frag z. B. nach Lieblingsfarbe, Größe oder Geschmack!"
+                    : "Dein geheimer Wichtel hat dir bisher noch keine Frage gestellt."}
+                </div>
+              ` : msgs.map(m => {
+                const mine = isToTarget ? (m.fromRole === "SANTA") : (m.fromRole === "TARGET");
+                const senderLabel = mine ? "Ich" : (isToTarget ? esc(targetName.split(" ")[0]) : "🕵️ Mein geheimer Wichtel");
+                const timeStr = m.ts ? new Date(m.ts).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+                return `
+                  <div class="bubble ${mine ? 'me' : 'them'}">
+                    <div>${esc(m.text).replace(/\n/g, "<br/>")}</div>
+                    <div class="bubble-meta">${senderLabel} • ${esc(timeStr)}</div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+
+            <div style="display:flex; gap:6px;">
+              <input id="anon-msg-input" class="input" style="flex:1;" placeholder="${isToTarget ? 'Anonyme Frage schreiben…' : 'Anonym antworten…'}" onkeydown="if(event.key==='Enter') sendAnonChatMessage()" />
+              <button class="btn primary" onclick="sendAnonChatMessage()">Senden</button>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; padding-top:2px;">
+              <button class="btn ghost" onclick="loadRoundData(false)">🔄 Aktualisieren</button>
+              <button class="btn ghost" style="color:var(--gold);" onclick="shareNeutralGroupNudge()">📣 Neutralen Hinweis in WhatsApp-Gruppe</button>
+            </div>
+          </div>
+        `;
+      }
+
+      app.innerHTML = headerHtml + tabsHtml + contentHtml;
+      const sc = document.getElementById("anon-chat-scroll");
+      if (sc) sc.scrollTop = sc.scrollHeight;
+    }
+
+    loadRoundData(false);
+    setInterval(() => {
+      if (document.visibilityState === "visible" && state.roundId && state.unlockedPid && state.activeTab !== "wish") {
+        loadRoundData(true);
+      }
+    }, 12000);
+  </script>
+</body>
+</html>

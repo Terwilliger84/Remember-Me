@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.41 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.42 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -2172,7 +2172,7 @@
       root.innerHTML = `
         <div class="app-header">
           <div>
-            <div class="app-title">Remember Me v1.0.41</div>
+            <div class="app-title">Remember Me v1.0.42</div>
             <div class="app-subtitle">Familie, Geburtstage, Erinnerungen & Wichteln</div>
           </div>
           <div class="btn-row">
@@ -5169,18 +5169,22 @@
     function renderWichtelTab() {
       ensureWichtelGroups();
       const groups = state.wichtelGroups;
+      const activeForPortal = groups.find(g => g.id === selectedWichtelGroupId) || groups[0] || null;
+      const portalTopHref = (activeForPortal && activeForPortal.isDrawn && activeForPortal.cloudRoundId)
+        ? buildWichtelGroupPortalUrl(activeForPortal.cloudRoundId)
+        : WICHTEL_PORTAL_BASE_URL;
 
       const topBar = `
         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
           <div style="display:flex; gap:5px; flex-wrap:wrap;">
             ${groups.map(g => `
-              <button class="compact-btn ${g.id === selectedWichtelGroupId ? 'primary' : ''}" onclick="selectedWichtelGroupId=${g.id}; renderPhoneApp();">
+              <button class="compact-btn ${g.id === selectedWichtelGroupId ? 'primary' : ''}" onclick="selectedWichtelGroupId=${g.id}; renderPhoneApp(); if (g && g.isDrawn && g.cloudRoundId) syncWichtelRoundLiveStatus(${g.id}, false);">
                 🎄 ${escapeHtml(g.groupName)}
               </button>
             `).join("")}
           </div>
           <div style="display:flex; gap:5px;">
-            <button class="compact-btn" onclick="openWichtelSecretCodeModal()" title="Empfangenen geheimen Wichtel-Los-Code entschlüsseln">🔐 Los-Code</button>
+            <a href="${escapeHtml(portalTopHref)}" target="_blank" rel="noopener" class="compact-btn" style="text-decoration:none;" title="Öffentliches Familien-Wichtelportal öffnen">🌐 Portal ↗</a>
             <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">+ Neue Runde</button>
           </div>
         </div>
@@ -5192,33 +5196,85 @@
           <div class="card">
             <div style="font-size:14px; font-weight:600; margin-bottom:4px;">🎄 Noch keine Wichtelrunde erstellt</div>
             <div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">
-              Erstelle als Gruppenadmin eine neue Wichtelrunde, lade Kontakte per Ankreuzliste ein, hinterlege Wunschzettel oder Amazon-Wunschlisten und würfle die geheime Zulosung aus!
+              Erstelle als Gruppenadmin eine neue Wichtelrunde, kreuze Kontakte an und lade danach ALLE Familienmitglieder mit 1 Klick über das Appwrite-Online-Wichtelportal ein – ganz ohne App und 100 % Admin-blind!
             </div>
             <button class="compact-btn primary" onclick="openWichtelGroupModal('create')">🎄 Erste Wichtelrunde starten</button>
           </div>
         `;
       }
 
+      if (group.isDrawn && group.cloudRoundId && !wichtelAutoSyncedRounds.has(group.cloudRoundId)) {
+        wichtelAutoSyncedRounds.add(group.cloudRoundId);
+        setTimeout(() => syncWichtelRoundLiveStatus(group.id, false), 60);
+      }
+
       const revealed = isWichtelGroupRevealed(group);
       const revealDateFormatted = formatIsoToDdMmYyyy(group.revealDateIso) || "24.12.";
       const daysUntilReveal = group.revealDateIso ? daysBetween(todayIso(), group.revealDateIso) : 0;
 
+      const openedCount = group.participants.filter(p => p.cloudOpened).length;
+      const pinCount = group.participants.filter(p => p.cloudHasPin).length;
+      const wishCount = group.participants.filter(p => p.cloudHasWishlist || (p.wishText && p.wishText.trim()) || (p.wishlistUrl && p.wishlistUrl.trim())).length;
+      const emailCount = group.participants.filter(p => {
+        const person = p.personId ? state.persons.find(x => x.id === p.personId) : null;
+        const em = (p.email || (person && person.email) || "").trim();
+        return em.includes("@");
+      }).length;
+
       const statusBanner = !group.isDrawn
         ? `
           <div style="background:rgba(56, 189, 248, 0.12); border:1px solid var(--accent-steel); border-radius:8px; padding:9px 11px; margin-top:8px; font-size:12px; color:var(--text-primary);">
-            🎲 <b>Bereit zum Würfeln:</b> Sobald alle Teilnehmer eingetragen sind, tippe auf <b>„🎲 Jetzt auslosen!“</b>. Niemand sieht die Gesamtliste vor Ablauf der Frist (${escapeHtml(revealDateFormatted)}).
+            🎲 <b>Bereit zum Würfeln:</b> Sobald alle Teilnehmer eingetragen sind, tippe auf <b>„🎲 Jetzt auslosen!“</b>. Alle Lose werden automatisch verschlüsselt ins Appwrite-Familienportal geladen – selbst du als Admin siehst nicht, wer wen gezogen hat!
           </div>
         `
         : (!revealed
           ? `
-            <div style="background:rgba(16, 185, 129, 0.14); border:1px solid var(--tree-green); border-radius:8px; padding:9px 11px; margin-top:8px; font-size:12px; color:var(--text-primary); line-height:1.4;">
-              🔒 <b>Geheimhaltung aktiv bis ${escapeHtml(revealDateFormatted)}</b> ${daysUntilReveal > 0 ? `(noch ${daysUntilReveal} Tage)` : ""}<br/>
-              <span style="font-size:11px; color:var(--text-secondary);">Niemand in der Gruppe sieht, wer wen gezogen hat! Teile jedem Teilnehmer sein Los einzeln per <b>📲 WhatsApp</b> oder <b>💬 In-App</b> mit.</span>
+            <div style="background:rgba(16, 185, 129, 0.12); border:1.5px solid var(--tree-green); border-radius:9px; padding:10px 12px; margin-top:8px; font-size:12px; color:var(--text-primary); display:flex; flex-direction:column; gap:7px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span style="font-weight:700; color:var(--tree-green);">🔒 100 % Admin-Blind & Online-Portal aktiv (bis ${escapeHtml(revealDateFormatted)}${daysUntilReveal > 0 ? ` • ${daysUntilReveal}T` : ""})</span>
+                <button class="compact-btn" style="padding:3px 8px; font-size:11px;" onclick="syncWichtelRoundLiveStatus(${group.id}, true)">
+                  ${wichtelCloudBusy ? "⏳ Sync…" : "🔄 Live-Status"}
+                </button>
+              </div>
+              <div style="font-size:11px; color:var(--text-secondary); line-height:1.38;">
+                Niemand braucht die App! Jeder öffnet das Web-Portal im Handy-Browser, wählt seine eigene 4-stellige PIN, sieht sein geheimes Los, trägt Wünsche ein & stellt 100 % anonyme Fragen.
+              </div>
+              <div style="font-size:11.5px; font-weight:600; color:var(--text-primary);">
+                📊 Geöffnet: <b>${openedCount}/${group.participants.length}</b> • 🔐 PIN geschützt: <b>${pinCount}</b> • 📝 Wunschzettel: <b>${wishCount}</b>
+                ${group.cloudSyncedAt ? `<span style="color:var(--text-muted); font-weight:400;"> • Stand: ${escapeHtml(group.cloudSyncedAt)}</span>` : ""}
+              </div>
+              <div style="font-size:11px; font-weight:700; color:var(--accent-steel);">🚀 Alle ${group.participants.length} Mitglieder auf einmal einladen:</div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                <button class="compact-btn primary" style="padding:5px 10px; font-size:11.5px; font-weight:700;" onclick="shareWichtelGroupPortalWhatsApp(${group.id})">
+                  📲 1 Link für ALLE (WhatsApp-Gruppe)
+                </button>
+                ${emailCount > 0 ? `
+                  <button class="compact-btn" style="padding:5px 10px; font-size:11.5px;" onclick="sendWichtelBulkEmailInvite(${group.id})">
+                    ✉️ Sammel-Mail (${emailCount})
+                  </button>
+                ` : ""}
+                <button class="compact-btn" style="padding:5px 10px; font-size:11.5px;" onclick="copyWichtelGroupPortalUrl(${group.id})">
+                  📋 Gruppen-Link kopieren
+                </button>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; background:var(--card-slate); border:1px solid ${(group.cloudUnreadMessages || 0) > 0 ? 'var(--warn-amber)' : 'var(--border-slate)'}; border-radius:7px; padding:6px 9px;">
+                <div>
+                  <div style="font-size:11px; font-weight:700; color:${(group.cloudUnreadMessages || 0) > 0 ? 'var(--warn-amber)' : 'var(--text-secondary)'};">
+                    ${(group.cloudUnreadMessages || 0) > 0
+                      ? `🕵️ ${group.cloudUnreadMessages} ungelesene anonyme Nachricht(en) im Portal!`
+                      : `🕵️ Anonymer Fragen-Chat: ${group.cloudTotalMessages || 0} Nachrichten (alles gelesen)`}
+                  </div>
+                  <div style="font-size:10px; color:var(--text-muted);">100 % anonym zwischen Wichtel & Wichtelkind – ohne Namen oder Nummer (Android-App bietet zusätzlich 1-Klick Auto-SMS!).</div>
+                </div>
+                <button class="compact-btn" style="padding:4px 8px; font-size:11px; white-space:nowrap;" onclick="shareNeutralWichtelInboxNudge(${group.id})">
+                  📣 Gruppen-Hinweis
+                </button>
+              </div>
             </div>
           `
           : `
             <div style="background:rgba(245, 158, 11, 0.16); border:1px solid var(--warn-amber); border-radius:8px; padding:10px 11px; margin-top:8px; font-size:12px; color:var(--text-primary);">
-              <div style="font-weight:700; color:var(--warn-amber); margin-bottom:6px;">🔓 Frist abgelaufen (${escapeHtml(revealDateFormatted)}) – Alle Paarungen sind jetzt sichtbar:</div>
+              <div style="font-weight:700; color:var(--warn-amber); margin-bottom:6px;">🔓 Wichtelrunde aufgelöst (${escapeHtml(revealDateFormatted)}) – Alle Paarungen sind jetzt sichtbar:</div>
               <div style="display:flex; flex-direction:column; gap:4px;">
                 ${group.participants.map(p => {
                   const target = group.participants.find(x => x.id === p.drawnTargetId);
@@ -5266,8 +5322,8 @@
               ⏰ Wecker
             </button>
             ${group.isDrawn ? `
-              <button class="compact-btn" onclick="toggleWichtelForceReveal(${group.id})" title="Auflösung nach Fristablauf simulieren">
-                ${revealed ? "🔒 Verbergen" : "🔓 Frist-Ablauf"}
+              <button class="compact-btn" onclick="toggleWichtelForceReveal(${group.id})" title="Wichtelrunde auflösen / verbergen">
+                ${revealed ? "🔒 Verbergen" : "🔓 Auflösen"}
               </button>
               <button class="compact-btn" onclick="archiveAndShareWichtelGroup(${group.id})" title="Wichtelperiode abschließen, in Historie speichern & an alle Teilnehmer senden">
                 📜 In Historie abschließen
@@ -5284,12 +5340,17 @@
         const partnerPerson = getCouplePartnerForPerson(part.personId);
         const partnerInGroup = partnerPerson ? group.participants.find(x => x.personId === partnerPerson.id) : null;
         const allUrls = [part.wishlistUrl, ...(Array.isArray(part.extraWishUrls) ? part.extraWishUrls : [])].filter(u => u && u.trim());
+        const isAdminSelf = (part.name || "").trim().toLowerCase() === (group.adminName || "").trim().toLowerCase();
 
         const secretLine = !group.isDrawn
           ? `<span style="color:var(--text-muted);">Noch nicht ausgelost</span>`
           : (revealed && target
             ? `<span style="color:var(--warn-amber); font-weight:700;">🎁 Hat gezogen: ${escapeHtml(target.name)}</span>`
-            : `<span style="color:var(--tree-green); font-weight:600;">🎲 Zugelost • 🔒 Geheim bis ${escapeHtml(revealDateFormatted)}</span>`);
+            : `<span style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <span style="color:${part.cloudOpened ? 'var(--tree-green)' : 'var(--text-muted)'}; font-weight:600;">${part.cloudOpened ? '✅ Los online geöffnet' : '⏳ Los noch ungeöffnet'}</span>
+                ${part.cloudHasPin ? `<span style="color:var(--accent-steel); font-weight:600;">🔒 PIN aktiv</span>` : ""}
+                ${(part.cloudHasWishlist || (part.wishText && part.wishText.trim()) || allUrls.length > 0) ? `<span style="color:var(--tree-green); font-weight:600;">📝 Wunschzettel</span>` : ""}
+              </span>`);
 
         const historyExclusionBadges = [];
         if (lastYearTarget && !pastHistoryTargets.some(h => h.receiverName === lastYearTarget.name)) {
@@ -5308,7 +5369,7 @@
               <div style="flex:1; min-width:0;">
                 <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                   <span style="font-size:14px; font-weight:600; color:var(--text-primary);">${escapeHtml(part.name)}</span>
-                  ${part.name === group.adminName ? `<span class="badge-app">👑 Admin</span>` : ""}
+                  ${isAdminSelf ? `<span class="badge-app">👑 Admin</span>` : ""}
                   ${partnerInGroup && group.excludeCouples ? `<span style="font-size:10.5px; padding:1px 6px; border-radius:4px; background:rgba(244,63,94,0.16); color:var(--partner-rose); font-weight:700;">💑 Paar mit ${escapeHtml(partnerInGroup.name.split(" ")[0])} (gesperrt füreinander)</span>` : ""}
                   ${part.notifiedVia ? `<span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(16,185,129,0.16); color:var(--tree-green); font-weight:600;">✓ ${escapeHtml(part.notifiedVia)}</span>` : ""}
                 </div>
@@ -5340,25 +5401,28 @@
               </div>
               <div style="display:flex; gap:4px; align-items:center;">
                 <button class="compact-btn" style="padding:4px 7px; font-size:11px;" onclick="openWichtelParticipantModal('edit', ${group.id}, ${part.id})" title="Wunschliste, No-Gos, Adresse & Links bearbeiten">🎁 Wunsch</button>
-                <button class="compact-btn" style="padding:4px 7px; font-size:11px;" onclick="openWichtelAnonQuestionModal(${group.id}, ${part.id})" title="Anonyme Wichtel-Frage an ${escapeHtml(part.name)} senden">🕵️</button>
                 <span style="color:var(--warn-amber); cursor:pointer; font-weight:700; padding:0 4px;" onclick="removeWichtelParticipant(${group.id}, ${part.id})" title="Teilnehmer entfernen">✕</span>
               </div>
             </div>
 
-            ${group.isDrawn && target ? `
+            ${group.isDrawn && group.cloudRoundId && part.cloudPid ? `
               <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border-slate);">
-                <button class="compact-btn primary" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'BlindWhatsApp')" title="Sendet einen verschlüsselten Los-Code per WhatsApp, sodass selbst der Gruppenadmin beim Absenden den Namen nicht im Klartext sieht!">
-                  🔐 Blind-Code (WhatsApp)
+                ${isAdminSelf ? `
+                  <button class="compact-btn primary" style="padding:4px 9px; font-size:11px;" onclick="openOwnAdminWichtelPortal(${group.id}, ${part.id})">
+                    🌐 Mein eigenes Los öffnen ↗
+                  </button>
+                ` : ""}
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'DirectWhatsApp')" title="Sendet den persönlichen Geheim-Link ohne das Los zu verraten">
+                  🔗 Geheim-Link (WhatsApp)
                 </button>
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'WhatsApp')">
-                  📲 Klartext (WhatsApp)
+                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="copyWichtelDirectMemberUrl(${group.id}, ${part.id})">
+                  📋 Direkt-Link
                 </button>
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="notifyWichtelParticipant(${group.id}, ${part.id}, 'In-App')">
-                  💬 In-App
-                </button>
-                <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="openWichtelSecretPeek(${group.id}, ${part.id})" title="Nur für ${escapeHtml(part.name)} kurz aufdecken">
-                  👁️ Geheimes Los
-                </button>
+                ${part.cloudHasPin ? `
+                  <button class="compact-btn" style="padding:4px 9px; font-size:11px;" onclick="resetWichtelMemberPinOnline(${group.id}, ${part.id})" title="Setzt nur die 4-stellige Portal-PIN zurück (Los bleibt geheim)">
+                    🔑 PIN Reset
+                  </button>
+                ` : ""}
               </div>
             ` : ""}
           </div>
@@ -7615,13 +7679,17 @@
     function deleteWichtelGroup(groupId) {
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
       if (!g) return;
-      askDeleteConfirm(`Wichtelrunde „${g.groupName}" wirklich löschen?`, () => {
+      askDeleteConfirm(`Wichtelrunde „${g.groupName}" wirklich löschen (inkl. Online-Portal-Daten)?`, () => {
+        const oldCloud = g.cloudRoundId || "";
         state.wichtelGroups = state.wichtelGroups.filter(x => x.id !== groupId);
         if (selectedWichtelGroupId === groupId) {
           selectedWichtelGroupId = state.wichtelGroups[0] ? state.wichtelGroups[0].id : null;
         }
         addLog(`Wichtelrunde "${g.groupName}" gelöscht.`);
         saveState();
+        if (oldCloud) {
+          deleteWichtelRoundOnline(oldCloud);
+        }
       });
     }
 
@@ -7720,6 +7788,8 @@
           part.address = (addrEl ? addrEl.value : (wichtelParticipantModalState.address || "")).trim();
           part.wishlistUrl = (urlEl ? urlEl.value : wichtelParticipantModalState.wishlistUrl).trim();
           part.extraWishUrls = (wichtelParticipantModalState.extraWishUrls || []).map(x => (x || "").trim()).filter(Boolean);
+          part.cloudHasWishlist = !!(part.wishText || part.wishlistUrl || part.extraWishUrls.length > 0);
+          updateWichtelParticipantOnline(g, part);
           addLog(`Wunschliste, No-Gos & Adresse für "${name}" in "${g.groupName}" gespeichert.`);
         }
       } else {
@@ -7741,6 +7811,7 @@
                 personId: person.id,
                 name: person.name,
                 phone: person.phone || "",
+                email: person.email || "",
                 appPeerId: person.appPeerId || "",
                 wishText: person.notes || "",
                 noGos: "",
@@ -7781,13 +7852,479 @@
           });
         }
 
+        const oldCloud = g.cloudRoundId || "";
         g.participants = updatedParticipants;
         g.isDrawn = false;
-        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; });
+        g.cloudRoundId = "";
+        g.cloudSyncedAt = "";
+        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; p.cloudPid = 0; p.directToken = ""; p.cloudOpened = false; p.cloudHasPin = false; });
+        if (oldCloud) deleteWichtelRoundOnline(oldCloud);
         addLog(`Teilnehmerliste für "${g.groupName}" aktualisiert (${g.participants.length} Teilnehmer).`);
       }
       wichtelParticipantModalState = null;
       saveState();
+    }
+
+    // =========================================================================
+    // Appwrite Cloud Online-Wichteln (100 % Admin-blind & 100 % anonymes Q&A)
+    // =========================================================================
+    const WICHTEL_PORTAL_BASE_URL = "https://wichteln.kirchnerapp.workers.dev";
+    const WICHTEL_API_PROXY_BASE = "https://wichteln.kirchnerapp.workers.dev/v1";
+    const WICHTEL_FALLBACK_API_BASE = "https://fra.cloud.appwrite.io/v1";
+    const WICHTEL_APPWRITE_PROJECT_ID = "6981eb5a00304f3ed7a3";
+    const WICHTEL_DB_ID = "remember_me_db";
+    const WICHTEL_COL_ID = "wichteln";
+
+    let wichtelCloudBusy = false;
+    const wichtelAutoSyncedRounds = new Set();
+
+    function generateWichtelRandomCode(len = 10) {
+      const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+      const rnd = new Uint32Array(len);
+      if (window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(rnd);
+      } else {
+        for (let i = 0; i < len; i++) rnd[i] = Math.floor(Math.random() * 0xffffffff);
+      }
+      let out = "";
+      for (let i = 0; i < len; i++) out += chars[rnd[i] % chars.length];
+      return out;
+    }
+
+    function wichtelSha256Bytes(asciiBytes) {
+      const K = [
+        0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+        0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+        0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+        0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+        0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+        0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+        0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+        0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+      ];
+      let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+      const l = asciiBytes.length;
+      const bitLenHi = Math.floor((l * 8) / 0x100000000);
+      const bitLenLo = (l * 8) >>> 0;
+      const padLen = ((l + 9 + 63) >> 6) << 6;
+      const m = new Uint8Array(padLen);
+      m.set(asciiBytes);
+      m[l] = 0x80;
+      const dv = new DataView(m.buffer);
+      dv.setUint32(padLen - 8, bitLenHi, false);
+      dv.setUint32(padLen - 4, bitLenLo, false);
+      const W = new Uint32Array(64);
+      const rotr = (x, n) => (x >>> n) | (x << (32 - n));
+      for (let i = 0; i < padLen; i += 64) {
+        for (let t = 0; t < 16; t++) W[t] = dv.getUint32(i + t * 4, false);
+        for (let t = 16; t < 64; t++) {
+          const s0 = rotr(W[t - 15], 7) ^ rotr(W[t - 15], 18) ^ (W[t - 15] >>> 3);
+          const s1 = rotr(W[t - 2], 17) ^ rotr(W[t - 2], 19) ^ (W[t - 2] >>> 10);
+          W[t] = (W[t - 16] + s0 + W[t - 7] + s1) >>> 0;
+        }
+        let [a, b, c, d, e, f, g, h] = H;
+        for (let t = 0; t < 64; t++) {
+          const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+          const ch = (e & f) ^ ((~e) & g);
+          const temp1 = (h + S1 + ch + K[t] + W[t]) >>> 0;
+          const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+          const maj = (a & b) ^ (a & c) ^ (b & c);
+          const temp2 = (S0 + maj) >>> 0;
+          h = g; g = f; f = e; e = (d + temp1) >>> 0;
+          d = c; c = b; b = a; a = (temp1 + temp2) >>> 0;
+        }
+        H = H.map((v, idx) => (v + [a, b, c, d, e, f, g, h][idx]) >>> 0);
+      }
+      const out = new Uint8Array(32);
+      const outDv = new DataView(out.buffer);
+      H.forEach((v, idx) => outDv.setUint32(idx * 4, v, false));
+      return out;
+    }
+
+    function wichtelSha256Hex(str) {
+      const digest = wichtelSha256Bytes(new TextEncoder().encode(String(str || "")));
+      return Array.from(digest).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    function sealWichtelBoxJs(plainJsonStr, roundId, pid) {
+      const plain = new TextEncoder().encode(plainJsonStr);
+      const cipher = new Uint8Array(plain.length);
+      let blockIdx = 0;
+      for (let offset = 0; offset < plain.length; offset += 32) {
+        const keyBlock = wichtelSha256Bytes(new TextEncoder().encode(`RM_WICHTEL_V1:${roundId}:${pid}:${blockIdx++}`));
+        const chunk = Math.min(32, plain.length - offset);
+        for (let j = 0; j < chunk; j++) {
+          cipher[offset + j] = plain[offset + j] ^ keyBlock[j];
+        }
+      }
+      let bin = "";
+      for (let i = 0; i < cipher.length; i++) bin += String.fromCharCode(cipher[i]);
+      return btoa(bin);
+    }
+
+    function buildWichtelGroupPortalUrl(cloudRoundId) {
+      return `${WICHTEL_PORTAL_BASE_URL}/?r=${encodeURIComponent(cloudRoundId || "")}`;
+    }
+
+    function buildWichtelDirectMemberPortalUrl(cloudRoundId, cloudPid, directToken) {
+      return `${WICHTEL_PORTAL_BASE_URL}/?r=${encodeURIComponent(cloudRoundId || "")}&p=${encodeURIComponent(cloudPid || "")}&k=${encodeURIComponent(directToken || "")}`;
+    }
+
+    async function wichtelAppwriteFetch(method, path, bodyObj = null) {
+      const bases = [WICHTEL_API_PROXY_BASE, WICHTEL_FALLBACK_API_BASE];
+      let lastErr = null;
+      for (const base of bases) {
+        try {
+          const opts = {
+            method,
+            headers: {
+              "Content-Type": "application/json",
+              "x-appwrite-project": WICHTEL_APPWRITE_PROJECT_ID
+            }
+          };
+          if (bodyObj !== null) opts.body = JSON.stringify(bodyObj);
+          const res = await fetch(base + path, opts);
+          const text = await res.text();
+          return { status: res.status, text };
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      throw lastErr || new Error("Appwrite nicht erreichbar");
+    }
+
+    function wichtelQEqual(attr, val) {
+      return encodeURIComponent(JSON.stringify({ method: "equal", attribute: attr, values: [val] }));
+    }
+
+    function wichtelQLimit(n) {
+      return encodeURIComponent(JSON.stringify({ method: "limit", values: [n] }));
+    }
+
+    async function upsertWichtelDocOnline(docId, roundId, docType, slotKey, payloadObj) {
+      const data = {
+        roundId,
+        docType,
+        slotKey,
+        payload: JSON.stringify(payloadObj)
+      };
+      const createRes = await wichtelAppwriteFetch("POST", `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents`, {
+        documentId: docId,
+        data
+      });
+      if (createRes.status === 409) {
+        await wichtelAppwriteFetch("PATCH", `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents/${docId}`, { data });
+      }
+    }
+
+    async function deleteWichtelRoundOnline(cloudRoundId) {
+      if (!cloudRoundId) return;
+      try {
+        const res = await wichtelAppwriteFetch(
+          "GET",
+          `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents?queries[]=${wichtelQEqual("roundId", cloudRoundId)}&queries[]=${wichtelQLimit(250)}`
+        );
+        if (res.status >= 200 && res.status < 300) {
+          const docs = (JSON.parse(res.text).documents || []);
+          for (const d of docs) {
+            if (d.$id) {
+              await wichtelAppwriteFetch("DELETE", `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents/${d.$id}`);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function publishWichtelRoundToAppwrite(g, oldCloudRoundId = "") {
+      if (!g || !g.isDrawn || !g.cloudRoundId) return false;
+      wichtelCloudBusy = true;
+      renderPhoneApp();
+      try {
+        if (oldCloudRoundId && oldCloudRoundId !== g.cloudRoundId) {
+          await deleteWichtelRoundOnline(oldCloudRoundId);
+        }
+        const outThreadByPid = {};
+        const inThreadByPid = {};
+        g.participants.forEach(p => {
+          outThreadByPid[p.cloudPid] = `th_${generateWichtelRandomCode(14)}`;
+        });
+        g.participants.forEach(p => {
+          const target = g.participants.find(x => x.id === p.drawnTargetId);
+          if (target) {
+            inThreadByPid[target.cloudPid] = outThreadByPid[p.cloudPid];
+          }
+        });
+
+        await upsertWichtelDocOnline(`r_${g.cloudRoundId}`, g.cloudRoundId, "ROUND", "META", {
+          cloudRoundId: g.cloudRoundId,
+          groupName: g.groupName,
+          adminName: g.adminName || "Admin",
+          motto: g.motto || "🎁 Klassisches Wichteln",
+          budget: g.budget || "",
+          revealDateIso: g.revealDateIso || "",
+          forceRevealed: !!g.forceRevealed,
+          createdAt: new Date().toISOString(),
+          roster: g.participants.map(p => ({ pid: p.cloudPid, name: p.name }))
+        });
+
+        for (const p of g.participants) {
+          const target = g.participants.find(x => x.id === p.drawnTargetId);
+          if (!target) continue;
+          const secretJson = JSON.stringify({
+            targetPid: target.cloudPid,
+            targetName: target.name,
+            outThreadId: outThreadByPid[p.cloudPid] || "",
+            inThreadId: inThreadByPid[p.cloudPid] || ""
+          });
+          const sealedBox = sealWichtelBoxJs(secretJson, g.cloudRoundId, p.cloudPid);
+          await upsertWichtelDocOnline(`p_${g.cloudRoundId}_${p.cloudPid}`, g.cloudRoundId, "PART", `P_${p.cloudPid}`, {
+            pid: p.cloudPid,
+            name: p.name,
+            tokenHash: wichtelSha256Hex(p.directToken || ""),
+            pinHash: "",
+            openedAt: "",
+            wishUpdatedAt: "",
+            wishText: p.wishText || "",
+            noGos: p.noGos || "",
+            address: p.address || "",
+            wishlistUrl: p.wishlistUrl || "",
+            extraWishUrls: Array.isArray(p.extraWishUrls) ? p.extraWishUrls.filter(Boolean) : [],
+            sealedBox
+          });
+        }
+
+        g.cloudSyncedAt = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        wichtelAutoSyncedRounds.add(g.cloudRoundId);
+        addLog(`☁️ Wichtelrunde "${g.groupName}" verschlüsselt & 100 % Admin-blind im Appwrite-Portal veröffentlicht!`);
+        wichtelCloudBusy = false;
+        saveState();
+        return true;
+      } catch (err) {
+        wichtelCloudBusy = false;
+        addLog(`⚠️ Cloud-Upload fehlgeschlagen: ${err.message || err}`);
+        renderPhoneApp();
+        return false;
+      }
+    }
+
+    async function syncWichtelRoundLiveStatus(groupId, logSuccess = true) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g || !g.isDrawn) return;
+      if (!g.cloudRoundId) {
+        g.cloudRoundId = generateWichtelRandomCode(10);
+        g.participants.forEach((p, idx) => {
+          p.cloudPid = p.cloudPid || (idx + 1);
+          p.directToken = p.directToken || generateWichtelRandomCode(12);
+        });
+        await publishWichtelRoundToAppwrite(g, "");
+        return;
+      }
+      wichtelCloudBusy = true;
+      renderPhoneApp();
+      try {
+        const res = await wichtelAppwriteFetch(
+          "GET",
+          `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents?queries[]=${wichtelQEqual("roundId", g.cloudRoundId)}&queries[]=${wichtelQLimit(250)}`
+        );
+        wichtelCloudBusy = false;
+        if (res.status < 200 || res.status >= 300) {
+          renderPhoneApp();
+          return;
+        }
+        const docs = JSON.parse(res.text).documents || [];
+        if (docs.length === 0) {
+          await publishWichtelRoundToAppwrite(g, "");
+          return;
+        }
+        let totalMsgs = 0;
+        let unreadMsgs = 0;
+        const partByPid = {};
+        for (const doc of docs) {
+          let pObj = null;
+          try { pObj = JSON.parse(doc.payload || "{}"); } catch (e) {}
+          if (!pObj) continue;
+          if (doc.docType === "PART" && pObj.pid) {
+            partByPid[pObj.pid] = pObj;
+          } else if (doc.docType === "MSG") {
+            totalMsgs++;
+            const unread = pObj.fromRole === "SANTA" ? !pObj.readByTarget : !pObj.readBySanta;
+            if (unread) unreadMsgs++;
+          }
+        }
+        g.participants.forEach(p => {
+          const cp = partByPid[p.cloudPid];
+          if (!cp) return;
+          p.cloudOpened = !!(cp.openedAt && String(cp.openedAt).trim());
+          p.cloudHasPin = !!(cp.pinHash && String(cp.pinHash).trim());
+          const cWish = (cp.wishText || "").trim();
+          const cUrl = (cp.wishlistUrl || "").trim();
+          const cExtras = Array.isArray(cp.extraWishUrls) ? cp.extraWishUrls.filter(Boolean) : [];
+          p.cloudHasWishlist = !!(cWish || cUrl || cExtras.length > 0);
+          if (cWish) p.wishText = cWish;
+          if (cp.noGos && String(cp.noGos).trim()) p.noGos = String(cp.noGos).trim();
+          if (cp.address && String(cp.address).trim()) p.address = String(cp.address).trim();
+          if (cUrl) p.wishlistUrl = cUrl;
+          if (cExtras.length > 0) p.extraWishUrls = cExtras;
+        });
+        g.cloudTotalMessages = totalMsgs;
+        g.cloudUnreadMessages = unreadMsgs;
+        g.cloudSyncedAt = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        if (logSuccess) {
+          const opened = g.participants.filter(x => x.cloudOpened).length;
+          addLog(`🔄 Live-Status aus Appwrite geladen: ${opened}/${g.participants.length} Lose geöffnet, ${totalMsgs} anonyme Nachrichten (${unreadMsgs} ungelesen).`);
+        }
+        saveState();
+      } catch (err) {
+        wichtelCloudBusy = false;
+        if (logSuccess) addLog("⚠️ Appwrite-Cloud momentan nicht erreichbar.");
+        renderPhoneApp();
+      }
+    }
+
+    async function updateWichtelParticipantOnline(g, part) {
+      if (!g || !g.isDrawn || !g.cloudRoundId || !part || !part.cloudPid) return;
+      try {
+        const docId = `p_${g.cloudRoundId}_${part.cloudPid}`;
+        const res = await wichtelAppwriteFetch("GET", `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents/${docId}`);
+        if (res.status >= 200 && res.status < 300) {
+          const doc = JSON.parse(res.text);
+          const payloadObj = JSON.parse(doc.payload || "{}");
+          payloadObj.name = part.name;
+          payloadObj.wishText = part.wishText || "";
+          payloadObj.noGos = part.noGos || "";
+          payloadObj.address = part.address || "";
+          payloadObj.wishlistUrl = part.wishlistUrl || "";
+          payloadObj.extraWishUrls = Array.isArray(part.extraWishUrls) ? part.extraWishUrls.filter(Boolean) : [];
+          payloadObj.wishUpdatedAt = new Date().toISOString();
+          await upsertWichtelDocOnline(docId, g.cloudRoundId, "PART", `P_${part.cloudPid}`, payloadObj);
+        }
+      } catch (e) {}
+    }
+
+    async function updateWichtelForceRevealOnline(g) {
+      if (!g || !g.cloudRoundId) return;
+      try {
+        const docId = `r_${g.cloudRoundId}`;
+        const res = await wichtelAppwriteFetch("GET", `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents/${docId}`);
+        if (res.status >= 200 && res.status < 300) {
+          const doc = JSON.parse(res.text);
+          const payloadObj = JSON.parse(doc.payload || "{}");
+          payloadObj.forceRevealed = !!g.forceRevealed;
+          await upsertWichtelDocOnline(docId, g.cloudRoundId, "ROUND", "META", payloadObj);
+        }
+      } catch (e) {}
+    }
+
+    function resetWichtelMemberPinOnline(groupId, participantId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      const part = g ? g.participants.find(x => x.id === participantId) : null;
+      if (!g || !part || !g.cloudRoundId || !part.cloudPid) return;
+      askDeleteConfirm(`Hat ${part.name} die 4-stellige Portal-PIN vergessen? Die PIN wird zurückgesetzt (das Los bleibt weiterhin geheim!).`, async () => {
+        try {
+          const docId = `p_${g.cloudRoundId}_${part.cloudPid}`;
+          const res = await wichtelAppwriteFetch("GET", `/databases/${WICHTEL_DB_ID}/collections/${WICHTEL_COL_ID}/documents/${docId}`);
+          if (res.status >= 200 && res.status < 300) {
+            const doc = JSON.parse(res.text);
+            const payloadObj = JSON.parse(doc.payload || "{}");
+            payloadObj.pinHash = "";
+            await upsertWichtelDocOnline(docId, g.cloudRoundId, "PART", `P_${part.cloudPid}`, payloadObj);
+            part.cloudHasPin = false;
+            addLog(`🔑 Portal-PIN für "${part.name}" zurückgesetzt.`);
+            saveState();
+          }
+        } catch (e) {
+          addLog("⚠️ PIN-Reset fehlgeschlagen.");
+        }
+      });
+    }
+
+    function buildWhatsAppGroupPortalInviteText(g) {
+      const link = buildWichtelGroupPortalUrl(g.cloudRoundId);
+      const revealStr = formatIsoToDdMmYyyy(g.revealDateIso) || "Weihnachten";
+      return (
+        `🎄🎁 *Unsere Wichtelrunde „${g.groupName}“ ist ausgelost!*\n` +
+        `🎭 Motto: ${g.motto || "🎁 Klassisches Wichteln"}${g.budget ? ` • 💶 Budget: ${g.budget}` : ""}\n` +
+        `📅 Geheimhaltung bis: ${revealStr}\n\n` +
+        `🌐 *Hier ist der gemeinsame Familien-Link für ALLE (ganz ohne App!):*\n` +
+        `${link}\n\n` +
+        `✨ *So funktioniert's in 10 Sekunden:*\n` +
+        `1️⃣ Link im Browser antippen & deinen Namen wählen\n` +
+        `2️⃣ Eigene geheime 4-stellige PIN vergeben & dein Los öffnen\n` +
+        `3️⃣ Eigene Wünsche / No-Gos eintragen & bei Bedarf 100 % *anonym* Fragen an dein gezogenes Wichtelkind stellen!\n` +
+        `🤫 Selbst Admin ${g.adminName || "Admin"} sieht nicht, wer wen gezogen hat!`
+      );
+    }
+
+    function shareWichtelGroupPortalWhatsApp(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g || !g.cloudRoundId) return;
+      const msg = buildWhatsAppGroupPortalInviteText(g);
+      g.participants.forEach(p => {
+        if (!p.notifiedVia) p.notifiedVia = "Gruppen-Link";
+      });
+      addLog(`📲 Gemeinsamer WhatsApp-Gruppenlink für alle ${g.participants.length} Teilnehmer geöffnet (100 % Admin-blind!).`);
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+      saveState();
+    }
+
+    function sendWichtelBulkEmailInvite(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g || !g.cloudRoundId) return;
+      const emails = [...new Set(g.participants.map(p => {
+        const person = p.personId ? state.persons.find(x => x.id === p.personId) : null;
+        return (p.email || (person && person.email) || "").trim();
+      }).filter(em => em.includes("@")))];
+      if (emails.length === 0) return;
+      const subj = `🎄 Unsere Wichtelrunde: ${g.groupName}`;
+      const body = buildWhatsAppGroupPortalInviteText(g).replace(/\*/g, "");
+      window.location.href = `mailto:?bcc=${encodeURIComponent(emails.join(","))}&subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+      addLog(`✉️ Sammel-Mail an ${emails.length} Teilnehmer vorbereitet.`);
+    }
+
+    async function copyWichtelGroupPortalUrl(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g || !g.cloudRoundId) return;
+      const link = buildWichtelGroupPortalUrl(g.cloudRoundId);
+      try {
+        await navigator.clipboard.writeText(link);
+        addLog(`📋 Familien-Wichtelportal-Link kopiert: ${link}`);
+      } catch (e) {
+        addLog(`🌐 Portal-Link: ${link}`);
+      }
+    }
+
+    async function copyWichtelDirectMemberUrl(groupId, participantId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      const p = g ? g.participants.find(x => x.id === participantId) : null;
+      if (!g || !p || !g.cloudRoundId || !p.cloudPid) return;
+      const link = buildWichtelDirectMemberPortalUrl(g.cloudRoundId, p.cloudPid, p.directToken);
+      try {
+        await navigator.clipboard.writeText(link);
+        addLog(`📋 Geheimer Direkt-Link für ${p.name} kopiert.`);
+      } catch (e) {
+        addLog(`🔗 Direkt-Link für ${p.name}: ${link}`);
+      }
+    }
+
+    function openOwnAdminWichtelPortal(groupId, participantId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      const p = g ? g.participants.find(x => x.id === participantId) : null;
+      if (!g || !p || !g.cloudRoundId || !p.cloudPid) return;
+      const link = buildWichtelDirectMemberPortalUrl(g.cloudRoundId, p.cloudPid, p.directToken);
+      window.open(link, "_blank");
+    }
+
+    function shareNeutralWichtelInboxNudge(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g || !g.cloudRoundId) return;
+      const link = buildWichtelGroupPortalUrl(g.cloudRoundId);
+      const msg =
+        `🕵️🎄 *Anonymer Wichtel-Postbote für „${g.groupName}“:*\n\n` +
+        `Im Wichtel-Portal liegen ungelesene *anonyme Fragen oder Antworten* vor! 💬\n` +
+        `Damit niemand verraten wird, schaut bitte alle kurz mit eurer PIN ins Portal, ob euer Wichtel oder Wichtelkind geschrieben hat:\n` +
+        `${link}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
+      addLog("📣 Neutraler Hinweis auf anonyme Wichtel-Nachrichten für die WhatsApp-Gruppe geöffnet.");
     }
 
     function removeWichtelParticipant(groupId, participantId) {
@@ -7795,12 +8332,16 @@
       if (!g) return;
       const part = g.participants.find(x => x.id === participantId);
       if (!part) return;
-      askDeleteConfirm(`Teilnehmer „${part.name}" aus der Wichtelrunde entfernen?`, () => {
+      askDeleteConfirm(`Teilnehmer „${part.name}" aus der Wichtelrunde entfernen? (Falls schon ausgelost war, muss danach neu gewürfelt werden.)`, () => {
+        const oldCloud = g.cloudRoundId || "";
         g.participants = g.participants.filter(x => x.id !== participantId);
         g.isDrawn = false;
-        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; });
+        g.cloudRoundId = "";
+        g.cloudSyncedAt = "";
+        g.participants.forEach(p => { p.drawnTargetId = null; p.notifiedVia = ""; p.cloudPid = 0; p.directToken = ""; p.cloudOpened = false; p.cloudHasPin = false; });
         addLog(`Teilnehmer "${part.name}" aus "${g.groupName}" entfernt.`);
         saveState();
+        if (oldCloud) deleteWichtelRoundOnline(oldCloud);
       });
     }
 
@@ -7838,23 +8379,14 @@
       return backtrack(0) ? assignment : null;
     }
 
-    function rollWichtelGroup(groupId) {
-      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
-      if (!g) return;
+    function executeWichtelRoll(g) {
       const parts = g.participants;
-      if (parts.length < 2) {
-        addLog("Mindestens 2 Teilnehmer werden zum Wichtel-Würfeln benötigt!");
-        return;
-      }
-
-      // Speichere vorherige Zulosung als Vorjahres-/Letzt-Historie, falls schon ausgelost war
       parts.forEach(p => {
         if (p.drawnTargetId) {
           p.lastYearTargetId = p.drawnTargetId;
         }
       });
 
-      // Mathematisch garantierter Backtracking-Solver (Stufe 1: Paar-Sperre + komplette Historie, Stufe 2: Paar-Sperre, Stufe 3: Reines Derangement)
       let bestAssignment = solveWichtelMatchingBacktrack(parts, (giver, receiver) => {
         if (g.excludeCouples && parts.length > 2 && arePersonsCoupleInTree(giver.personId, receiver.personId)) return false;
         if (g.excludeLastYear !== false && parts.length > 2) {
@@ -7874,160 +8406,68 @@
         bestAssignment = solveWichtelMatchingBacktrack(parts, () => true);
       }
 
-      parts.forEach(p => {
+      const oldCloudId = g.cloudRoundId || "";
+      g.cloudRoundId = generateWichtelRandomCode(10);
+      g.cloudSyncedAt = "";
+      g.cloudTotalMessages = 0;
+      g.cloudUnreadMessages = 0;
+
+      parts.forEach((p, idx) => {
         p.drawnTargetId = bestAssignment ? (bestAssignment.get(p.id) || null) : null;
         p.notifiedVia = "";
+        p.cloudPid = idx + 1;
+        p.directToken = generateWichtelRandomCode(12);
+        p.cloudOpened = false;
+        p.cloudHasPin = false;
+        p.cloudHasWishlist = !!((p.wishText && p.wishText.trim()) || (p.wishlistUrl && p.wishlistUrl.trim()));
       });
       g.isDrawn = true;
       g.forceRevealed = false;
       g.drawnAt = new Date().toLocaleTimeString("de-DE");
-      addLog(`🎲 Wichtelrunde "${g.groupName}" (${g.motto || 'Klassisch'}) per Backtracking-Solver geheim ausgelost! Paare & Historie garantiert berücksichtigt.`);
+      addLog(`🎲 Wichtelrunde "${g.groupName}" geheim ausgelost (100 % Admin-blind)! Verbinde mit Appwrite-Wichtelportal…`);
       saveState();
+      publishWichtelRoundToAppwrite(g, oldCloudId);
     }
 
-    function encodeWichtelBlindCode(group, giver, target) {
-      const payload = {
-        groupName: group.groupName,
-        motto: group.motto || "🎁 Klassisches Wichteln",
-        budget: group.budget || "",
-        revealDate: formatIsoToDdMmYyyy(group.revealDateIso) || "24.12.",
-        giverName: giver.name,
-        targetName: target.name,
-        wishText: target.wishText || "",
-        noGos: target.noGos || "",
-        address: target.address || "",
-        wishlistUrl: target.wishlistUrl || ""
-      };
-      const json = JSON.stringify(payload);
-      const b64 = btoa(unescape(encodeURIComponent(json)));
-      return `WICHTEL_SECRET:${b64}`;
-    }
-
-    function decodeWichtelBlindCode(rawText) {
-      const str = String(rawText || "").trim();
-      const idx = str.indexOf("WICHTEL_SECRET:");
-      const b64Part = (idx >= 0 ? str.slice(idx + "WICHTEL_SECRET:".length) : str).trim().split(/\s+/)[0];
-      const json = decodeURIComponent(escape(atob(b64Part)));
-      return JSON.parse(json);
-    }
-
-    function openWichtelSecretCodeModal() {
-      wichtelSecretCodeModalState = { raw: "", decoded: null };
-      renderModals();
-    }
-
-    function decodeWichtelSecretCodeFromModal() {
-      if (!wichtelSecretCodeModalState) return;
-      const el = document.getElementById("wsc-input");
-      const raw = el ? el.value : (wichtelSecretCodeModalState.raw || "");
-      wichtelSecretCodeModalState.raw = raw;
-      try {
-        wichtelSecretCodeModalState.decoded = decodeWichtelBlindCode(raw);
-        addLog(`🔓 Geheimer Wichtel-Los-Code für "${wichtelSecretCodeModalState.decoded.giverName}" entschlüsselt.`);
-      } catch (e) {
-        addLog("⚠️ Ungültiger WICHTEL_SECRET-Code. Bitte den vollständigen Code einfügen.");
+    function rollWichtelGroup(groupId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g) return;
+      if (g.participants.length < 2) {
+        addLog("Mindestens 2 Teilnehmer werden zum Wichtel-Würfeln benötigt!");
+        return;
       }
-      renderModals();
-    }
-
-    function buildWichtelSecretMessage(group, giver, target) {
-      const revealStr = formatIsoToDdMmYyyy(group.revealDateIso) || "Weihnachten";
-      const allUrls = [target.wishlistUrl, ...(Array.isArray(target.extraWishUrls) ? target.extraWishUrls : [])].filter(u => u && u.trim());
-      let msg = `🎄 Hallo ${giver.name.split(" ")[0]}! Hier ist dein geheimes Los für unsere Wichtelrunde „${group.groupName}“ (Admin: ${group.adminName}):\n\n`;
-      msg += `🎭 Motto: ${group.motto || "🎁 Klassisches Wichteln"}\n`;
-      msg += `🎁 Du beschenkst: *${target.name}*!\n`;
-      if (group.budget) msg += `💶 Budget: ${group.budget}\n`;
-      if (target.wishText) msg += `📝 Wunschzettel: ${target.wishText}\n`;
-      if (target.noGos) msg += `🚫 Bitte NICHT / Hinweis: ${target.noGos}\n`;
-      if (target.address) msg += `📦 Post-Adresse: ${target.address}\n`;
-      allUrls.forEach((u, idx) => {
-        msg += `🛒 ${idx === 0 ? "Amazon-Wunschliste" : `Wunsch-Link ${idx + 1}`}: ${u}\n`;
-      });
-      msg += `\n🤫 Pssst: Niemand sonst kennt dein Los! Erst ab dem ${revealStr} wird für alle aufgelöst, wer wen gezogen hat.`;
-      return msg;
+      if (g.isDrawn) {
+        askDeleteConfirm("Wirklich komplett neu auslosen? Alle bisherigen Online-Lose & PINs dieser Runde werden ersetzt!", () => {
+          executeWichtelRoll(g);
+        });
+      } else {
+        executeWichtelRoll(g);
+      }
     }
 
     function notifyWichtelParticipant(groupId, participantId, channel) {
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
-      if (!g) return;
+      if (!g || !g.cloudRoundId) return;
       const giver = g.participants.find(x => x.id === participantId);
-      const target = giver ? g.participants.find(x => x.id === giver.drawnTargetId) : null;
-      if (!giver || !target) return;
+      if (!giver || !giver.cloudPid) return;
 
-      if (channel === "BlindWhatsApp") {
-        const secretCode = encodeWichtelBlindCode(g, giver, target);
-        const revealStr = formatIsoToDdMmYyyy(g.revealDateIso) || "Weihnachten";
-        const blindMsg =
-          `🎄🔐 *Geheimer Wichtel-Los-Code* für ${giver.name.split(" ")[0]} (Runde: „${g.groupName}“)\n\n` +
-          `Damit selbst Gruppenadmin ${g.adminName} beim Versenden dein Los nicht im Klartext sieht, ist dein gezogener Wichtelpartner hier verschlüsselt:\n\n` +
-          `${secretCode}\n\n` +
-          `👉 Öffne in *Remember Me* den Tab *🎄 Wichteln* ➔ *🔐 Los-Code* und füge diese Nachricht ein, um dein Los & den Wunschzettel geheim aufzudecken! (Auflösung für alle erst ab ${revealStr})`;
-        giver.notifiedVia = "🔐 Blind-Code";
-        const cleanPhone = (giver.phone || "").replace(/[^0-9]/g, "");
-        addLog(`🔐 Verschlüsselter Blind-Code per WhatsApp an ${giver.name} vorbereitet (Admin sieht gezogenen Namen beim Senden nicht!).`);
-        const url = cleanPhone
-          ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(blindMsg)}`
-          : `https://wa.me/?text=${encodeURIComponent(blindMsg)}`;
-        window.open(url, "_blank");
-        saveState();
-        return;
-      }
+      const directLink = buildWichtelDirectMemberPortalUrl(g.cloudRoundId, giver.cloudPid, giver.directToken);
+      const revealStr = formatIsoToDdMmYyyy(g.revealDateIso) || "Weihnachten";
+      const msg =
+        `🎄🔐 Hallo ${giver.name.split(" ")[0]}!\n` +
+        `Hier ist dein persönlicher, versiegelter Wichtel-Zugang für „${g.groupName}“ (${g.motto || "🎁 Klassisches Wichteln"}${g.budget ? `, Budget: ${g.budget}` : ""}):\n\n` +
+        `${directLink}\n\n` +
+        `✨ Ohne App direkt im Browser öffnen: Dort siehst nur du allein dein Los, kannst deine Wunschliste pflegen & 100 % anonym Fragen stellen!\n` +
+        `🤫 Geheim bis ${revealStr} (auch der Admin kennt dein Los nicht).`;
 
-      const msg = buildWichtelSecretMessage(g, giver, target);
-      giver.notifiedVia = channel;
-
-      if (channel === "WhatsApp") {
-        const cleanPhone = (giver.phone || "").replace(/[^0-9]/g, "");
-        addLog(`📲 Geheimes Wichtel-Los per WhatsApp an ${giver.name} vorbereitet (Gezogene Person bleibt im Log geheim!).`);
-        const url = cleanPhone
-          ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`
-          : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-        window.open(url, "_blank");
-      } else {
-        const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
-        state.directMessages.push({
-          id: state.nextId++,
-          personId: giver.personId || 0,
-          targetPeerId: giver.appPeerId || "KC-WICHTEL",
-          senderDisplayName: g.adminName || "Gruppenadmin",
-          direction: "OUTGOING",
-          text: msg,
-          timestampIso: nowStr,
-          isRead: true
-        });
-        addLog(`💬 Geheimes Wichtel-Los In-App an ${giver.name} zugestellt (Inhalt vor anderen Teilnehmern verborgen).`);
-      }
+      giver.notifiedVia = "Direkt-Link";
+      const cleanPhone = (giver.phone || "").replace(/[^0-9]/g, "");
+      addLog(`🔗 Persönlicher Geheim-Link per WhatsApp an ${giver.name} vorbereitet (100 % Admin-blind!).`);
+      const url = cleanPhone
+        ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`
+        : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+      window.open(url, "_blank");
       saveState();
-    }
-
-    function openWichtelAnonQuestionModal(groupId, targetParticipantId) {
-      wichtelAnonQuestionState = {
-        groupId,
-        targetParticipantId,
-        questionText: ""
-      };
-      renderModals();
-    }
-
-    function sendWichtelAnonQuestion(channel) {
-      if (!wichtelAnonQuestionState) return;
-      const g = (state.wichtelGroups || []).find(x => x.id === wichtelAnonQuestionState.groupId);
-      const target = g ? g.participants.find(x => x.id === wichtelAnonQuestionState.targetParticipantId) : null;
-      if (!g || !target) return;
-      const qEl = document.getElementById("waq-text");
-      const qText = (qEl ? qEl.value : wichtelAnonQuestionState.questionText).trim();
-      if (!qText) return;
-
-      const msg = `🕵️🎄 *Geheime Wichtel-Frage* aus der Runde „${g.groupName}“:\n\nDein geheimer Wichtel lässt über Gruppenadmin ${g.adminName} fragen:\n„${qText}“\n\nAntworte einfach hier – deine Antwort wird anonym weitergeleitet! 🤫`;
-      if (channel === "WhatsApp") {
-        const cleanPhone = (target.phone || "").replace(/[^0-9]/g, "");
-        window.open(cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
-        addLog(`🕵️ Anonyme Wichtel-Frage per WhatsApp an ${target.name} gesendet.`);
-      } else {
-        addLog(`🕵️ Anonyme Wichtel-Frage In-App an ${target.name} übermittelt: "${qText}"`);
-      }
-      wichtelAnonQuestionState = null;
-      renderModals();
     }
 
     function sendWichtelDeadlineReminder(groupId) {
@@ -8035,12 +8475,18 @@
       if (!g) return;
       const revealStr = formatIsoToDdMmYyyy(g.revealDateIso) || "Weihnachten";
       const daysLeft = g.revealDateIso ? Math.max(0, daysBetween(todayIso(), g.revealDateIso)) : (g.reminderDaysBefore || 7);
-      const msg = `⏰🎄 Erinnerung zur Wichtelrunde „${g.groupName}“ (${g.motto || "🎁 Klassisches Wichteln"}):\nNoch ${daysLeft} Tage bis zum ${revealStr}! Denk daran, dein Wichtelgeschenk ${g.budget ? `(Budget: ${g.budget}) ` : ""}rechtzeitig zu besorgen! 🎁`;
+      const portalSuffix = g.cloudRoundId ? `\n🌐 Wunschzettel & anonyme Fragen: ${buildWichtelGroupPortalUrl(g.cloudRoundId)}` : "";
+      const msg = `⏰🎄 Erinnerung zur Wichtelrunde „${g.groupName}“ (${g.motto || "🎁 Klassisches Wichteln"}):\nNoch ${daysLeft} Tage bis zum ${revealStr}! Denk daran, dein Wichtelgeschenk ${g.budget ? `(Budget: ${g.budget}) ` : ""}rechtzeitig zu besorgen! 🎁${portalSuffix}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
       addLog(`⏰ Geschenk-Besorgungs-Wecker für "${g.groupName}" ausgelöst (Frist: ${revealStr}).`);
     }
 
     function openWichtelSecretPeek(groupId, participantId) {
+      const g = (state.wichtelGroups || []).find(x => x.id === groupId);
+      if (!g || !isWichtelGroupRevealed(g)) {
+        addLog("🔒 100 % Admin-blind: Vor Ablauf der Frist sind fremde Lose gesperrt!");
+        return;
+      }
       wichtelSecretPeekState = { groupId, participantId };
       renderModals();
     }
@@ -8048,14 +8494,20 @@
     function toggleWichtelForceReveal(groupId) {
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
       if (!g) return;
-      g.forceRevealed = !g.forceRevealed;
-      if (g.forceRevealed && g.isDrawn) {
-        saveWichtelGroupToHistory(g, false);
+      if (!isWichtelGroupRevealed(g)) {
+        askDeleteConfirm("ACHTUNG: Wenn du die Wichtelrunde jetzt vorzeitig auflöst, werden alle geheimen Paarungen für dich und im Online-Portal sichtbar! Wirklich auflösen?", () => {
+          g.forceRevealed = true;
+          if (g.isDrawn) saveWichtelGroupToHistory(g, false);
+          updateWichtelForceRevealOnline(g);
+          addLog(`🔓 Auflösungs-Frist für "${g.groupName}" freigegeben – alle sehen jetzt, wer wen gezogen hatte!`);
+          saveState();
+        });
+      } else {
+        g.forceRevealed = false;
+        updateWichtelForceRevealOnline(g);
+        addLog(`🔒 Wichtel-Zuordnungen für "${g.groupName}" wieder verborgen.`);
+        saveState();
       }
-      addLog(g.forceRevealed
-        ? `🔓 Auflösungs-Frist für "${g.groupName}" freigegeben – alle sehen jetzt, wer wen gezogen hatte (und Eintrag in Wichtel-Historie gesichert)!`
-        : `🔒 Wichtel-Zuordnungen für "${g.groupName}" wieder verborgen.`);
-      saveState();
     }
 
     function saveWichtelGroupToHistory(g, notifyAll = false) {
@@ -8105,12 +8557,20 @@
     function archiveAndShareWichtelGroup(groupId) {
       const g = (state.wichtelGroups || []).find(x => x.id === groupId);
       if (!g || !g.isDrawn) return;
-      g.forceRevealed = true;
-      const entry = saveWichtelGroupToHistory(g, true);
-      if (entry) {
-        addLog(`📜 Wichtelperiode "${g.groupName}" abgeschlossen, in der Wichtel-Historie gespeichert & an alle Teilnehmer verteilt!`);
+      const runFinish = () => {
+        g.forceRevealed = true;
+        updateWichtelForceRevealOnline(g);
+        const entry = saveWichtelGroupToHistory(g, true);
+        if (entry) {
+          addLog(`📜 Wichtelperiode "${g.groupName}" abgeschlossen, in der Wichtel-Historie gespeichert & an alle Teilnehmer verteilt!`);
+        }
+        saveState();
+      };
+      if (!isWichtelGroupRevealed(g)) {
+        askDeleteConfirm("Wichtelrunde jetzt auflösen, in der Historie speichern und die Auflösung teilen?", runFinish);
+      } else {
+        runFinish();
       }
-      saveState();
     }
 
     function deleteWichtelHistoryEntry(historyId) {
@@ -8833,7 +9293,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.41",
+        version: "1.0.42",
         createdAt: dateStr,
         state
       };
@@ -8851,7 +9311,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.41",
+        version: "1.0.42",
         createdAt: dateStr,
         state
       };
@@ -8926,7 +9386,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.41 gestartet.");
+    addLog("Remember Me v1.0.42 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

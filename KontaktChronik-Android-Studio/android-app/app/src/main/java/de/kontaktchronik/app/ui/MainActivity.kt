@@ -77,6 +77,7 @@ import de.kontaktchronik.app.model.*
 import de.kontaktchronik.app.reminders.BirthdayNotificationHelper
 import de.kontaktchronik.app.reminders.DailyReminderWorker
 import de.kontaktchronik.app.reminders.QuickActionDispatcher
+import de.kontaktchronik.app.wichtel.WichtelCloudSync
 import de.kontaktchronik.app.widget.RememberMeWidgetUpdater
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -2298,6 +2299,7 @@ data class WichtelParticipant(
     val personId: Long? = null,
     val name: String,
     val phone: String = "",
+    val email: String = "",
     val wishText: String = "",
     val noGos: String = "",
     val address: String = "",
@@ -2305,7 +2307,12 @@ data class WichtelParticipant(
     val extraWishUrls: List<String> = emptyList(),
     val drawnTargetId: Long? = null,
     val lastYearTargetId: Long? = null,
-    val notifiedVia: String = ""
+    val notifiedVia: String = "",
+    val cloudPid: Int = 0,
+    val directToken: String = "",
+    val cloudOpened: Boolean = false,
+    val cloudHasPin: Boolean = false,
+    val cloudHasWishlist: Boolean = false
 )
 
 data class WichtelGroup(
@@ -2320,6 +2327,10 @@ data class WichtelGroup(
     val excludeLastYear: Boolean = true,
     val forceRevealed: Boolean = false,
     val isDrawn: Boolean = false,
+    val cloudRoundId: String = "",
+    val cloudSyncedAt: String = "",
+    val cloudTotalMessages: Int = 0,
+    val cloudUnreadMessages: Int = 0,
     val participants: List<WichtelParticipant> = emptyList()
 )
 
@@ -2341,6 +2352,7 @@ fun parseWichtelGroupsJson(raw: String?): List<WichtelGroup> {
                     personId = pObj.optLong("personId", -1L).takeIf { it > 0 },
                     name = pObj.optString("name", ""),
                     phone = pObj.optString("phone", ""),
+                    email = pObj.optString("email", ""),
                     wishText = pObj.optString("wishText", ""),
                     noGos = pObj.optString("noGos", ""),
                     address = pObj.optString("address", ""),
@@ -2348,7 +2360,12 @@ fun parseWichtelGroupsJson(raw: String?): List<WichtelGroup> {
                     extraWishUrls = extras,
                     drawnTargetId = pObj.optLong("drawnTargetId", -1L).takeIf { it > 0 },
                     lastYearTargetId = pObj.optLong("lastYearTargetId", -1L).takeIf { it > 0 },
-                    notifiedVia = pObj.optString("notifiedVia", "")
+                    notifiedVia = pObj.optString("notifiedVia", ""),
+                    cloudPid = pObj.optInt("cloudPid", 0),
+                    directToken = pObj.optString("directToken", ""),
+                    cloudOpened = pObj.optBoolean("cloudOpened", false),
+                    cloudHasPin = pObj.optBoolean("cloudHasPin", false),
+                    cloudHasWishlist = pObj.optBoolean("cloudHasWishlist", false)
                 )
             }
             WichtelGroup(
@@ -2363,6 +2380,10 @@ fun parseWichtelGroupsJson(raw: String?): List<WichtelGroup> {
                 excludeLastYear = obj.optBoolean("excludeLastYear", true),
                 forceRevealed = obj.optBoolean("forceRevealed", false),
                 isDrawn = obj.optBoolean("isDrawn", false),
+                cloudRoundId = obj.optString("cloudRoundId", ""),
+                cloudSyncedAt = obj.optString("cloudSyncedAt", ""),
+                cloudTotalMessages = obj.optInt("cloudTotalMessages", 0),
+                cloudUnreadMessages = obj.optInt("cloudUnreadMessages", 0),
                 participants = parts
             )
         }
@@ -2385,6 +2406,10 @@ fun serializeWichtelGroupsJson(groups: List<WichtelGroup>): String {
                 put("excludeLastYear", g.excludeLastYear)
                 put("forceRevealed", g.forceRevealed)
                 put("isDrawn", g.isDrawn)
+                put("cloudRoundId", g.cloudRoundId)
+                put("cloudSyncedAt", g.cloudSyncedAt)
+                put("cloudTotalMessages", g.cloudTotalMessages)
+                put("cloudUnreadMessages", g.cloudUnreadMessages)
                 val pArr = JSONArray()
                 g.participants.forEach { p ->
                     pArr.put(
@@ -2393,6 +2418,7 @@ fun serializeWichtelGroupsJson(groups: List<WichtelGroup>): String {
                             put("personId", p.personId ?: -1L)
                             put("name", p.name)
                             put("phone", p.phone)
+                            put("email", p.email)
                             put("wishText", p.wishText)
                             put("noGos", p.noGos)
                             put("address", p.address)
@@ -2401,6 +2427,11 @@ fun serializeWichtelGroupsJson(groups: List<WichtelGroup>): String {
                             put("drawnTargetId", p.drawnTargetId ?: -1L)
                             put("lastYearTargetId", p.lastYearTargetId ?: -1L)
                             put("notifiedVia", p.notifiedVia)
+                            put("cloudPid", p.cloudPid)
+                            put("directToken", p.directToken)
+                            put("cloudOpened", p.cloudOpened)
+                            put("cloudHasPin", p.cloudHasPin)
+                            put("cloudHasWishlist", p.cloudHasWishlist)
                         }
                     )
                 }
@@ -9657,6 +9688,10 @@ fun WichtelScreen(
     onConfirmDelete: (String, () -> Unit) -> Unit
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    val latestGroups by rememberUpdatedState(groups)
+
     val mottos = listOf(
         "🎁 Klassisches Wichteln",
         "♻️ Schrottwichteln",
@@ -9667,6 +9702,11 @@ fun WichtelScreen(
     var selectedGroupId by remember(groups) {
         mutableStateOf(groups.firstOrNull()?.id)
     }
+
+    // Cloud- & Einladungs-States
+    var isCloudBusy by remember { mutableStateOf(false) }
+    var cloudStatusBanner by remember { mutableStateOf("") }
+    var pendingSmsGroup by remember { mutableStateOf<WichtelGroup?>(null) }
 
     // Dialog-States
     var editingGroup by remember { mutableStateOf<WichtelGroup?>(null) }
@@ -9681,6 +9721,150 @@ fun WichtelScreen(
     var showDecodeSecretDialog by remember { mutableStateOf(false) }
 
     val activeGroup = groups.find { it.id == selectedGroupId } ?: groups.firstOrNull()
+
+    fun executeBulkAutoSms(g: WichtelGroup) {
+        if (g.cloudRoundId.isBlank()) {
+            cloudStatusBanner = "⚠️ Bitte zuerst mit der Appwrite-Cloud synchronisieren."
+            return
+        }
+        val invites = g.participants.map { p ->
+            WichtelCloudSync.SmsInviteItem(
+                name = p.name,
+                phone = p.phone,
+                cloudPid = p.cloudPid,
+                directToken = p.directToken
+            )
+        }
+        val (sent, skipped) = WichtelCloudSync.sendAutomaticBulkSmsInvites(
+            context = context,
+            groupName = g.groupName,
+            cloudRoundId = g.cloudRoundId,
+            invites = invites
+        )
+        val updatedParts = g.participants.map { p ->
+            val cleaned = p.phone.trim().replace(Regex("[^0-9+]"), "")
+            if (cleaned.length >= 6 && p.cloudPid > 0 && p.directToken.isNotBlank()) {
+                p.copy(notifiedVia = "Auto-SMS")
+            } else p
+        }
+        val nextGroup = g.copy(participants = updatedParts)
+        onSaveGroups(latestGroups.map { if (it.id == g.id) nextGroup else it })
+        cloudStatusBanner = if (sent > 0) {
+            "✓ $sent persönliche Wichtel-SMS automatisch im Hintergrund versendet!" +
+                if (skipped > 0) " ($skipped ohne Nummer übersprungen)" else ""
+        } else {
+            "⚠️ Keine gültigen Telefonnummern für den automatischen SMS-Versand gefunden."
+        }
+    }
+
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val targetG = pendingSmsGroup
+        pendingSmsGroup = null
+        if (granted && targetG != null) {
+            executeBulkAutoSms(targetG)
+        } else if (!granted) {
+            cloudStatusBanner = "⚠️ SMS-Berechtigung wurde abgelehnt – nutze alternativ den 1-Klick WhatsApp-Gruppen-Link!"
+        }
+    }
+
+    fun syncRoundLiveFromCloud(g: WichtelGroup, showBanner: Boolean = false) {
+        if (!g.isDrawn || g.cloudRoundId.isBlank()) return
+        scope.launch {
+            if (showBanner) isCloudBusy = true
+            val live = WichtelCloudSync.fetchRoundLiveStatus(g.cloudRoundId)
+            isCloudBusy = false
+            if (live != null) {
+                val nowTime = java.time.LocalTime.now().let { "%02d:%02d".format(it.hour, it.minute) }
+                val nextGroups = latestGroups.map { grp ->
+                    if (grp.id != g.id) grp
+                    else {
+                        val mergedParts = grp.participants.map { p ->
+                            val st = live.participantStatuses[p.cloudPid]
+                            if (st == null) p
+                            else p.copy(
+                                cloudOpened = st.isOpened,
+                                cloudHasPin = st.hasPin,
+                                cloudHasWishlist = st.hasWishlist,
+                                wishText = st.wishText.ifBlank { p.wishText },
+                                noGos = st.noGos.ifBlank { p.noGos },
+                                address = st.address.ifBlank { p.address },
+                                wishlistUrl = st.wishlistUrl.ifBlank { p.wishlistUrl },
+                                extraWishUrls = if (st.extraWishUrls.isNotEmpty()) st.extraWishUrls else p.extraWishUrls
+                            )
+                        }
+                        grp.copy(
+                            cloudSyncedAt = nowTime,
+                            cloudTotalMessages = live.totalAnonMessages,
+                            cloudUnreadMessages = live.unreadAnonMessages,
+                            participants = mergedParts
+                        )
+                    }
+                }
+                onSaveGroups(nextGroups)
+                if (showBanner) {
+                    val openedCount = live.participantStatuses.values.count { it.isOpened }
+                    cloudStatusBanner = "☁️ Live-Status aktualisiert ($nowTime): $openedCount/${g.participants.size} Lose geöffnet, ${live.totalAnonMessages} anonyme Nachrichten."
+                }
+            } else if (showBanner) {
+                cloudStatusBanner = "⚠️ Appwrite-Cloud momentan nicht erreichbar – bitte Internetverbindung prüfen."
+            }
+        }
+    }
+
+    fun publishDrawnGroupToCloud(g: WichtelGroup, oldCloudRoundId: String = "") {
+        if (!g.isDrawn || g.cloudRoundId.isBlank()) return
+        scope.launch {
+            isCloudBusy = true
+            cloudStatusBanner = "☁️ Versiegele Lose & veröffentliche Wichtelportal in Appwrite…"
+            val slots = g.participants.mapNotNull { p ->
+                val target = g.participants.find { it.id == p.drawnTargetId } ?: return@mapNotNull null
+                WichtelCloudSync.ParticipantSlotSetup(
+                    localParticipantId = p.id,
+                    cloudPid = p.cloudPid,
+                    name = p.name,
+                    directToken = p.directToken,
+                    targetCloudPid = target.cloudPid,
+                    targetName = target.name,
+                    wishText = p.wishText,
+                    noGos = p.noGos,
+                    address = p.address,
+                    wishlistUrl = p.wishlistUrl,
+                    extraWishUrls = p.extraWishUrls
+                )
+            }
+            val ok = WichtelCloudSync.publishRoundToCloud(
+                oldCloudRoundId = oldCloudRoundId,
+                newCloudRoundId = g.cloudRoundId,
+                groupName = g.groupName,
+                adminName = g.adminName,
+                motto = g.motto,
+                budget = g.budget,
+                revealDateIso = g.revealDateIso,
+                forceRevealed = g.forceRevealed,
+                slots = slots
+            )
+            isCloudBusy = false
+            if (ok) {
+                val nowTime = java.time.LocalTime.now().let { "%02d:%02d".format(it.hour, it.minute) }
+                onSaveGroups(
+                    latestGroups.map {
+                        if (it.id == g.id) it.copy(cloudSyncedAt = nowTime) else it
+                    }
+                )
+                cloudStatusBanner = "✓ Online-Wichtelportal aktiv! Alle Lose sind 100 % Admin-blind & verschlüsselt bereit."
+            } else {
+                cloudStatusBanner = "⚠️ Cloud-Upload fehlgeschlagen (offline?). Tippe auf „☁️ Cloud-Sync“ zum Wiederholen."
+            }
+        }
+    }
+
+    LaunchedEffect(activeGroup?.id, activeGroup?.cloudRoundId) {
+        if (activeGroup != null && activeGroup.isDrawn && activeGroup.cloudRoundId.isNotBlank()) {
+            syncRoundLiveFromCloud(activeGroup, showBanner = false)
+        }
+    }
 
     fun isGroupRevealed(g: WichtelGroup): Boolean {
         if (g.forceRevealed) return true
@@ -9812,6 +9996,7 @@ fun WichtelScreen(
                 personId = matchedPerson?.id ?: pr.giverPersonId,
                 name = matchedPerson?.name ?: pr.giverName,
                 phone = matchedPerson?.phone?.ifBlank { pr.giverPhone } ?: pr.giverPhone,
+                email = matchedPerson?.email.orEmpty(),
                 wishText = pr.wishText,
                 wishlistUrl = pr.wishlistUrl,
                 noGos = pr.noGos,
@@ -9918,68 +10103,66 @@ fun WichtelScreen(
             ?: solveMatchingBacktrack(parts, g.excludeCouples, false)
             ?: solveMatchingBacktrack(parts, false, false)
             ?: return
+        val newCloudId = WichtelCloudSync.generateRandomCode(10)
         val updatedGroup = g.copy(
             isDrawn = true,
             forceRevealed = false,
-            participants = parts.map { p ->
-                p.copy(drawnTargetId = chosenMap[p.id], notifiedVia = "")
+            cloudRoundId = newCloudId,
+            cloudSyncedAt = "",
+            cloudTotalMessages = 0,
+            cloudUnreadMessages = 0,
+            participants = parts.mapIndexed { idx, p ->
+                p.copy(
+                    drawnTargetId = chosenMap[p.id],
+                    notifiedVia = "",
+                    cloudPid = idx + 1,
+                    directToken = WichtelCloudSync.generateRandomCode(12),
+                    cloudOpened = false,
+                    cloudHasPin = false,
+                    cloudHasWishlist = p.wishText.isNotBlank() || p.wishlistUrl.isNotBlank() || p.extraWishUrls.isNotEmpty()
+                )
             }
         )
-        onSaveGroups(groups.map { if (it.id == g.id) updatedGroup else it })
+        onSaveGroups(latestGroups.map { if (it.id == g.id) updatedGroup else it })
+        publishDrawnGroupToCloud(updatedGroup, oldCloudRoundId = g.cloudRoundId)
     }
 
-    fun encodeBlindCode(g: WichtelGroup, giver: WichtelParticipant, target: WichtelParticipant): String {
-        val allUrls = (listOf(target.wishlistUrl) + target.extraWishUrls).filter { it.isNotBlank() }
-        val payload = JSONObject().apply {
-            put("g", g.groupName)
-            put("a", g.adminName)
-            put("m", g.motto)
-            put("b", g.budget)
-            put("r", formatIsoToDdMmYyyy(g.revealDateIso).ifBlank { "24.12." })
-            put("f", giver.name)
-            put("t", target.name)
-            put("w", target.wishText)
-            put("n", target.noGos)
-            put("d", target.address)
-            val uArr = JSONArray()
-            allUrls.forEach { uArr.put(it) }
-            put("u", uArr)
-        }
-        val b64 = android.util.Base64.encodeToString(
-            payload.toString().toByteArray(Charsets.UTF_8),
-            android.util.Base64.NO_WRAP
-        )
-        return "WICHTEL_SECRET:$b64"
-    }
-
-    fun buildBlindWhatsAppMessage(g: WichtelGroup, giver: WichtelParticipant, target: WichtelParticipant): String {
-        val code = encodeBlindCode(g, giver, target)
+    fun buildWhatsAppGroupPortalInvite(g: WichtelGroup): String {
+        val link = WichtelCloudSync.buildGroupPortalUrl(g.cloudRoundId)
         val revealStr = formatIsoToDdMmYyyy(g.revealDateIso).ifBlank { "Weihnachten" }
         return buildString {
-            append("🎄🔐 Hallo ${giver.name.substringBefore(" ")}!\n")
-            append("Hier ist dein *verschlüsselter Wichtel-Los-Code* für „${g.groupName}“ (${g.motto}, Budget: ${g.budget}):\n\n")
-            append("$code\n\n")
-            append("🔓 *So öffnest du dein Los geheim in Remember Me (selbst der Admin sieht den Namen hier im Chat nicht!):*\n")
-            append("Kopiere diese Nachricht und tippe in der App unter „🎄 Wichteln“ oben auf *„🔐 Los-Code“*!\n")
-            append("🤫 Geheimhaltung bis $revealStr.")
+            append("🎄🎁 *Unsere Wichtelrunde „${g.groupName}“ ist ausgelost!*\n")
+            append("🎭 Motto: ${g.motto}" + if (g.budget.isNotBlank()) " • 💶 Budget: ${g.budget}" else "")
+            append("\n📅 Geheimhaltung bis: $revealStr\n\n")
+            append("🌐 *Hier ist der gemeinsame Familien-Link für ALLE (ganz ohne App!):*\n")
+            append("$link\n\n")
+            append("✨ *So funktioniert's in 10 Sekunden:*\n")
+            append("1️⃣ Link im Browser antippen & deinen Namen wählen\n")
+            append("2️⃣ Eigene geheime 4-stellige PIN vergeben & dein Los öffnen\n")
+            append("3️⃣ Eigene Wünsche / No-Gos eintragen & bei Bedarf 100 % *anonym* Fragen an dein gezogenes Wichtelkind stellen!\n")
+            append("🤫 Selbst Admin ${g.adminName} sieht nicht, wer wen gezogen hat!")
         }
     }
 
-    fun buildSecretMessage(g: WichtelGroup, giver: WichtelParticipant, target: WichtelParticipant): String {
+    fun buildDirectMemberWhatsAppInvite(g: WichtelGroup, member: WichtelParticipant): String {
+        val link = WichtelCloudSync.buildDirectMemberPortalUrl(g.cloudRoundId, member.cloudPid, member.directToken)
         val revealStr = formatIsoToDdMmYyyy(g.revealDateIso).ifBlank { "Weihnachten" }
-        val allUrls = (listOf(target.wishlistUrl) + target.extraWishUrls).filter { it.isNotBlank() }
         return buildString {
-            append("🎄 Hallo ${giver.name.substringBefore(" ")}! Hier ist dein geheimes Los für unsere Wichtelrunde „${g.groupName}“ (Admin: ${g.adminName}):\n\n")
-            append("🎭 Motto: ${g.motto}\n")
-            append("🎁 Du beschenkst: *${target.name}*!\n")
-            if (g.budget.isNotBlank()) append("💶 Budget: ${g.budget}\n")
-            if (target.wishText.isNotBlank()) append("📝 Wunschzettel: ${target.wishText}\n")
-            if (target.noGos.isNotBlank()) append("🚫 Bitte NICHT / Hinweis: ${target.noGos}\n")
-            if (target.address.isNotBlank()) append("📦 Post-Adresse: ${target.address}\n")
-            allUrls.forEachIndexed { idx, u ->
-                append("🛒 ${if (idx == 0) "Amazon-Wunschliste" else "Wunsch-Link ${idx + 1}"}: $u\n")
-            }
-            append("\n🤫 Pssst: Niemand sonst kennt dein Los! Erst ab dem $revealStr wird für alle aufgelöst, wer wen gezogen hat.")
+            append("🎄🔐 Hallo ${member.name.substringBefore(" ")}!\n")
+            append("Hier ist dein persönlicher, versiegelter Wichtel-Zugang für „${g.groupName}“ (${g.motto}, Budget: ${g.budget}):\n\n")
+            append("$link\n\n")
+            append("✨ Ohne App direkt im Browser öffnen: Dort siehst nur du allein dein Los, kannst deine Wunschliste pflegen & 100 % anonym Fragen stellen!\n")
+            append("🤫 Geheim bis $revealStr (auch der Admin kennt dein Los nicht).")
+        }
+    }
+
+    fun buildNeutralAnonInboxNudge(g: WichtelGroup): String {
+        val link = WichtelCloudSync.buildGroupPortalUrl(g.cloudRoundId)
+        return buildString {
+            append("🕵️🎄 *Anonymer Wichtel-Postbote für „${g.groupName}“:*\n\n")
+            append("Im Wichtel-Portal liegen ungelesene *anonyme Fragen oder Antworten* vor! 💬\n")
+            append("Damit niemand verraten wird, schaut bitte alle kurz mit eurer PIN ins Portal, ob euer Wichtel oder Wichtelkind geschrieben hat:\n")
+            append(link)
         }
     }
 
@@ -10003,8 +10186,15 @@ fun WichtelScreen(
                 }
             }
             Spacer(modifier = Modifier.width(6.dp))
-            CompactButton("🔐 Los-Code") {
-                showDecodeSecretDialog = true
+            CompactButton("🌐 Portal ↗") {
+                runCatching {
+                    val targetUrl = if (activeGroup != null && activeGroup.isDrawn && activeGroup.cloudRoundId.isNotBlank()) {
+                        WichtelCloudSync.buildGroupPortalUrl(activeGroup.cloudRoundId)
+                    } else {
+                        WichtelCloudSync.PORTAL_BASE_URL
+                    }
+                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)))
+                }
             }
             Spacer(modifier = Modifier.width(4.dp))
             CompactButton("+ Neue Runde") {
@@ -10020,6 +10210,35 @@ fun WichtelScreen(
                     reminderDaysBefore = 7,
                     excludeCouples = true,
                     excludeLastYear = true
+                )
+            }
+        }
+
+        if (cloudStatusBanner.isNotBlank()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp)
+                    .background(BgSlate, RoundedCornerShape(8.dp))
+                    .border(1.dp, if (cloudStatusBanner.startsWith("⚠️")) WarnAmber else TreeGreen, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    cloudStatusBanner,
+                    color = if (cloudStatusBanner.startsWith("⚠️")) WarnAmber else TreeGreen,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    "✕",
+                    color = TextMuted,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { cloudStatusBanner = "" }
                 )
             }
         }
@@ -10043,7 +10262,7 @@ fun WichtelScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("🎄 Noch keine Wichtelrunde erstellt", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             Text(
-                                "Erstelle als Gruppenadmin eine Wichtelrunde, kreuze Kontakte (inkl. Paar-Sperre) an oder verwende unten einen Eintrag aus deiner 📜 Wichtel-Historie wieder!",
+                                "Erstelle als Gruppenadmin eine Wichtelrunde, kreuze Kontakte (inkl. Paar-Sperre) an und lade danach ALLE Familienmitglieder mit 1 Klick über das Appwrite-Online-Wichtelportal ein – ganz ohne App und 100 % Admin-blind!",
                                 color = TextSecondary,
                                 fontSize = 12.sp
                             )
@@ -10114,8 +10333,12 @@ fun WichtelScreen(
                                     editingGroup = activeGroup
                                 }
                                 CompactButton("🗑️") {
-                                    onConfirmDelete("Wichtelrunde „${activeGroup.groupName}“ wirklich löschen?") {
-                                        onSaveGroups(groups.filter { it.id != activeGroup.id })
+                                    onConfirmDelete("Wichtelrunde „${activeGroup.groupName}“ wirklich löschen (inkl. Online-Portal-Daten)?") {
+                                        val roundToDelete = activeGroup.cloudRoundId
+                                        onSaveGroups(latestGroups.filter { it.id != activeGroup.id })
+                                        if (roundToDelete.isNotBlank()) {
+                                            scope.launch { WichtelCloudSync.deleteRoundFromCloud(roundToDelete) }
+                                        }
                                     }
                                 }
                             }
@@ -10130,25 +10353,182 @@ fun WichtelScreen(
                                     .padding(8.dp)
                             ) {
                                 Text(
-                                    "🎲 Bereit zum Würfeln: Sobald alle Teilnehmer angekreuzt sind, tippe auf „🎲 Jetzt auslosen!“. Vor Ablauf der Frist ($revealDateFormatted) sieht niemand die Gesamtliste.",
+                                    "🎲 Bereit zum Würfeln: Sobald alle Teilnehmer angekreuzt sind, tippe auf „🎲 Jetzt auslosen!“. Alle Lose werden automatisch verschlüsselt ins Appwrite-Familienportal geladen – selbst du als Admin siehst nicht, wer wen gezogen hat!",
                                     color = TextPrimary,
                                     fontSize = 11.5.sp
                                 )
                             }
                         } else if (!revealed) {
-                            Box(
+                            val openedCount = activeGroup.participants.count { it.cloudOpened }
+                            val pinCount = activeGroup.participants.count { it.cloudHasPin }
+                            val wishCount = activeGroup.participants.count {
+                                it.cloudHasWishlist || it.wishText.isNotBlank() || it.wishlistUrl.isNotBlank() || it.extraWishUrls.isNotEmpty()
+                            }
+                            val phoneCount = activeGroup.participants.count { it.phone.replace(Regex("[^0-9]"), "").length >= 6 }
+                            val emailList = activeGroup.participants.mapNotNull { p ->
+                                val em = p.email.ifBlank {
+                                    persons.find { it.id == p.personId || it.name.equals(p.name, ignoreCase = true) }?.email.orEmpty()
+                                }.trim()
+                                em.takeIf { it.contains("@") }
+                            }.distinct()
+
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(BgSlate, RoundedCornerShape(6.dp))
-                                    .border(1.dp, TreeGreen, RoundedCornerShape(6.dp))
-                                    .padding(8.dp)
+                                    .background(BgSlate, RoundedCornerShape(8.dp))
+                                    .border(1.5.dp, TreeGreen, RoundedCornerShape(8.dp))
+                                    .padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(7.dp)
                             ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "🔒 100 % Admin-Blind & Online-Portal aktiv (bis $revealDateFormatted)",
+                                        color = TreeGreen,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    CompactButton(if (isCloudBusy) "⏳ Sync…" else "🔄 Live-Status") {
+                                        if (activeGroup.cloudRoundId.isBlank()) {
+                                            val upgraded = activeGroup.copy(
+                                                cloudRoundId = WichtelCloudSync.generateRandomCode(10),
+                                                participants = activeGroup.participants.mapIndexed { idx, p ->
+                                                    p.copy(
+                                                        cloudPid = if (p.cloudPid > 0) p.cloudPid else idx + 1,
+                                                        directToken = p.directToken.ifBlank { WichtelCloudSync.generateRandomCode(12) }
+                                                    )
+                                                }
+                                            )
+                                            onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) upgraded else it })
+                                            publishDrawnGroupToCloud(upgraded)
+                                        } else if (activeGroup.cloudSyncedAt.isBlank()) {
+                                            publishDrawnGroupToCloud(activeGroup)
+                                        } else {
+                                            syncRoundLiveFromCloud(activeGroup, showBanner = true)
+                                        }
+                                    }
+                                }
+
                                 Text(
-                                    "🔒 Geheimhaltung aktiv bis $revealDateFormatted!\nNiemand in der Gruppe sieht, wer wen gezogen hat. Teile jedem sein Los einzeln per 📲 WhatsApp oder 💬 In-App mit.",
-                                    color = TreeGreen,
+                                    "Niemand braucht die App! Jeder öffnet das Web-Portal im Browser, wählt seine 4-stellige PIN, sieht sein geheimes Los, trägt Wünsche ein & stellt 100 % anonyme Fragen.",
+                                    color = TextSecondary,
+                                    fontSize = 11.sp
+                                )
+
+                                Text(
+                                    "📊 Geöffnet: $openedCount/${activeGroup.participants.size} • 🔐 PIN geschützt: $pinCount • 📝 Wunschzettel: $wishCount" +
+                                        if (activeGroup.cloudSyncedAt.isNotBlank()) " • Stand: ${activeGroup.cloudSyncedAt}" else "",
+                                    color = TextPrimary,
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
+
+                                Text("🚀 Alle ${activeGroup.participants.size} Mitglieder auf einmal einladen:", color = AccentSteel, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    CompactButton("📲 1 Link für ALLE (WhatsApp-Gruppe)") {
+                                        if (activeGroup.cloudRoundId.isNotBlank()) {
+                                            val msg = buildWhatsAppGroupPortalInvite(activeGroup)
+                                            val updatedParts = activeGroup.participants.map { p ->
+                                                if (p.notifiedVia.isBlank()) p.copy(notifiedVia = "Gruppen-Link") else p
+                                            }
+                                            onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) activeGroup.copy(participants = updatedParts) else it })
+                                            runCatching {
+                                                val url = "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                            }
+                                        }
+                                    }
+                                    CompactButton("📩 Auto-SMS an alle ($phoneCount)") {
+                                        if (phoneCount == 0) {
+                                            cloudStatusBanner = "⚠️ Keine Telefonnummern bei den Teilnehmern hinterlegt."
+                                        } else {
+                                            onConfirmDelete(
+                                                "Jetzt vollautomatisch im Hintergrund an alle $phoneCount Teilnehmer mit Telefonnummer eine persönliche Wichtel-SMS mit Direkt-Link senden?"
+                                            ) {
+                                                val hasPerm = ContextCompat.checkSelfPermission(
+                                                    context,
+                                                    Manifest.permission.SEND_SMS
+                                                ) == PackageManager.PERMISSION_GRANTED
+                                                if (hasPerm) {
+                                                    executeBulkAutoSms(activeGroup)
+                                                } else {
+                                                    pendingSmsGroup = activeGroup
+                                                    smsPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (emailList.isNotEmpty()) {
+                                        CompactButton("✉️ Sammel-Mail (${emailList.size})") {
+                                            runCatching {
+                                                val subj = "🎄 Unsere Wichtelrunde: ${activeGroup.groupName}"
+                                                val body = buildWhatsAppGroupPortalInvite(activeGroup).replace("*", "")
+                                                val uri = android.net.Uri.parse(
+                                                    "mailto:?bcc=${android.net.Uri.encode(emailList.joinToString(","))}&subject=${android.net.Uri.encode(subj)}&body=${android.net.Uri.encode(body)}"
+                                                )
+                                                context.startActivity(Intent(Intent.ACTION_SENDTO, uri))
+                                            }
+                                        }
+                                    }
+                                    CompactButton("📋 Gruppen-Link kopieren") {
+                                        if (activeGroup.cloudRoundId.isNotBlank()) {
+                                            val link = WichtelCloudSync.buildGroupPortalUrl(activeGroup.cloudRoundId)
+                                            clipboardManager.setText(AnnotatedString(link))
+                                            cloudStatusBanner = "✓ Familien-Portal-Link kopiert: $link"
+                                        }
+                                    }
+                                }
+
+                                // Anonymer Fragen-Chat Status + neutraler Hinweis
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(CardSlate, RoundedCornerShape(6.dp))
+                                        .border(
+                                            1.dp,
+                                            if (activeGroup.cloudUnreadMessages > 0) WarnAmber else BorderSlate,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            if (activeGroup.cloudUnreadMessages > 0) {
+                                                "🕵️ ${activeGroup.cloudUnreadMessages} ungelesene anonyme Nachricht(en) im Portal!"
+                                            } else {
+                                                "🕵️ Anonymer Fragen-Chat: ${activeGroup.cloudTotalMessages} Nachrichten (alles gelesen)"
+                                            },
+                                            color = if (activeGroup.cloudUnreadMessages > 0) WarnAmber else TextSecondary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            "100 % anonym zwischen Wichtel & Wichtelkind – ohne Namen oder Nummer.",
+                                            color = TextMuted,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    CompactButton("📣 Gruppen-Hinweis") {
+                                        if (activeGroup.cloudRoundId.isNotBlank()) {
+                                            runCatching {
+                                                val msg = buildNeutralAnonInboxNudge(activeGroup)
+                                                val url = "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+                                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         } else {
                             Column(
@@ -10160,7 +10540,7 @@ fun WichtelScreen(
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    "🔓 Frist abgelaufen ($revealDateFormatted) – Alle Paarungen sind jetzt sichtbar:",
+                                    "🔓 Wichtelrunde aufgelöst ($revealDateFormatted) – Alle Paarungen sind jetzt sichtbar:",
                                     color = WarnAmber,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -10177,29 +10557,48 @@ fun WichtelScreen(
                         }
 
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             CompactButton(if (activeGroup.isDrawn) "🎲 Neu würfeln" else "🎲 Jetzt auslosen!") {
-                                rollGroup(activeGroup)
+                                if (activeGroup.isDrawn) {
+                                    onConfirmDelete("Wirklich komplett neu auslosen? Alle bisherigen Online-Lose & PINs dieser Runde werden ersetzt!") {
+                                        rollGroup(activeGroup)
+                                    }
+                                } else {
+                                    rollGroup(activeGroup)
+                                }
                             }
                             CompactButton("☑️ Teilnehmer (${activeGroup.participants.size})") {
                                 checklistGroup = activeGroup
                             }
                             CompactButton("⏰ Wecker") {
                                 runCatching {
-                                    val msg = "⏰🎄 Erinnerung zur Wichtelrunde „${activeGroup.groupName}“ (${activeGroup.motto}):\nBis zum $revealDateFormatted ist es nicht mehr weit – denk daran, dein Wichtelgeschenk (Budget: ${activeGroup.budget}) rechtzeitig zu besorgen! 🎁"
+                                    val portalPart = if (activeGroup.cloudRoundId.isNotBlank()) {
+                                        "\n🌐 Wunschzettel & anonyme Fragen: ${WichtelCloudSync.buildGroupPortalUrl(activeGroup.cloudRoundId)}"
+                                    } else ""
+                                    val msg = "⏰🎄 Erinnerung zur Wichtelrunde „${activeGroup.groupName}“ (${activeGroup.motto}):\nBis zum $revealDateFormatted ist es nicht mehr weit – denk daran, dein Wichtelgeschenk (Budget: ${activeGroup.budget}) rechtzeitig zu besorgen! 🎁$portalPart"
                                     val url = "https://wa.me/?text=${android.net.Uri.encode(msg)}"
                                     context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                                 }
                             }
                             if (activeGroup.isDrawn) {
-                                CompactButton(if (revealed) "🔒" else "🔓") {
-                                    val nextForce = !activeGroup.forceRevealed
-                                    val toggled = activeGroup.copy(forceRevealed = nextForce)
-                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) toggled else it })
-                                    if (nextForce) {
-                                        archiveGroupToHistory(toggled)
+                                CompactButton(if (revealed) "🔒 Verbergen" else "🔓 Auflösen") {
+                                    if (!revealed) {
+                                        onConfirmDelete("ACHTUNG: Wenn du die Wichtelrunde jetzt vorzeitig auflöst, werden alle geheimen Paarungen für dich und im Online-Portal sichtbar! Wirklich auflösen?") {
+                                            val toggled = activeGroup.copy(forceRevealed = true)
+                                            onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) toggled else it })
+                                            archiveGroupToHistory(toggled)
+                                            if (activeGroup.cloudRoundId.isNotBlank()) {
+                                                scope.launch { WichtelCloudSync.updateForceRevealInCloud(activeGroup.cloudRoundId, true) }
+                                            }
+                                        }
+                                    } else {
+                                        val toggled = activeGroup.copy(forceRevealed = false)
+                                        onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) toggled else it })
+                                        if (activeGroup.cloudRoundId.isNotBlank()) {
+                                            scope.launch { WichtelCloudSync.updateForceRevealInCloud(activeGroup.cloudRoundId, false) }
+                                        }
                                     }
                                 }
                             }
@@ -10209,12 +10608,24 @@ fun WichtelScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                CompactButton("📜 In Historie abschließen & an Teilnehmer senden") {
-                                    val revealedGroup = activeGroup.copy(forceRevealed = true)
-                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) revealedGroup else it })
-                                    val entry = archiveGroupToHistory(revealedGroup)
-                                    if (entry != null) {
-                                        shareHistoryEntry(entry)
+                                CompactButton("📜 In Historie abschließen & Auflösung teilen") {
+                                    val finishAction = {
+                                        val revealedGroup = activeGroup.copy(forceRevealed = true)
+                                        onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) revealedGroup else it })
+                                        if (activeGroup.cloudRoundId.isNotBlank()) {
+                                            scope.launch { WichtelCloudSync.updateForceRevealInCloud(activeGroup.cloudRoundId, true) }
+                                        }
+                                        val entry = archiveGroupToHistory(revealedGroup)
+                                        if (entry != null) {
+                                            shareHistoryEntry(entry)
+                                        }
+                                    }
+                                    if (!revealed) {
+                                        onConfirmDelete("Wichtelrunde jetzt auflösen, in der Historie speichern und die Auflösung teilen?") {
+                                            finishAction()
+                                        }
+                                    } else {
+                                        finishAction()
                                     }
                                 }
                             }
@@ -10230,6 +10641,7 @@ fun WichtelScreen(
                     } else null
                     val pastDraws = getHistoricalTargetsForParticipant(part)
                     val allUrls = (listOf(part.wishlistUrl) + part.extraWishUrls).filter { it.isNotBlank() }
+                    val isAdminSelf = part.name.trim().equals(activeGroup.adminName.trim(), ignoreCase = true)
 
                     Column(
                         modifier = Modifier
@@ -10266,7 +10678,7 @@ fun WichtelScreen(
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.weight(1f, fill = false)
                                     )
-                                    if (part.name.equals(activeGroup.adminName, ignoreCase = true)) {
+                                    if (isAdminSelf) {
                                         Text("👑 Admin", color = AccentSteel, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                     }
                                     if (part.notifiedVia.isNotBlank()) {
@@ -10288,17 +10700,46 @@ fun WichtelScreen(
                                         fontSize = 11.sp
                                     )
                                 }
-                                val statusLine = when {
-                                    !activeGroup.isDrawn -> "Noch nicht ausgelost"
-                                    revealed && target != null -> "🎁 Hat gezogen: ${target.name}"
-                                    else -> "🎲 Zugelost • 🔒 Geheim bis $revealDateFormatted"
+                                if (!activeGroup.isDrawn) {
+                                    Text("Noch nicht ausgelost", color = TextMuted, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                                } else if (revealed && target != null) {
+                                    Text("🎁 Hat gezogen: ${target.name}", color = WarnAmber, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                } else {
+                                    Row(
+                                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            if (part.cloudOpened) "✅ Los online geöffnet" else "⏳ Los noch ungeöffnet",
+                                            color = if (part.cloudOpened) TreeGreen else TextMuted,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        if (part.cloudHasPin) {
+                                            Text(
+                                                "🔒 PIN aktiv",
+                                                color = AccentSteel,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                        if (part.cloudHasWishlist || part.wishText.isNotBlank() || allUrls.isNotEmpty()) {
+                                            Text(
+                                                "📝 Wunschzettel",
+                                                color = TreeGreen,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
                                 }
-                                Text(
-                                    statusLine,
-                                    color = if (!activeGroup.isDrawn) TextMuted else if (revealed) WarnAmber else TreeGreen,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
                                 if (part.wishText.isNotBlank()) {
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -10345,9 +10786,6 @@ fun WichtelScreen(
                                     editingParticipantGroup = activeGroup
                                     editingParticipant = part
                                 }
-                                CompactButton("🕵️") {
-                                    anonQuestionTarget = activeGroup to part
-                                }
                                 Text(
                                     "✕",
                                     color = WarnAmber,
@@ -10355,14 +10793,20 @@ fun WichtelScreen(
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier
                                         .clickable {
-                                            onConfirmDelete("Teilnehmer „${part.name}“ aus der Wichtelrunde entfernen?") {
+                                            onConfirmDelete("Teilnehmer „${part.name}“ aus der Wichtelrunde entfernen? (Falls schon ausgelost war, muss danach neu gewürfelt werden.)") {
+                                                val oldCloud = activeGroup.cloudRoundId
                                                 val updated = activeGroup.copy(
                                                     isDrawn = false,
+                                                    cloudRoundId = "",
+                                                    cloudSyncedAt = "",
                                                     participants = activeGroup.participants
                                                         .filter { it.id != part.id }
-                                                        .map { it.copy(drawnTargetId = null, notifiedVia = "") }
+                                                        .map { it.copy(drawnTargetId = null, notifiedVia = "", cloudPid = 0, directToken = "", cloudOpened = false, cloudHasPin = false) }
                                                 )
-                                                onSaveGroups(groups.map { if (it.id == activeGroup.id) updated else it })
+                                                onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) updated else it })
+                                                if (oldCloud.isNotBlank()) {
+                                                    scope.launch { WichtelCloudSync.deleteRoundFromCloud(oldCloud) }
+                                                }
                                             }
                                         }
                                         .padding(horizontal = 4.dp)
@@ -10370,20 +10814,32 @@ fun WichtelScreen(
                             }
                         }
 
-                        if (activeGroup.isDrawn && target != null) {
+                        if (activeGroup.isDrawn && activeGroup.cloudRoundId.isNotBlank() && part.cloudPid > 0) {
                             HorizontalDivider(color = BorderSlate, modifier = Modifier.padding(vertical = 4.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                CompactButton("🔐 Blind-Code") {
-                                    val msg = buildBlindWhatsAppMessage(activeGroup, part, target)
+                                if (isAdminSelf) {
+                                    CompactButton("🌐 Mein eigenes Los öffnen ↗") {
+                                        runCatching {
+                                            val myUrl = WichtelCloudSync.buildDirectMemberPortalUrl(
+                                                activeGroup.cloudRoundId,
+                                                part.cloudPid,
+                                                part.directToken
+                                            )
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(myUrl)))
+                                        }
+                                    }
+                                }
+                                CompactButton("🔗 Geheim-Link per WhatsApp") {
+                                    val msg = buildDirectMemberWhatsAppInvite(activeGroup, part)
                                     val updatedGroup = activeGroup.copy(
                                         participants = activeGroup.participants.map {
-                                            if (it.id == part.id) it.copy(notifiedVia = "WhatsApp (Blind-Code)") else it
+                                            if (it.id == part.id) it.copy(notifiedVia = "Direkt-Link") else it
                                         }
                                     )
-                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) updatedGroup else it })
+                                    onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) updatedGroup else it })
                                     runCatching {
                                         val cleanPhone = part.phone.replace(Regex("[^0-9]"), "")
                                         val url = if (cleanPhone.isNotBlank()) {
@@ -10394,34 +10850,34 @@ fun WichtelScreen(
                                         context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                                     }
                                 }
-                                CompactButton("📲 Los per WhatsApp") {
-                                    val msg = buildSecretMessage(activeGroup, part, target)
-                                    val updatedGroup = activeGroup.copy(
-                                        participants = activeGroup.participants.map {
-                                            if (it.id == part.id) it.copy(notifiedVia = "WhatsApp") else it
-                                        }
+                                CompactButton("📋 Direkt-Link") {
+                                    val directUrl = WichtelCloudSync.buildDirectMemberPortalUrl(
+                                        activeGroup.cloudRoundId,
+                                        part.cloudPid,
+                                        part.directToken
                                     )
-                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) updatedGroup else it })
-                                    runCatching {
-                                        val cleanPhone = part.phone.replace(Regex("[^0-9]"), "")
-                                        val url = if (cleanPhone.isNotBlank()) {
-                                            "https://wa.me/$cleanPhone?text=${android.net.Uri.encode(msg)}"
-                                        } else {
-                                            "https://wa.me/?text=${android.net.Uri.encode(msg)}"
+                                    clipboardManager.setText(AnnotatedString(directUrl))
+                                    cloudStatusBanner = "✓ Geheimer Direkt-Link für ${part.name} kopiert."
+                                }
+                                if (part.cloudHasPin) {
+                                    CompactButton("🔑 PIN Reset") {
+                                        onConfirmDelete("Hat ${part.name} die 4-stellige Portal-PIN vergessen? Die PIN wird im Online-Portal zurückgesetzt (das Los bleibt weiterhin geheim!).") {
+                                            scope.launch {
+                                                val ok = WichtelCloudSync.resetParticipantPin(activeGroup.cloudRoundId, part.cloudPid)
+                                                if (ok) {
+                                                    val nextG = activeGroup.copy(
+                                                        participants = activeGroup.participants.map {
+                                                            if (it.id == part.id) it.copy(cloudHasPin = false) else it
+                                                        }
+                                                    )
+                                                    onSaveGroups(latestGroups.map { if (it.id == activeGroup.id) nextG else it })
+                                                    cloudStatusBanner = "✓ PIN für ${part.name} zurückgesetzt – beim nächsten Öffnen kann eine neue PIN gewählt werden."
+                                                } else {
+                                                    cloudStatusBanner = "⚠️ PIN-Reset fehlgeschlagen – bitte Internetverbindung prüfen."
+                                                }
+                                            }
                                         }
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                                     }
-                                }
-                                CompactButton("💬 In-App") {
-                                    val updatedGroup = activeGroup.copy(
-                                        participants = activeGroup.participants.map {
-                                            if (it.id == part.id) it.copy(notifiedVia = "In-App") else it
-                                        }
-                                    )
-                                    onSaveGroups(groups.map { if (it.id == activeGroup.id) updatedGroup else it })
-                                }
-                                CompactButton("👁️ Geheimes Los") {
-                                    secretPeekPair = Triple(activeGroup, part, target)
                                 }
                             }
                         }
@@ -10665,13 +11121,27 @@ fun WichtelScreen(
                             id = System.currentTimeMillis() + 1,
                             personId = adminContact?.id,
                             name = gAdmin.trim().ifBlank { "Admin" },
-                            phone = adminContact?.phone.orEmpty()
+                            phone = adminContact?.phone.orEmpty(),
+                            email = adminContact?.email.orEmpty()
                         )
                     )
                 } else eg.participants
             )
-            val nextList = if (isCreatingGroup) groups + finalGroup else groups.map { if (it.id == eg.id) finalGroup else it }
+            val nextList = if (isCreatingGroup) latestGroups + finalGroup else latestGroups.map { if (it.id == eg.id) finalGroup else it }
             onSaveGroups(nextList)
+            if (!isCreatingGroup && finalGroup.isDrawn && finalGroup.cloudRoundId.isNotBlank()) {
+                scope.launch {
+                    WichtelCloudSync.updateRoundMetaInCloud(
+                        cloudRoundId = finalGroup.cloudRoundId,
+                        groupName = finalGroup.groupName,
+                        adminName = finalGroup.adminName,
+                        motto = finalGroup.motto,
+                        budget = finalGroup.budget,
+                        revealDateIso = finalGroup.revealDateIso,
+                        forceRevealed = finalGroup.forceRevealed
+                    )
+                }
+            }
             selectedGroupId = finalGroup.id
             isReusingHistory = false
             editingGroup = null
@@ -10818,7 +11288,7 @@ fun WichtelScreen(
             sortedWichtelPersons.filter { checkedIds.contains(it.id) }.forEach { contact ->
                 val existing = cg.participants.find { it.personId == contact.id }
                 if (existing != null) {
-                    nextParticipants.add(existing)
+                    nextParticipants.add(existing.copy(email = existing.email.ifBlank { contact.email }))
                 } else {
                     nextParticipants.add(
                         WichtelParticipant(
@@ -10826,6 +11296,7 @@ fun WichtelScreen(
                             personId = contact.id,
                             name = contact.name,
                             phone = contact.phone,
+                            email = contact.email,
                             wishText = contact.notes
                         )
                     )
@@ -10843,11 +11314,19 @@ fun WichtelScreen(
                 )
             }
 
+            val oldCloudRoundId = cg.cloudRoundId
             val updatedGroup = cg.copy(
                 isDrawn = false,
-                participants = nextParticipants.map { it.copy(drawnTargetId = null, notifiedVia = "") }
+                cloudRoundId = "",
+                cloudSyncedAt = "",
+                participants = nextParticipants.map {
+                    it.copy(drawnTargetId = null, notifiedVia = "", cloudPid = 0, directToken = "", cloudOpened = false, cloudHasPin = false)
+                }
             )
-            onSaveGroups(groups.map { if (it.id == cg.id) updatedGroup else it })
+            onSaveGroups(latestGroups.map { if (it.id == cg.id) updatedGroup else it })
+            if (oldCloudRoundId.isNotBlank()) {
+                scope.launch { WichtelCloudSync.deleteRoundFromCloud(oldCloudRoundId) }
+            }
             checklistGroup = null
         }
 
@@ -11018,6 +11497,7 @@ fun WichtelScreen(
         var pLastName by remember(pItem) { mutableStateOf(initialPSplit.second) }
         val pName = combineFirstAndLastName(pFirstName, pLastName)
         var pPhone by remember(pItem) { mutableStateOf(pItem.phone) }
+        var pEmail by remember(pItem) { mutableStateOf(pItem.email) }
         var pWish by remember(pItem) { mutableStateOf(pItem.wishText) }
         var pNoGos by remember(pItem) { mutableStateOf(pItem.noGos) }
         var pAddress by remember(pItem) { mutableStateOf(pItem.address) }
@@ -11026,19 +11506,36 @@ fun WichtelScreen(
 
         fun saveParticipantWishes() {
             if (pName.isNotBlank()) {
+                val cleanedExtras = pExtraUrls.map { it.trim() }.filter { it.isNotBlank() }
                 val updatedPart = pItem.copy(
                     name = pName.trim(),
                     phone = pPhone.trim(),
+                    email = pEmail.trim(),
                     wishText = pWish.trim(),
                     noGos = pNoGos.trim(),
                     address = pAddress.trim(),
                     wishlistUrl = pUrl.trim(),
-                    extraWishUrls = pExtraUrls.map { it.trim() }.filter { it.isNotBlank() }
+                    extraWishUrls = cleanedExtras,
+                    cloudHasWishlist = pWish.isNotBlank() || pUrl.isNotBlank() || cleanedExtras.isNotEmpty()
                 )
                 val updatedGroup = pGroup.copy(
                     participants = pGroup.participants.map { if (it.id == pItem.id) updatedPart else it }
                 )
-                onSaveGroups(groups.map { if (it.id == pGroup.id) updatedGroup else it })
+                onSaveGroups(latestGroups.map { if (it.id == pGroup.id) updatedGroup else it })
+                if (pGroup.isDrawn && pGroup.cloudRoundId.isNotBlank() && pItem.cloudPid > 0) {
+                    scope.launch {
+                        WichtelCloudSync.updateParticipantWishesInCloud(
+                            cloudRoundId = pGroup.cloudRoundId,
+                            cloudPid = pItem.cloudPid,
+                            name = updatedPart.name,
+                            wishText = updatedPart.wishText,
+                            noGos = updatedPart.noGos,
+                            address = updatedPart.address,
+                            wishlistUrl = updatedPart.wishlistUrl,
+                            extraWishUrls = cleanedExtras
+                        )
+                    }
+                }
                 editingParticipantGroup = null
                 editingParticipant = null
             }
@@ -11092,7 +11589,8 @@ fun WichtelScreen(
                         lastName = pLastName,
                         onLastNameChange = { pLastName = it }
                     )
-                    OutlinedTextField(value = pPhone, onValueChange = { pPhone = it }, label = { Text("Telefon (für WhatsApp-Los)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = pPhone, onValueChange = { pPhone = it }, label = { Text("Telefon (für WhatsApp / Auto-SMS)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = pEmail, onValueChange = { pEmail = it }, label = { Text("E-Mail (optional für Sammel-Mail)") }, modifier = Modifier.fillMaxWidth())
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
