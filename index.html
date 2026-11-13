@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.48 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.49 – Interaktiver Testserver</title>
   <style>
-    /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
+    /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
     body[data-theme="warm"],
     body[data-theme="light"] {
@@ -16,7 +16,7 @@
       --btn-bg: #E3EFFA;
       --btn-hover: #D0E3F5;
       --primary-bg: #3B82C4;
-      --primary-hover: #2C6CA8;
+      --primary-hover: #2563EB;
       --root-node-bg: #DFEFFC;
       --text-primary: #182B42;
       --text-secondary: #415A77;
@@ -26,13 +26,13 @@
       --warn-bg: #E0F2FE;
       --warn-text: #1E40AF;
       --danger: #C9352B;
-      --success: #2E7D5B;
-      --partner-rose: #D6336C;
-      --tree-green: #2E7D5B;
+      --success: #15803D;
+      --partner-rose: #E11D48;
+      --tree-green: #15803D;
       --card-shadow: 0 3px 10px rgba(24, 43, 66, 0.06);
     }
 
-    /* 🌙 Sanftes Nachtblau */
+    /* 🌙 Nachtblau (Dunkel) */
     body[data-theme="cozy-dark"],
     body[data-theme="dark"] {
       background-color: #0D1624;
@@ -41,8 +41,8 @@
       --border-slate: #2C4263;
       --btn-bg: #243854;
       --btn-hover: #2F486B;
-      --primary-bg: #4A90E2;
-      --primary-hover: #357ABD;
+      --primary-bg: #3B82C4;
+      --primary-hover: #2563EB;
       --root-node-bg: #1E3A5F;
       --text-primary: #F0F6FC;
       --text-secondary: #B8CCE0;
@@ -58,32 +58,157 @@
       --card-shadow: 0 4px 14px rgba(0, 0, 0, 0.32);
     }
 
-    /* 🎄 Weihnachts-Modus */
-    body[data-theme="xmas"] {
-      background-color: #162B20;
-      --bg-slate: #F7F3E8;
-      --card-slate: #FFFDF8;
-      --border-slate: #D8C7A8;
-      --btn-bg: #ECE3CE;
-      --btn-hover: #DFD2B5;
-      --primary-bg: #1E5A3A;
-      --primary-hover: #16462C;
-      --root-node-bg: #FCE8E6;
-      --text-primary: #1B3124;
-      --text-secondary: #3B5545;
-      --text-muted: #6C8273;
-      --accent-steel: #B4232A;
-      --warn-amber: #C28512;
-      --warn-bg: #FEF5D8;
-      --warn-text: #855808;
-      --danger: #B4232A;
-      --success: #1E5A3A;
-      --partner-rose: #C81E45;
-      --tree-green: #1E5A3A;
-      --card-shadow: 0 4px 12px rgba(24, 52, 36, 0.08);
+    /* 🖤 OLED Schwarz (AMOLED) */
+    body[data-theme="oled"] {
+      background-color: #000000;
+      --bg-slate: #000000;
+      --card-slate: #111318;
+      --border-slate: #242936;
+      --btn-bg: #1B202C;
+      --btn-hover: #262D3D;
+      --primary-bg: #2563EB;
+      --primary-hover: #4F46E5;
+      --root-node-bg: #152238;
+      --text-primary: #F8FAFC;
+      --text-secondary: #CBD5E1;
+      --text-muted: #7E8B9E;
+      --accent-steel: #60A5FA;
+      --warn-amber: #FBBF24;
+      --warn-bg: #272011;
+      --warn-text: #FDE68A;
+      --danger: #EF4444;
+      --success: #34D399;
+      --partner-rose: #FB7185;
+      --tree-green: #34D399;
+      --card-shadow: none;
     }
 
-    /* 💎 Klassisch (Slate/Blau) */
+    /* 🌿 Salbei & Natur (Hell) */
+    body[data-theme="emerald"] {
+      background-color: #DCECE3;
+      --bg-slate: #EFF6F2;
+      --card-slate: #FFFFFF;
+      --border-slate: #C5DFD0;
+      --btn-bg: #DEF0E6;
+      --btn-hover: #CBE5D7;
+      --primary-bg: #059669;
+      --primary-hover: #0D9488;
+      --root-node-bg: #D3ECE0;
+      --text-primary: #132A20;
+      --text-secondary: #3B5B4C;
+      --text-muted: #6B8C7C;
+      --accent-steel: #059669;
+      --warn-amber: #0D9488;
+      --warn-bg: #CCFBF1;
+      --warn-text: #115E59;
+      --danger: #DC2626;
+      --success: #15803D;
+      --partner-rose: #E11D48;
+      --tree-green: #15803D;
+      --card-shadow: 0 3px 10px rgba(19, 42, 32, 0.06);
+    }
+
+    /* ☕ Sand & Latte (Hell) */
+    body[data-theme="sand"] {
+      background-color: #EBE1D5;
+      --bg-slate: #F7F2EC;
+      --card-slate: #FFFDFB;
+      --border-slate: #E3D5C5;
+      --btn-bg: #EEE4D7;
+      --btn-hover: #E3D5C3;
+      --primary-bg: #C2611A;
+      --primary-hover: #9A440E;
+      --root-node-bg: #F5E6D3;
+      --text-primary: #2C2119;
+      --text-secondary: #5C493A;
+      --text-muted: #8C7765;
+      --accent-steel: #B45309;
+      --warn-amber: #D97706;
+      --warn-bg: #FEF3C7;
+      --warn-text: #92400E;
+      --danger: #C9352B;
+      --success: #15803D;
+      --partner-rose: #BE185D;
+      --tree-green: #15803D;
+      --card-shadow: 0 3px 10px rgba(44, 33, 25, 0.06);
+    }
+
+    /* 💜 Aurora Violett (Dunkel) */
+    body[data-theme="lavender"] {
+      background-color: #0B0917;
+      --bg-slate: #131124;
+      --card-slate: #1E1B38;
+      --border-slate: #352F5E;
+      --btn-bg: #2A244D;
+      --btn-hover: #383066;
+      --primary-bg: #7C3AED;
+      --primary-hover: #6366F1;
+      --root-node-bg: #302461;
+      --text-primary: #F5F3FF;
+      --text-secondary: #CFC8F7;
+      --text-muted: #9389CC;
+      --accent-steel: #A78BFA;
+      --warn-amber: #C084FC;
+      --warn-bg: #2E1F4D;
+      --warn-text: #E9D5FF;
+      --danger: #F43F5E;
+      --success: #34D399;
+      --partner-rose: #F472B6;
+      --tree-green: #34D399;
+      --card-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    /* 🌊 Ozean Petrol (Dunkel) */
+    body[data-theme="ocean"] {
+      background-color: #061419;
+      --bg-slate: #0B2027;
+      --card-slate: #13313B;
+      --border-slate: #224E5D;
+      --btn-bg: #1B414E;
+      --btn-hover: #235363;
+      --primary-bg: #0891B2;
+      --primary-hover: #0D9488;
+      --root-node-bg: #174959;
+      --text-primary: #ECFEFF;
+      --text-secondary: #B2EBF2;
+      --text-muted: #6BB7C4;
+      --accent-steel: #22D3EE;
+      --warn-amber: #38BDF8;
+      --warn-bg: #123747;
+      --warn-text: #BAE6FD;
+      --danger: #F43F5E;
+      --success: #34D399;
+      --partner-rose: #FB7185;
+      --tree-green: #34D399;
+      --card-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    /* 🌸 Rosé & Beere (Hell) */
+    body[data-theme="rose"] {
+      background-color: #F7DFE9;
+      --bg-slate: #FDF2F6;
+      --card-slate: #FFFFFF;
+      --border-slate: #F2CCDA;
+      --btn-bg: #FCE2EC;
+      --btn-hover: #F8CFE0;
+      --primary-bg: #E11D48;
+      --primary-hover: #DB2777;
+      --root-node-bg: #FAD8E6;
+      --text-primary: #3B1523;
+      --text-secondary: #6E354A;
+      --text-muted: #9E677B;
+      --accent-steel: #DB2777;
+      --warn-amber: #E11D48;
+      --warn-bg: #FFE4E6;
+      --warn-text: #9F1239;
+      --danger: #DC2626;
+      --success: #15803D;
+      --partner-rose: #BE185D;
+      --tree-green: #15803D;
+      --card-shadow: 0 3px 10px rgba(59, 21, 35, 0.06);
+    }
+
+    /* 💎 Schiefer (Dunkel) */
     body[data-theme="classic"] {
       background-color: #070B14;
       --bg-slate: #0F172A;
@@ -92,7 +217,7 @@
       --btn-bg: #334155;
       --btn-hover: #475569;
       --primary-bg: #0284C7;
-      --primary-hover: #0369A1;
+      --primary-hover: #2563EB;
       --root-node-bg: #1E3A5F;
       --text-primary: #F8FAFC;
       --text-secondary: #CBD5E1;
@@ -106,6 +231,31 @@
       --partner-rose: #F43F5E;
       --tree-green: #10B981;
       --card-shadow: none;
+    }
+
+    /* 🎄 Festlich (Tanne & Gold Dunkel – identisch mit Android App & Widget) */
+    body[data-theme="xmas"] {
+      background-color: #091712;
+      --bg-slate: #0F241D;
+      --card-slate: #163329;
+      --border-slate: #265444;
+      --btn-bg: #20483A;
+      --btn-hover: #295B49;
+      --primary-bg: #15803D;
+      --primary-hover: #0F766E;
+      --root-node-bg: #3F1D24;
+      --text-primary: #FEFCE8;
+      --text-secondary: #D1FAE5;
+      --text-muted: #86EFAC;
+      --accent-steel: #FBBF24;
+      --warn-amber: #F87171;
+      --warn-bg: #3B2314;
+      --warn-text: #FDE68A;
+      --danger: #EF4444;
+      --success: #34D399;
+      --partner-rose: #FB7185;
+      --tree-green: #34D399;
+      --card-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
     }
 
     * {
@@ -2164,26 +2314,34 @@
       return `<span class="countdown-pill">🎂 in ${days}T</span>`;
     }
 
+    const APP_THEME_SPECS = [
+      { id: "warm", icon: "☀️", shortLabel: "Eisblau", bg: "#F2F7FC", accent: "#3B82C4" },
+      { id: "cozy-dark", icon: "🌙", shortLabel: "Nachtblau", bg: "#131F31", accent: "#63A4FF" },
+      { id: "oled", icon: "🖤", shortLabel: "OLED", bg: "#000000", accent: "#60A5FA" },
+      { id: "emerald", icon: "🌿", shortLabel: "Salbei", bg: "#EFF6F2", accent: "#059669" },
+      { id: "sand", icon: "☕", shortLabel: "Sand", bg: "#F7F2EC", accent: "#B45309" },
+      { id: "lavender", icon: "💜", shortLabel: "Aurora", bg: "#131124", accent: "#A78BFA" },
+      { id: "ocean", icon: "🌊", shortLabel: "Ozean", bg: "#0B2027", accent: "#22D3EE" },
+      { id: "rose", icon: "🌸", shortLabel: "Rosé", bg: "#FDF2F6", accent: "#DB2777" },
+      { id: "classic", icon: "💎", shortLabel: "Schiefer", bg: "#0F172A", accent: "#38BDF8" },
+      { id: "xmas", icon: "🎄", shortLabel: "Festlich", bg: "#0F241D", accent: "#FBBF24" }
+    ];
+
     function cycleThemeModeQuick() {
-      const order = ["warm", "cozy-dark", "xmas", "classic"];
+      const order = APP_THEME_SPECS.map(t => t.id);
       const current = state.themeMode || "warm";
       const idx = order.indexOf(current);
       state.themeMode = order[(idx + 1) % order.length];
-      const names = {
-        "warm": "☀️ Sanftes Blau (Hell)",
-        "cozy-dark": "🌙 Sanftes Nachtblau",
-        "xmas": "🎄 Weihnachts-Modus",
-        "classic": "💎 Klassisch"
-      };
-      addLog(`Design-Theme gewechselt auf: ${names[state.themeMode]}`);
+      const spec = APP_THEME_SPECS.find(t => t.id === state.themeMode) || APP_THEME_SPECS[0];
+      addLog(`Design-Theme gewechselt auf: ${spec.icon} ${spec.shortLabel}`);
       saveState();
     }
 
     function getThemeIcon(mode) {
-      if (mode === "cozy-dark" || mode === "dark") return "🌙";
-      if (mode === "xmas") return "🎄";
-      if (mode === "classic") return "💎";
-      return "☀️";
+      if (mode === "dark") mode = "cozy-dark";
+      if (mode === "light") mode = "warm";
+      const spec = APP_THEME_SPECS.find(t => t.id === mode);
+      return spec ? spec.icon : "☀️";
     }
 
     function resetDatabase() {
@@ -2410,7 +2568,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.48</div>
+          <div class="app-title">Remember Me v1.0.49</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -6398,12 +6556,15 @@
               </div>
 
               <div style="display:flex; flex-direction:column; gap:6px; padding:8px 0; border-bottom:1px solid var(--border-slate);">
-                <span style="font-size:13px; font-weight:600; color:var(--text-primary);">🎨 Design-Theme (Sanftes Blau / Festlich)</span>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="font-size:13px; font-weight:600; color:var(--text-primary); white-space:nowrap;">🎨 Design</span>
+                  ${infoHintBtn("design_themes", "App- & Widget-Farbdesign", "Wählt das Farbschema der App (4 helle & 6 dunkle Designs inkl. OLED-Schwarz). Alle Homescreen-Widgets übernehmen automatisch exakt dieselbe Farbe.")}
+                </div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-                  <button class="compact-btn ${currentTheme === 'warm' ? 'primary' : ''}" onclick="setThemeMode('warm')">☀️ Sanftes Blau (Hell)</button>
-                  <button class="compact-btn ${currentTheme === 'cozy-dark' ? 'primary' : ''}" onclick="setThemeMode('cozy-dark')">🌙 Sanftes Nachtblau</button>
-                  <button class="compact-btn ${currentTheme === 'xmas' ? 'primary' : ''}" onclick="setThemeMode('xmas')">🎄 Weihnachts-Modus</button>
-                  <button class="compact-btn ${currentTheme === 'classic' ? 'primary' : ''}" onclick="setThemeMode('classic')">💎 Klassisch-Dunkel</button>
+                  ${APP_THEME_SPECS.map(spec => {
+                    const sel = currentTheme === spec.id;
+                    return `<button class="compact-btn ${sel ? 'primary' : ''}" style="justify-content:flex-start; gap:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="setThemeMode('${spec.id}')"><span style="width:11px; height:11px; border-radius:50%; background:${spec.bg}; border:2px solid ${spec.accent}; flex-shrink:0;"></span><span>${sel ? '✓ ' : ''}${spec.icon} ${spec.shortLabel}</span></button>`;
+                  }).join('')}
                 </div>
               </div>
 
@@ -9274,7 +9435,7 @@
     function setThemeMode(mode) {
       if (mode === "light") mode = "warm";
       if (mode === "dark") mode = "cozy-dark";
-      const valid = ["warm", "cozy-dark", "xmas", "classic"];
+      const valid = APP_THEME_SPECS.map(t => t.id);
       state.themeMode = valid.includes(mode) ? mode : "warm";
       saveState();
     }
@@ -9856,7 +10017,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.48",
+        version: "1.0.49",
         createdAt: dateStr,
         state
       };
@@ -9874,7 +10035,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.48",
+        version: "1.0.49",
         createdAt: dateStr,
         state
       };
@@ -9949,7 +10110,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.48 gestartet.");
+    addLog("Remember Me v1.0.49 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

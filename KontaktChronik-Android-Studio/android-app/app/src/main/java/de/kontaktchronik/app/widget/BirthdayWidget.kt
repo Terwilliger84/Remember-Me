@@ -4,14 +4,22 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
@@ -19,8 +27,10 @@ import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
+import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -31,6 +41,7 @@ import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.width
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -38,10 +49,12 @@ import androidx.glance.unit.ColorProvider
 import de.kontaktchronik.app.data.AppDatabase
 import de.kontaktchronik.app.model.BirthdayCongratulationTracker
 import de.kontaktchronik.app.model.ContactResolver
+import de.kontaktchronik.app.ui.AppThemeRegistry
 import de.kontaktchronik.app.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -61,6 +74,7 @@ data class WidgetRowItem(
 
 data class WidgetPalette(
     val bg: Color,
+    val border: Color,
     val rowBg: Color,
     val accent: Color,
     val textPrimary: Color,
@@ -83,96 +97,62 @@ data class WidgetPalette(
 )
 
 object RememberMeWidgetHelper {
+    val PREF_THEME_KEY = stringPreferencesKey("theme_mode")
+    val PREF_REV_KEY = longPreferencesKey("widget_rev_ts")
+
+    var liveThemeMode by mutableStateOf<String?>(null)
+    var liveRowsSnapshot by mutableStateOf<List<WidgetRowItem>?>(null)
+    var liveRevision by mutableIntStateOf(0)
 
     fun paletteForTheme(themeMode: String?): WidgetPalette {
-        return when (themeMode) {
-            "cozy-dark" -> WidgetPalette(
-                bg = Color(0xFF132030),
-                rowBg = Color(0xFF1C2E42),
-                accent = Color(0xFF63B3ED),
-                textPrimary = Color(0xFFF0F6FC),
-                textSecondary = Color(0xFF9BB0C9),
-                badgeBg = Color(0xFF263E57),
-                badgeText = Color(0xFFE2E8F0),
-                todayBadgeBg = Color(0xFF3182CE),
-                todayBadgeText = Color(0xFFFFFFFF),
-                bdayTodayFrame = Color(0xFFFBBF24),
-                bdayTodayRowBg = Color(0xFF3B2810),
-                bdayTodayText = Color(0xFFFEF3C7),
-                bdayTodaySubText = Color(0xFFFCD34D),
-                bdayTodayBadgeBg = Color(0xFFD97706),
-                bdayTodayBadgeText = Color(0xFFFFFFFF),
-                bdayDoneFrame = Color(0xFF34D399),
-                bdayDoneRowBg = Color(0xFF13362B),
-                bdayDoneText = Color(0xFFD1FAE5),
-                bdayDoneBadgeBg = Color(0xFF059669),
-                bdayDoneBadgeText = Color(0xFFFFFFFF)
-            )
-            "xmas" -> WidgetPalette(
-                bg = Color(0xFF14261C),
-                rowBg = Color(0xFF1E3528),
-                accent = Color(0xFFFC8181),
-                textPrimary = Color(0xFFF7FAFC),
-                textSecondary = Color(0xFFB2D8C2),
-                badgeBg = Color(0xFF284736),
-                badgeText = Color(0xFFE6FFFA),
-                todayBadgeBg = Color(0xFFC53030),
-                todayBadgeText = Color(0xFFFFFFFF),
-                bdayTodayFrame = Color(0xFFFBBF24),
-                bdayTodayRowBg = Color(0xFF3E2414),
-                bdayTodayText = Color(0xFFFEF3C7),
-                bdayTodaySubText = Color(0xFFFDE68A),
-                bdayTodayBadgeBg = Color(0xFFD97706),
-                bdayTodayBadgeText = Color(0xFFFFFFFF),
-                bdayDoneFrame = Color(0xFF34D399),
-                bdayDoneRowBg = Color(0xFF163D2D),
-                bdayDoneText = Color(0xFFD1FAE5),
-                bdayDoneBadgeBg = Color(0xFF059669),
-                bdayDoneBadgeText = Color(0xFFFFFFFF)
-            )
-            "classic" -> WidgetPalette(
-                bg = Color(0xFF0F172A),
-                rowBg = Color(0xFF1E293B),
-                accent = Color(0xFF38BDF8),
-                textPrimary = Color(0xFFF8FAFC),
-                textSecondary = Color(0xFF94A3B8),
-                badgeBg = Color(0xFF334155),
-                badgeText = Color(0xFFE2E8F0),
-                todayBadgeBg = Color(0xFF0284C7),
-                todayBadgeText = Color(0xFFFFFFFF),
-                bdayTodayFrame = Color(0xFFFBBF24),
-                bdayTodayRowBg = Color(0xFF3B2810),
-                bdayTodayText = Color(0xFFFEF3C7),
-                bdayTodaySubText = Color(0xFFFCD34D),
-                bdayTodayBadgeBg = Color(0xFFD97706),
-                bdayTodayBadgeText = Color(0xFFFFFFFF),
-                bdayDoneFrame = Color(0xFF34D399),
-                bdayDoneRowBg = Color(0xFF12352A),
-                bdayDoneText = Color(0xFFD1FAE5),
-                bdayDoneBadgeBg = Color(0xFF059669),
-                bdayDoneBadgeText = Color(0xFFFFFFFF)
-            )
-            else -> WidgetPalette( // "warm" – Sanftes Blau (Hell)
-                bg = Color(0xFFEBF3FC),
-                rowBg = Color(0xFFFFFFFF),
-                accent = Color(0xFF2B6CB0),
-                textPrimary = Color(0xFF1A2B3C),
-                textSecondary = Color(0xFF4A607A),
-                badgeBg = Color(0xFFD6E6F7),
-                badgeText = Color(0xFF1E4E8C),
-                todayBadgeBg = Color(0xFF2B6CB0),
-                todayBadgeText = Color(0xFFFFFFFF),
+        val spec = AppThemeRegistry.byId(themeMode)
+        return if (spec.isLight) {
+            WidgetPalette(
+                bg = spec.bgSlate,
+                border = spec.borderSlate,
+                rowBg = spec.cardSlate,
+                accent = spec.accent,
+                textPrimary = spec.textPrimary,
+                textSecondary = spec.textSecondary,
+                badgeBg = spec.btnBg,
+                badgeText = spec.primaryBtnStart,
+                todayBadgeBg = spec.primaryBtnStart,
+                todayBadgeText = Color.White,
                 bdayTodayFrame = Color(0xFFF59E0B),
                 bdayTodayRowBg = Color(0xFFFFFBEB),
                 bdayTodayText = Color(0xFF92400E),
                 bdayTodaySubText = Color(0xFFB45309),
                 bdayTodayBadgeBg = Color(0xFFD97706),
-                bdayTodayBadgeText = Color(0xFFFFFFFF),
+                bdayTodayBadgeText = Color.White,
                 bdayDoneFrame = Color(0xFF10B981),
                 bdayDoneRowBg = Color(0xFFECFDF5),
                 bdayDoneText = Color(0xFF065F46),
                 bdayDoneBadgeBg = Color(0xFF15803D),
-                bdayDoneBadgeText = Color(0xFFFFFFFF)
+                bdayDoneBadgeText = Color.White
+            )
+        } else {
+            WidgetPalette(
+                bg = spec.bgSlate,
+                border = spec.borderSlate,
+                rowBg = spec.cardSlate,
+                accent = spec.accent,
+                textPrimary = spec.textPrimary,
+                textSecondary = spec.textSecondary,
+                badgeBg = spec.btnBg,
+                badgeText = spec.textPrimary,
+                todayBadgeBg = spec.primaryBtnStart,
+                todayBadgeText = Color.White,
+                bdayTodayFrame = Color(0xFFFBBF24),
+                bdayTodayRowBg = Color(0xFF3B2810),
+                bdayTodayText = Color(0xFFFEF3C7),
+                bdayTodaySubText = Color(0xFFFCD34D),
+                bdayTodayBadgeBg = Color(0xFFD97706),
+                bdayTodayBadgeText = Color.White,
+                bdayDoneFrame = Color(0xFF34D399),
+                bdayDoneRowBg = Color(0xFF12352A),
+                bdayDoneText = Color(0xFFD1FAE5),
+                bdayDoneBadgeBg = Color(0xFF059669),
+                bdayDoneBadgeText = Color.White
             )
         }
     }
@@ -418,6 +398,12 @@ object RememberMeWidgetHelper {
 }
 
 object RememberMeWidgetUpdater {
+    fun notifyThemeChangedImmediate(context: Context, themeMode: String) {
+        RememberMeWidgetHelper.liveThemeMode = themeMode
+        RememberMeWidgetHelper.liveRevision++
+        updateAllAsync(context)
+    }
+
     fun updateAllAsync(context: Context) {
         val appCtx = context.applicationContext
         CoroutineScope(Dispatchers.IO).launch {
@@ -426,10 +412,45 @@ object RememberMeWidgetUpdater {
     }
 
     suspend fun updateAll(context: Context) {
-        runCatching { MiniBirthdayWidget().updateAll(context) }
-        runCatching { StripBirthdayWidget().updateAll(context) }
-        runCatching { BirthdayGlanceWidget().updateAll(context) }
-        runCatching { LargeBirthdayWidget().updateAll(context) }
+        val appCtx = context.applicationContext
+        val spTheme = appCtx.getSharedPreferences("remember_me_prefs", Context.MODE_PRIVATE)
+            .getString("theme_mode", "warm") ?: "warm"
+        val freshRows = runCatching {
+            RememberMeWidgetHelper.loadWidgetState(appCtx, maxItems = 15).second
+        }.getOrNull()
+
+        withContext(Dispatchers.Main) {
+            RememberMeWidgetHelper.liveThemeMode = spTheme
+            if (freshRows != null) {
+                RememberMeWidgetHelper.liveRowsSnapshot = freshRows
+            }
+            RememberMeWidgetHelper.liveRevision++
+        }
+
+        val revNow = System.currentTimeMillis()
+        val manager = GlanceAppWidgetManager(appCtx)
+
+        suspend fun pushAndRefresh(widget: GlanceAppWidget, cls: Class<out GlanceAppWidget>) {
+            runCatching {
+                val ids = manager.getGlanceIds(cls)
+                for (glanceId in ids) {
+                    updateAppWidgetState(appCtx, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+                        prefs.toMutablePreferences().apply {
+                            this[RememberMeWidgetHelper.PREF_THEME_KEY] = spTheme
+                            this[RememberMeWidgetHelper.PREF_REV_KEY] = revNow
+                        }
+                    }
+                    widget.update(appCtx, glanceId)
+                }
+            }.onFailure {
+                runCatching { widget.updateAll(appCtx) }
+            }
+        }
+
+        pushAndRefresh(MiniBirthdayWidget(), MiniBirthdayWidget::class.java)
+        pushAndRefresh(StripBirthdayWidget(), StripBirthdayWidget::class.java)
+        pushAndRefresh(BirthdayGlanceWidget(), BirthdayGlanceWidget::class.java)
+        pushAndRefresh(LargeBirthdayWidget(), LargeBirthdayWidget::class.java)
     }
 }
 
@@ -605,22 +626,24 @@ private fun FourRowTwoCellWidgetContent(
         else -> 0
     }
 
-    val outerModifier = if (hasOpenBirthdayToday) {
-        GlanceModifier
-            .fillMaxSize()
-            .background(ColorProvider(palette.bdayTodayFrame))
-            .cornerRadius(12.dp)
-            .padding(if (ultraTight) 1.dp else 1.5.dp)
+    val outerFrameColor = if (hasOpenBirthdayToday) palette.bdayTodayFrame else palette.border
+    val outerPad = if (hasOpenBirthdayToday) {
+        if (ultraTight) 1.dp else 1.5.dp
     } else {
-        GlanceModifier.fillMaxSize()
+        1.dp
     }
+    val outerModifier = GlanceModifier
+        .fillMaxSize()
+        .background(ColorProvider(outerFrameColor))
+        .cornerRadius(12.dp)
+        .padding(outerPad)
 
     Box(modifier = outerModifier) {
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(ColorProvider(palette.bg))
-                .cornerRadius(if (hasOpenBirthdayToday) 11.dp else 12.dp)
+                .cornerRadius(11.dp)
                 .padding(
                     horizontal = if (ultraTight) 4.dp else 6.dp,
                     vertical = if (ultraTight) 2.5.dp else 4.dp
@@ -709,15 +732,37 @@ private fun FourRowTwoCellWidgetContent(
     }
 }
 
+@Composable
+private fun resolveReactiveWidgetState(
+    context: Context,
+    fallbackRows: List<WidgetRowItem>,
+    maxItems: Int
+): Pair<WidgetPalette, List<WidgetRowItem>> {
+    val prefs = currentState<Preferences>()
+    // State-Abhängigkeiten registrieren (In-Process Snapshot + DataStore Revision)
+    val liveRev = RememberMeWidgetHelper.liveRevision
+    val dsRev = prefs[RememberMeWidgetHelper.PREF_REV_KEY]
+    val dsTheme = prefs[RememberMeWidgetHelper.PREF_THEME_KEY]
+    val spTheme = context.getSharedPreferences("remember_me_prefs", Context.MODE_PRIVATE)
+        .getString("theme_mode", null)
+    val effectiveTheme = RememberMeWidgetHelper.liveThemeMode ?: spTheme ?: dsTheme ?: "warm"
+    if (liveRev < 0 || dsRev == -1L) return RememberMeWidgetHelper.paletteForTheme("warm") to emptyList()
+    val palette = RememberMeWidgetHelper.paletteForTheme(effectiveTheme)
+    val rows = (RememberMeWidgetHelper.liveRowsSnapshot ?: fallbackRows).take(maxItems)
+    return palette to rows
+}
+
 /**
  * 1. KOMPAKT-WIDGET (2×1 / 2 Felder groß): Zeigt 4 einzeilige Terminzeilen mit Heute-Geburtstags-Markierung.
  */
 class MiniBirthdayWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
+    override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (palette, rows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 8)
+        val (_, initialRows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 8)
         provideContent {
+            val (palette, rows) = resolveReactiveWidgetState(context, initialRows, maxItems = 8)
             FourRowTwoCellWidgetContent(
                 context = context,
                 rows = rows,
@@ -732,10 +777,12 @@ class MiniBirthdayWidget : GlanceAppWidget() {
  */
 class StripBirthdayWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
+    override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (palette, rows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 6)
+        val (_, initialRows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 6)
         provideContent {
+            val (palette, rows) = resolveReactiveWidgetState(context, initialRows, maxItems = 6)
             val size = LocalSize.current
             if (size.width < 225.dp) {
                 FourRowTwoCellWidgetContent(
@@ -751,22 +798,19 @@ class StripBirthdayWidget : GlanceAppWidget() {
             val shown = rows.take(colCount)
             val hasOpenBdayToday = shown.any { it.isBirthdayToday && !it.isCongratulatedToday }
 
-            val outerMod = if (hasOpenBdayToday) {
-                GlanceModifier
-                    .fillMaxSize()
-                    .background(ColorProvider(palette.bdayTodayFrame))
-                    .cornerRadius(12.dp)
-                    .padding(1.5.dp)
-            } else {
-                GlanceModifier.fillMaxSize()
-            }
+            val outerFrame = if (hasOpenBdayToday) palette.bdayTodayFrame else palette.border
+            val outerMod = GlanceModifier
+                .fillMaxSize()
+                .background(ColorProvider(outerFrame))
+                .cornerRadius(12.dp)
+                .padding(if (hasOpenBdayToday) 1.5.dp else 1.dp)
 
             Box(modifier = outerMod) {
                 Box(
                     modifier = GlanceModifier
                         .fillMaxSize()
                         .background(ColorProvider(palette.bg))
-                        .cornerRadius(if (hasOpenBdayToday) 11.dp else 12.dp)
+                        .cornerRadius(11.dp)
                         .padding(5.dp)
                 ) {
                     if (shown.isEmpty()) {
@@ -858,10 +902,12 @@ class StripBirthdayWidget : GlanceAppWidget() {
  */
 class BirthdayGlanceWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
+    override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (palette, rows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 10)
+        val (_, initialRows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 10)
         provideContent {
+            val (palette, rows) = resolveReactiveWidgetState(context, initialRows, maxItems = 10)
             CompactListWidgetLayout(
                 context = context,
                 headerTitle = "🎂 Termine",
@@ -878,10 +924,12 @@ class BirthdayGlanceWidget : GlanceAppWidget() {
  */
 class LargeBirthdayWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
+    override val stateDefinition = PreferencesGlanceStateDefinition
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (palette, rows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 15)
+        val (_, initialRows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 15)
         provideContent {
+            val (palette, rows) = resolveReactiveWidgetState(context, initialRows, maxItems = 15)
             CompactListWidgetLayout(
                 context = context,
                 headerTitle = "🎂 Termine (${rows.size})",
@@ -931,22 +979,19 @@ private fun CompactListWidgetLayout(
         else -> palette.accent
     }
 
-    val outerModifier = if (hasOpenBirthdayToday) {
-        GlanceModifier
-            .fillMaxSize()
-            .background(ColorProvider(palette.bdayTodayFrame))
-            .cornerRadius(13.dp)
-            .padding(1.5.dp)
-    } else {
-        GlanceModifier.fillMaxSize()
-    }
+    val outerFrame = if (hasOpenBirthdayToday) palette.bdayTodayFrame else palette.border
+    val outerModifier = GlanceModifier
+        .fillMaxSize()
+        .background(ColorProvider(outerFrame))
+        .cornerRadius(13.dp)
+        .padding(if (hasOpenBirthdayToday) 1.5.dp else 1.dp)
 
     Box(modifier = outerModifier) {
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(ColorProvider(palette.bg))
-                .cornerRadius(if (hasOpenBirthdayToday) 12.dp else 13.dp)
+                .cornerRadius(12.dp)
                 .padding(if (compactMode) 5.dp else 7.dp)
         ) {
             Row(

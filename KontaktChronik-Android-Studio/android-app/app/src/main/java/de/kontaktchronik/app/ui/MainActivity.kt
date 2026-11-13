@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -68,6 +69,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
 import de.kontaktchronik.app.data.AppDatabase
 import de.kontaktchronik.app.data.ContactDeduplicator
 import de.kontaktchronik.app.data.ContactsSyncRepository
@@ -89,119 +91,27 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-// "warm" (Standard: Sanftes Blau), "cozy-dark" (Sanftes Nachtblau), "xmas" (Weihnachts-Modus), "classic"
+// Zentrale Farbpalette (identisch für App & Homescreen-Widgets über AppThemeRegistry)
 private var appThemeMode by mutableStateOf("warm")
-private val isLightMode: Boolean get() = appThemeMode == "warm"
+private val currentThemeSpec: AppThemeSpec get() = AppThemeRegistry.byId(appThemeMode)
+private val isLightMode: Boolean get() = currentThemeSpec.isLight
 
-private val BgSlate: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFFF2F7FC)
-        "cozy-dark" -> Color(0xFF131F31)
-        "xmas" -> Color(0xFF0F241D)
-        else -> Color(0xFF0F172A)
-    }
+private val BgSlate: Color get() = currentThemeSpec.bgSlate
+private val CardSlate: Color get() = currentThemeSpec.cardSlate
+private val BorderSlate: Color get() = currentThemeSpec.borderSlate
+private val BtnBg: Color get() = currentThemeSpec.btnBg
+private val RootNodeBg: Color get() = currentThemeSpec.rootNodeBg
+private val TextPrimary: Color get() = currentThemeSpec.textPrimary
+private val TextSecondary: Color get() = currentThemeSpec.textSecondary
+private val TextMuted: Color get() = currentThemeSpec.textMuted
+private val AccentSteel: Color get() = currentThemeSpec.accent
+private val WarnAmber: Color get() = currentThemeSpec.warnAmber
+private val PartnerRose: Color get() = currentThemeSpec.partnerRose
+private val TreeGreen: Color get() = currentThemeSpec.treeGreen
 
-private val CardSlate: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFFFFFFFF)
-        "cozy-dark" -> Color(0xFF1B2B42)
-        "xmas" -> Color(0xFF163329)
-        else -> Color(0xFF1E293B)
-    }
+fun getThemeIcon(mode: String): String = AppThemeRegistry.byId(mode).icon
 
-private val BorderSlate: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFFCFE0F0)
-        "cozy-dark" -> Color(0xFF2C4263)
-        "xmas" -> Color(0xFF265444)
-        else -> Color(0xFF334155)
-    }
-
-private val BtnBg: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFFE3EFFA)
-        "cozy-dark" -> Color(0xFF243854)
-        "xmas" -> Color(0xFF20483A)
-        else -> Color(0xFF334155)
-    }
-
-private val RootNodeBg: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFFDFEFFC)
-        "cozy-dark" -> Color(0xFF1E3A5F)
-        "xmas" -> Color(0xFF3F1D24)
-        else -> Color(0xFF1E3A5F)
-    }
-
-private val TextPrimary: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFF182B42)
-        "cozy-dark" -> Color(0xFFF0F6FC)
-        "xmas" -> Color(0xFFFEFCE8)
-        else -> Color(0xFFF8FAFC)
-    }
-
-private val TextSecondary: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFF415A77)
-        "cozy-dark" -> Color(0xFFB8CCE0)
-        "xmas" -> Color(0xFFD1FAE5)
-        else -> Color(0xFFCBD5E1)
-    }
-
-private val TextMuted: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFF728CA8)
-        "cozy-dark" -> Color(0xFF7E97B3)
-        "xmas" -> Color(0xFF86EFAC)
-        else -> Color(0xFF94A3B8)
-    }
-
-private val AccentSteel: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFF3B82C4)
-        "cozy-dark" -> Color(0xFF63A4FF)
-        "xmas" -> Color(0xFFFBBF24)
-        else -> Color(0xFF38BDF8)
-    }
-
-private val WarnAmber: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFF2563EB)
-        "cozy-dark" -> Color(0xFF60A5FA)
-        "xmas" -> Color(0xFFF87171)
-        else -> Color(0xFFF59E0B)
-    }
-
-private val PartnerRose: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFFE11D48)
-        "cozy-dark" -> Color(0xFFFB7185)
-        "xmas" -> Color(0xFFFB7185)
-        else -> Color(0xFFF43F5E)
-    }
-
-private val TreeGreen: Color
-    get() = when (appThemeMode) {
-        "warm" -> Color(0xFF15803D)
-        "cozy-dark" -> Color(0xFF34D399)
-        "xmas" -> Color(0xFF34D399)
-        else -> Color(0xFF10B981)
-    }
-
-fun getThemeIcon(mode: String): String = when (mode) {
-    "warm" -> "☀️"
-    "cozy-dark" -> "🌙"
-    "xmas" -> "🎄"
-    else -> "💎"
-}
-
-fun nextThemeMode(mode: String): String = when (mode) {
-    "warm" -> "cozy-dark"
-    "cozy-dark" -> "xmas"
-    "xmas" -> "classic"
-    else -> "warm"
-}
+fun nextThemeMode(mode: String): String = AppThemeRegistry.nextMode(mode)
 
 private val AVATAR_GRADIENTS = listOf(
     listOf(Color(0xFF4A90E2), Color(0xFF2563EB)),
@@ -791,11 +701,9 @@ fun PrimaryActionButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val bgBrush = if (appThemeMode == "xmas") {
-        Brush.horizontalGradient(listOf(Color(0xFF15803D), Color(0xFF0F766E)))
-    } else {
-        Brush.horizontalGradient(listOf(Color(0xFF3B82C4), Color(0xFF2563EB)))
-    }
+    val bgBrush = Brush.horizontalGradient(
+        listOf(currentThemeSpec.primaryBtnStart, currentThemeSpec.primaryBtnEnd)
+    )
     Box(
         modifier = modifier
             .background(bgBrush, RoundedCornerShape(8.dp))
@@ -3175,6 +3083,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val initialTheme = getSharedPreferences("remember_me_prefs", MODE_PRIVATE)
+            .getString("theme_mode", "warm") ?: "warm"
+        appThemeMode = AppThemeRegistry.byId(initialTheme).id
         DailyReminderWorker.schedule(this)
         if (BirthdayNotificationHelper.isBirthdayPopupEnabled(this)) {
             BirthdayNotificationHelper.ensureNotificationChannel(this)
@@ -3183,6 +3094,18 @@ class MainActivity : ComponentActivity() {
         consumePopupIntent(intent)
 
         setContent {
+            val bgArgb = BgSlate.toArgb()
+            val lightBars = isLightMode
+            SideEffect {
+                @Suppress("DEPRECATION")
+                window.statusBarColor = bgArgb
+                @Suppress("DEPRECATION")
+                window.navigationBarColor = bgArgb
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = lightBars
+                    isAppearanceLightNavigationBars = lightBars
+                }
+            }
             val scheme = if (isLightMode) {
                 lightColorScheme(
                     background = BgSlate,
@@ -3396,9 +3319,10 @@ fun KontaktChronikApp(
     }
 
     fun applyThemeMode(mode: String) {
-        appThemeMode = mode
-        appPrefs.edit().putString("theme_mode", mode).apply()
-        RememberMeWidgetUpdater.updateAllAsync(context)
+        val normalized = AppThemeRegistry.byId(mode).id
+        appThemeMode = normalized
+        appPrefs.edit().putString("theme_mode", normalized).commit()
+        RememberMeWidgetUpdater.notifyThemeChangedImmediate(context, normalized)
     }
 
     LaunchedEffect(persons, specialEvents, hiddenPersonIds, appThemeMode) {
@@ -3407,11 +3331,7 @@ fun KontaktChronikApp(
 
     LaunchedEffect(Unit) {
         val savedTheme = appPrefs.getString("theme_mode", null)
-        appThemeMode = if (savedTheme != null) {
-            savedTheme
-        } else {
-            "warm"
-        }
+        appThemeMode = AppThemeRegistry.byId(savedTheme).id
         hasNotificationPerm = BirthdayNotificationHelper.hasNotificationPermission(context)
         if (birthdayPopupEnabled) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPerm) {
@@ -3598,7 +3518,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.48",
+                "Remember Me v1.0.49",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4657,7 +4577,8 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.48")
+                put("version", "1.0.49")
+                put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayCongratulated", BirthdayCongratulationTracker.exportToJsonObject(context))
@@ -4969,34 +4890,64 @@ fun KontaktChronikApp(
 
                 HorizontalDivider(color = BorderSlate)
 
-                Text("🎨 Design", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("🎨 Design", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                    InfoHintIcon(
+                        title = "App- & Widget-Farbdesign",
+                        text = "Wählt das Farbschema der App (4 helle & 6 dunkle Designs inkl. OLED-Schwarz). Alle Homescreen-Widgets übernehmen automatisch exakt dieselbe Farbe."
+                    )
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        CompactButton(
-                            label = if (appThemeMode == "warm") "✓ ☀️ Hell" else "☀️ Hell",
-                            modifier = Modifier.weight(1f)
+                    AppThemeRegistry.ALL.chunked(2).forEach { pair ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            applyThemeMode("warm")
-                        }
-                        CompactButton(
-                            label = if (appThemeMode == "cozy-dark") "✓ 🌙 Dunkel" else "🌙 Dunkel",
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            applyThemeMode("cozy-dark")
-                        }
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        CompactButton(
-                            label = if (appThemeMode == "xmas") "✓ 🎄 Fest" else "🎄 Fest",
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            applyThemeMode("xmas")
-                        }
-                        CompactButton(
-                            label = if (appThemeMode == "classic") "✓ 💎 Klar" else "💎 Klar",
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            applyThemeMode("classic")
+                            pair.forEach { spec ->
+                                val selected = appThemeMode == spec.id
+                                Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .background(
+                                            if (selected) AccentSteel.copy(alpha = 0.16f) else BtnBg,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            if (selected) 1.5.dp else 1.dp,
+                                            if (selected) AccentSteel else BorderSlate,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { applyThemeMode(spec.id) }
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .background(spec.bgSlate, CircleShape)
+                                            .border(2.dp, spec.accent, CircleShape)
+                                    )
+                                    Text(
+                                        text = if (selected) "✓ ${spec.icon} ${spec.shortLabel}" else "${spec.icon} ${spec.shortLabel}",
+                                        color = if (selected) AccentSteel else TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                        style = CenteredPillTextStyle,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                            if (pair.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
                         }
                     }
                 }
@@ -5157,7 +5108,12 @@ fun KontaktChronikApp(
                                     idRemap = restoredIdMap
                                 )
                                 congratsRevision++
-                                RememberMeWidgetUpdater.updateAllAsync(context)
+                                val restoredTheme = stateObj.optString("themeMode", "")
+                                if (restoredTheme.isNotBlank()) {
+                                    applyThemeMode(restoredTheme)
+                                } else {
+                                    RememberMeWidgetUpdater.updateAllAsync(context)
+                                }
                                 showRestoreInput = false
                                 restoreJsonText = ""
                                 showOptionsDialog = false
