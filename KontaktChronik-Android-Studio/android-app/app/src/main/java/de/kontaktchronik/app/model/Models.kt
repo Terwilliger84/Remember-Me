@@ -1,8 +1,14 @@
 package de.kontaktchronik.app.model
 
+import android.content.Context
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import org.json.JSONObject
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.Month
+import java.time.Year
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 enum class TimerUnit(val label: String) {
@@ -141,15 +147,23 @@ object ContactResolver {
         )
     }
 
+    private fun safeBirthdayInYear(year: Int, month: Int, day: Int): LocalDate {
+        val maxDay = Month.of(month).length(Year.isLeap(year.toLong()))
+        return LocalDate.of(year, month, day.coerceIn(1, maxDay))
+    }
+
+    fun isBirthdayToday(birthdayIso: String?, today: LocalDate = LocalDate.now()): Boolean =
+        daysUntilNextBirthday(birthdayIso, today) == 0L
+
     fun daysUntilNextBirthday(birthdayIso: String?, today: LocalDate = LocalDate.now()): Long? {
         if (birthdayIso.isNullOrBlank()) return null
         return try {
             val parts = birthdayIso.removePrefix("--").split("-")
             val month = if (parts.size == 3) parts[1].toInt() else parts[0].toInt()
             val day = if (parts.size == 3) parts[2].toInt() else parts[1].toInt()
-            var nextBday = LocalDate.of(today.year, month, day)
+            var nextBday = safeBirthdayInYear(today.year, month, day)
             if (nextBday.isBefore(today)) {
-                nextBday = nextBday.plusYears(1)
+                nextBday = safeBirthdayInYear(today.year + 1, month, day)
             }
             ChronoUnit.DAYS.between(today, nextBday)
         } catch (e: Exception) {
@@ -166,9 +180,9 @@ object ContactResolver {
             val parts = birthdayIso.removePrefix("--").split("-")
             val month = if (parts.size == 3) parts[1].toInt() else parts[0].toInt()
             val day = if (parts.size == 3) parts[2].toInt() else parts[1].toInt()
-            var lastBday = LocalDate.of(today.year, month, day)
+            var lastBday = safeBirthdayInYear(today.year, month, day)
             if (lastBday.isAfter(today)) {
-                lastBday = lastBday.minusYears(1)
+                lastBday = safeBirthdayInYear(today.year - 1, month, day)
             }
             ChronoUnit.DAYS.between(today, lastBday) // <= 0 (z. B. -5)
         } catch (e: Exception) {
@@ -181,8 +195,9 @@ object ContactResolver {
         return try {
             val birthDate = LocalDate.parse(birthdayIso)
             val totalMonths = ChronoUnit.MONTHS.between(birthDate, today)
+            val bdayThisYear = safeBirthdayInYear(today.year, birthDate.monthValue, birthDate.dayOfMonth)
             val nextYearAge = today.year - birthDate.year +
-                if (LocalDate.of(today.year, birthDate.month, birthDate.dayOfMonth).isBefore(today)) 1 else 0
+                if (bdayThisYear.isBefore(today)) 1 else 0
             if (totalMonths == 0L && nextYearAge == 0) {
                 "Neugeboren (0 Mon.)"
             } else if (totalMonths in 0..23) {
@@ -199,9 +214,9 @@ object ContactResolver {
         if (birthdayIso.isNullOrBlank() || birthdayIso.startsWith("--")) return "hatte Geburtstag"
         return try {
             val birthDate = LocalDate.parse(birthdayIso)
-            var lastBday = LocalDate.of(today.year, birthDate.month, birthDate.dayOfMonth)
+            var lastBday = safeBirthdayInYear(today.year, birthDate.monthValue, birthDate.dayOfMonth)
             if (lastBday.isAfter(today)) {
-                lastBday = lastBday.minusYears(1)
+                lastBday = safeBirthdayInYear(today.year - 1, birthDate.monthValue, birthDate.dayOfMonth)
             }
             val passedAge = (lastBday.year - birthDate.year).coerceAtLeast(0)
             "wurde $passedAge"
@@ -221,5 +236,164 @@ object ContactResolver {
             TimerUnit.MONTHS -> base.plusMonths(person.timerInterval.toLong())
             TimerUnit.YEARS -> base.plusYears(person.timerInterval.toLong())
         }
+    }
+}
+
+data class BirthdayCongratulationRecord(
+    val personId: Long,
+    val year: Int,
+    val dateIso: String,
+    val channel: String,
+    val timeHm: String
+)
+
+/**
+ * Speichert kanalübergreifend (WhatsApp, SMS, Anruf, Mail, Telegram, Signal, Teilen, Manuell usw.),
+ * ob einer Person am laufenden aktuellen Geburtstag bereits gratuliert wurde.
+ */
+object BirthdayCongratulationTracker {
+    private const val PREFS_NAME = "remember_me_prefs"
+    private const val PREF_KEY = "birthday_congratulated_records_v1"
+
+    fun loadAllRecords(context: Context): Map<Long, BirthdayCongratulationRecord> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val raw = prefs.getString(PREF_KEY, null).orEmpty()
+        if (raw.isBlank()) return emptyMap()
+        return runCatching {
+            val obj = JSONObject(raw)
+            val result = mutableMapOf<Long, BirthdayCongratulationRecord>()
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val pid = k.toLongOrNull() ?: continue
+                val item = obj.optJSONObject(k) ?: continue
+                val year = item.optInt("year", 0)
+                if (year <= 0) continue
+                result[pid] = BirthdayCongratulationRecord(
+                    personId = pid,
+                    year = year,
+                    dateIso = item.optString("dateIso", ""),
+                    channel = item.optString("channel", "App").ifBlank { "App" },
+                    timeHm = item.optString("timeHm", "")
+                )
+            }
+            result
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun saveAllRecords(context: Context, records: Map<Long, BirthdayCongratulationRecord>) {
+        val minKeepYear = LocalDate.now().year - 1
+        val obj = JSONObject()
+        for ((pid, rec) in records) {
+            if (rec.year < minKeepYear) continue
+            obj.put(
+                pid.toString(),
+                JSONObject().apply {
+                    put("year", rec.year)
+                    put("dateIso", rec.dateIso)
+                    put("channel", rec.channel)
+                    put("timeHm", rec.timeHm)
+                }
+            )
+        }
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(PREF_KEY, obj.toString())
+            .apply()
+    }
+
+    fun isOngoingBirthday(birthdayIso: String?, today: LocalDate = LocalDate.now()): Boolean =
+        ContactResolver.isBirthdayToday(birthdayIso, today)
+
+    fun getOngoingRecord(
+        context: Context,
+        person: PersonEntity,
+        today: LocalDate = LocalDate.now()
+    ): BirthdayCongratulationRecord? {
+        if (!isOngoingBirthday(person.birthdayIso, today)) return null
+        val rec = loadAllRecords(context)[person.id] ?: return null
+        return if (rec.year == today.year) rec else null
+    }
+
+    fun markCongratulated(
+        context: Context,
+        personId: Long,
+        channel: String,
+        today: LocalDate = LocalDate.now(),
+        timeHm: String = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+    ): BirthdayCongratulationRecord {
+        val current = loadAllRecords(context).toMutableMap()
+        val rec = BirthdayCongratulationRecord(
+            personId = personId,
+            year = today.year,
+            dateIso = today.toString(),
+            channel = channel.trim().ifBlank { "App" },
+            timeHm = timeHm
+        )
+        current[personId] = rec
+        saveAllRecords(context, current)
+        return rec
+    }
+
+    fun clearCongratulated(context: Context, personId: Long) {
+        val current = loadAllRecords(context).toMutableMap()
+        if (current.remove(personId) != null) {
+            saveAllRecords(context, current)
+        }
+    }
+
+    fun mergeRecords(context: Context, primaryId: Long, secondaryIds: Set<Long>) {
+        if (secondaryIds.isEmpty()) return
+        val current = loadAllRecords(context).toMutableMap()
+        if (!current.containsKey(primaryId)) {
+            val fromSec = secondaryIds.firstNotNullOfOrNull { current[it] }
+            if (fromSec != null) {
+                current[primaryId] = fromSec.copy(personId = primaryId)
+            }
+        }
+        secondaryIds.forEach { current.remove(it) }
+        saveAllRecords(context, current)
+    }
+
+    fun exportToJsonObject(context: Context): JSONObject {
+        val obj = JSONObject()
+        for ((pid, rec) in loadAllRecords(context)) {
+            obj.put(
+                pid.toString(),
+                JSONObject().apply {
+                    put("year", rec.year)
+                    put("dateIso", rec.dateIso)
+                    put("channel", rec.channel)
+                    put("timeHm", rec.timeHm)
+                }
+            )
+        }
+        return obj
+    }
+
+    fun importFromJsonObject(
+        context: Context,
+        json: JSONObject?,
+        idRemap: Map<Long, Long> = emptyMap()
+    ) {
+        if (json == null) return
+        val current = loadAllRecords(context).toMutableMap()
+        val keys = json.keys()
+        while (keys.hasNext()) {
+            val k = keys.next()
+            val oldPid = k.toLongOrNull() ?: continue
+            val targetPid = idRemap[oldPid] ?: oldPid
+            val item = json.optJSONObject(k) ?: continue
+            val year = item.optInt("year", 0)
+            if (year <= 0) continue
+            current[targetPid] = BirthdayCongratulationRecord(
+                personId = targetPid,
+                year = year,
+                dateIso = item.optString("dateIso", ""),
+                channel = item.optString("channel", "App").ifBlank { "App" },
+                timeHm = item.optString("timeHm", "")
+            )
+        }
+        saveAllRecords(context, current)
     }
 }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Remember Me v1.0.47 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.48 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Sanftes Blau (Hell) */
     :root,
@@ -576,23 +576,31 @@
 
     .widget-box {
       background: var(--bg-slate);
-      border: 1px solid var(--border-slate);
+      border: 1.5px solid var(--border-slate);
       border-radius: 12px;
-      padding: 14px;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      padding: 8px 10px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.32);
+    }
+    .widget-box.has-bday-today {
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35), 0 10px 25px rgba(0, 0, 0, 0.32);
     }
 
     .widget-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
+      gap: 6px;
     }
 
     .widget-title {
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 700;
       color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .widget-tag {
@@ -601,36 +609,56 @@
       justify-content: center;
       text-align: center;
       line-height: 1.1;
-      font-size: 10px;
+      font-size: 9.5px;
       color: var(--accent-steel);
       border: 1px solid var(--border-slate);
-      padding: 3px 7px;
+      padding: 2px 6px;
       border-radius: 4px;
+      white-space: nowrap;
     }
 
     .widget-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 7px 8px;
-      border-radius: 6px;
+      gap: 6px;
+      padding: 4px 7px;
+      margin-bottom: 3px;
+      border-radius: 7px;
+      background: var(--card-slate);
+      border: 1px solid var(--border-slate);
       cursor: pointer;
-      transition: background 0.15s;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .widget-row:last-child {
+      margin-bottom: 0;
+    }
+    .widget-row.bday-today {
+      background: rgba(245, 158, 11, 0.16);
+      border: 1.5px solid #f59e0b;
+    }
+    .widget-row.bday-done {
+      background: rgba(16, 185, 129, 0.14);
+      border: 1.5px solid var(--tree-green);
     }
 
     .widget-row:hover {
-      background: var(--card-slate);
+      filter: brightness(1.03);
     }
 
     .widget-row-name {
-      font-size: 13px;
-      font-weight: 500;
+      font-size: 12px;
+      font-weight: 600;
       color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .widget-row-sub {
-      font-size: 11px;
+      font-size: 10.5px;
       color: var(--text-muted);
+      white-space: nowrap;
     }
 
     .widget-row-badge {
@@ -639,13 +667,25 @@
       justify-content: center;
       text-align: center;
       line-height: 1.1;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       color: var(--accent-steel);
       background: var(--btn-bg);
-      padding: 3px 8px;
-      border-radius: 6px;
+      padding: 2px 6px;
+      border-radius: 5px;
       border: 1px solid var(--border-slate);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .widget-row-badge.bday-today {
+      background: #d97706;
+      border-color: #d97706;
+      color: #ffffff;
+    }
+    .widget-row-badge.bday-done {
+      background: #15803d;
+      border-color: #15803d;
+      color: #ffffff;
     }
 
     .log-box {
@@ -1026,10 +1066,10 @@
     <div class="phone-frame" id="app-root"></div>
 
     <div class="side-panel">
-      <div class="widget-box">
+      <div class="widget-box" id="widget-box">
         <div class="widget-header">
-          <span class="widget-title">Anstehende Erinnerungen</span>
-          <span class="widget-tag">Glance Homescreen-Widget</span>
+          <span class="widget-title" id="widget-title">🎂 Kompakt (2×1) – 4 Zeilen</span>
+          <span class="widget-tag" id="widget-tag">2 Felder</span>
         </div>
         <div id="widget-rows"></div>
       </div>
@@ -1963,7 +2003,7 @@
       // 2. Geburtstage heute/morgen & Melde-Timer prüfen (nur sichtbare Kontakte)
       for (const p of state.persons.filter(x => !x.isHidden)) {
         const bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
-        if (state.birthdayPopupEnabled !== false && bdayDays !== null && bdayDays === 0) {
+        if (state.birthdayPopupEnabled !== false && bdayDays !== null && bdayDays === 0 && !getOngoingBirthdayCongrats(p, today)) {
           showBirthdayHeadsUpToast(p, false);
           openPopupForPerson(p.id, `🎂 Heute Geburtstag! (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`);
           addLog(`DailyReminderWorker -> Geburtstags-Popup für ${p.name}`);
@@ -2031,17 +2071,94 @@
       return `<div class="person-avatar" style="${sizeStyle} background:${bg};">${initials}</div>`;
     }
 
-    function renderBirthdayCountdownPill(birthdayIso, isPastMode = false) {
+    let pendingCongratsConfirm = null; // { personId, channel, existingRecord }
+
+    function ensureBirthdayCongratsMap() {
+      if (!state.birthdayCongratulated || typeof state.birthdayCongratulated !== "object") {
+        state.birthdayCongratulated = {};
+      }
+      return state.birthdayCongratulated;
+    }
+
+    function isPersonOngoingBirthdayToday(person, today = todayIso()) {
+      if (!person || !person.birthdayIso || !person.birthdayIso.trim()) return false;
+      return ContactResolver.daysUntilNextBirthday(person.birthdayIso, today) === 0;
+    }
+
+    function getOngoingBirthdayCongrats(person, today = todayIso()) {
+      if (!isPersonOngoingBirthdayToday(person, today)) return null;
+      const map = ensureBirthdayCongratsMap();
+      const rec = map[String(person.id)];
+      if (!rec) return null;
+      const year = Number(today.slice(0, 4));
+      if (rec.year !== year) return null;
+      return rec;
+    }
+
+    function markBirthdayCongratulated(personId, channel = "Nachricht", today = todayIso()) {
+      const person = state.persons.find(p => p.id === personId);
+      if (!person) return null;
+      const map = ensureBirthdayCongratsMap();
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      const rec = {
+        personId: person.id,
+        year: Number(today.slice(0, 4)),
+        dateIso: today,
+        channel: String(channel || "Nachricht").trim() || "Nachricht",
+        timestampIso: `${today} ${timeStr}`
+      };
+      map[String(person.id)] = rec;
+      person.lastContactedIso = today;
+      addLog(`✅ Geburtstags-Gratulation für ${person.name} bestätigt (${rec.channel}, ${timeStr} Uhr).`);
+      return rec;
+    }
+
+    function clearBirthdayCongratulated(personId) {
+      const map = ensureBirthdayCongratsMap();
+      delete map[String(personId)];
+      const person = state.persons.find(p => p.id === personId);
+      if (person) addLog(`↺ Gratulations-Status für ${person.name} zurückgesetzt.`);
+      saveState();
+    }
+
+    function cancelDuplicateCongrats() {
+      pendingCongratsConfirm = null;
+      renderModals();
+    }
+
+    function confirmDuplicateCongrats() {
+      if (!pendingCongratsConfirm) return;
+      const { channel } = pendingCongratsConfirm;
+      pendingCongratsConfirm = null;
+      if (channel === "App-Direkt") {
+        sendDirectOrFallback(true);
+      } else {
+        dispatchChannel(channel, true);
+      }
+    }
+
+    function renderBirthdayCountdownPill(birthdayIso, isPastMode = false, personId = null) {
       if (!birthdayIso || !birthdayIso.trim()) return "";
+      const person = personId !== null ? state.persons.find(p => p.id === personId) : null;
+      const congrats = person ? getOngoingBirthdayCongrats(person) : null;
       if (isPastMode) {
         const neg = ContactResolver.negativeDaysSinceLastBirthday(birthdayIso);
         if (neg === null) return "";
-        const label = neg === 0 ? "🎂 Heute!" : `🎂 vor ${Math.abs(neg)}T`;
+        if (neg === 0 && congrats) {
+          return `<span class="countdown-pill" style="background:rgba(22,163,74,0.16); color:#15803D; font-weight:800;">✅ Gratuliert</span>`;
+        }
+        const label = neg === 0 ? "🎉 Heute!" : `🎂 vor ${Math.abs(neg)}T`;
         return `<span class="countdown-pill ${neg === 0 ? 'today' : ''}">${label}</span>`;
       }
       const days = ContactResolver.daysUntilNextBirthday(birthdayIso);
       if (days === null) return "";
-      if (days === 0) return `<span class="countdown-pill today">🎂 Heute!</span>`;
+      if (days === 0) {
+        if (congrats) {
+          return `<span class="countdown-pill" style="background:rgba(22,163,74,0.16); color:#15803D; font-weight:800;">✅ Gratuliert</span>`;
+        }
+        return `<span class="countdown-pill" style="background:rgba(245,158,11,0.22); color:#B45309; border:1px solid #F59E0B; font-weight:800;">🎉 Heute!</span>`;
+      }
       if (days === 1) return `<span class="countdown-pill soon">🎂 Morgen!</span>`;
       if (days <= 7) return `<span class="countdown-pill soon">🎂 in ${days}T</span>`;
       return `<span class="countdown-pill">🎂 in ${days}T</span>`;
@@ -2107,10 +2224,16 @@
       renderAll();
     }
 
-    function sendDirectOrFallback() {
+    function sendDirectOrFallback(forceSend = false) {
       if (!popupState) return;
       const person = state.persons.find(p => p.id === popupState.personId);
       if (!person) return;
+      const existingCongrats = getOngoingBirthdayCongrats(person);
+      if (existingCongrats && !forceSend) {
+        pendingCongratsConfirm = { personId: person.id, channel: "App-Direkt", existingRecord: existingCongrats };
+        renderModals();
+        return;
+      }
       const resolved = ContactResolver.resolveTarget(person, getRelationsForPerson(person.id));
       const text = (popupState.quickMessageText || "").trim() || "Herzliche Grüße!";
       const nowStr = new Date().toISOString().slice(0, 16).replace("T", " ");
@@ -2127,8 +2250,10 @@
           isRead: true
         });
         person.lastContactedIso = todayIso();
+        if (isPersonOngoingBirthdayToday(person)) markBirthdayCongratulated(person.id, "App-Direkt");
         addLog(`App-Direkt gesendet an ${resolved.targetPersonName} (${resolved.appPeerId}): "${text}"`);
       } else if (resolved.phone) {
+        if (isPersonOngoingBirthdayToday(person)) markBirthdayCongratulated(person.id, "WhatsApp");
         addLog(`Fallback auf WhatsApp an ${resolved.targetPersonName} (${resolved.phone}): "${text}"`);
         window.open(`https://wa.me/${resolved.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(text)}`, "_blank");
       }
@@ -2136,17 +2261,50 @@
       saveState();
     }
 
-    function dispatchChannel(channel) {
+    function dispatchChannel(channel, forceSend = false) {
       if (!popupState) return;
       const person = state.persons.find(p => p.id === popupState.personId);
       if (!person) return;
+      const existingCongrats = getOngoingBirthdayCongrats(person);
+      if (existingCongrats && !forceSend) {
+        pendingCongratsConfirm = { personId: person.id, channel, existingRecord: existingCongrats };
+        renderModals();
+        return;
+      }
       const resolved = ContactResolver.resolveTarget(person, getRelationsForPerson(person.id));
       const text = popupState.quickMessageText || "";
       const cleanPhone = (resolved.phone || "").replace(/[^0-9+]/g, "");
 
+      if (channel === "Kopiert") {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(() => {});
+        }
+        person.lastContactedIso = todayIso();
+        if (isPersonOngoingBirthdayToday(person)) markBirthdayCongratulated(person.id, "Kopiert");
+        addLog(`📋 Grußtext kopiert für ${resolved.targetPersonName}`);
+        saveState();
+        return;
+      }
+
+      if (channel === "Teilen") {
+        if (navigator.share) {
+          navigator.share({ title: popupState.reason || "Geburtstagsgruß", text }).catch(() => {});
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(() => {});
+        }
+        person.lastContactedIso = todayIso();
+        if (isPersonOngoingBirthdayToday(person)) markBirthdayCongratulated(person.id, "Teilen");
+        addLog(`📤 Teilen geöffnet für ${resolved.targetPersonName}`);
+        saveState();
+        return;
+      }
+
       if (channel === "Mail") {
         if (!resolved.email) return;
+        person.lastContactedIso = todayIso();
+        if (isPersonOngoingBirthdayToday(person)) markBirthdayCongratulated(person.id, "Mail");
         addLog(`Mail an ${resolved.email}`);
+        saveState();
         window.location.href = `mailto:${resolved.email}?subject=${encodeURIComponent(popupState.reason)}&body=${encodeURIComponent(text)}`;
         return;
       }
@@ -2154,17 +2312,28 @@
         addLog(`Keine Telefonnummer für ${resolved.targetPersonName} hinterlegt!`);
         return;
       }
+      person.lastContactedIso = todayIso();
+      if (isPersonOngoingBirthdayToday(person)) markBirthdayCongratulated(person.id, channel);
       addLog(`${channel} geöffnet für ${resolved.targetPersonName} (${cleanPhone})`);
+      saveState();
       if (channel === "WhatsApp") {
         window.open(`https://wa.me/${cleanPhone.replace(/^\+/, "")}?text=${encodeURIComponent(text)}`, "_blank");
+      } else if (channel === "SMS") {
+        window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(text)}`;
+      } else if (channel === "Anruf") {
+        window.location.href = `tel:${cleanPhone}`;
       }
     }
 
-    function markPersonContacted(personId) {
+    function markPersonContacted(personId, channel = "Persönlich") {
       const person = state.persons.find(p => p.id === personId);
       if (person) {
         person.lastContactedIso = todayIso();
-        addLog(`${person.name} als kontaktiert markiert.`);
+        if (isPersonOngoingBirthdayToday(person)) {
+          markBirthdayCongratulated(person.id, channel);
+        } else {
+          addLog(`${person.name} als kontaktiert markiert.`);
+        }
       }
       popupState = null;
       saveState();
@@ -2241,7 +2410,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.47</div>
+          <div class="app-title">Remember Me v1.0.48</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -3435,7 +3604,7 @@
       const listHtml = sorted.map(person => {
         const bdayLine = formatCompactBirthdayLine(person.birthdayIso);
         const subText = bdayLine || (person.phone ? person.phone : "");
-        const pillHtml = renderBirthdayCountdownPill(person.birthdayIso, false);
+        const pillHtml = renderBirthdayCountdownPill(person.birthdayIso, false, person.id);
         return `
           <div class="card" style="padding: 10px 12px; opacity:${person.isHidden ? '0.68' : '1'};">
             <div class="person-header" style="align-items: center;">
@@ -3451,6 +3620,7 @@
                 ${subText ? `<div class="person-sub" style="margin-top:2px; color:var(--text-secondary);">${escapeHtml(subText)}</div>` : ""}
               </div>
               <div class="btn-row">
+                ${!person.isHidden ? `<button class="compact-btn" style="padding:5px 8px;" onclick="openPopupForPerson(${person.id}, 'Gruß')" title="Schnell-Gruß">💬</button>` : ""}
                 <button class="compact-btn ${person.isHidden ? 'primary' : ''}" onclick="togglePersonHidden(${person.id})">
                   ${person.isHidden ? "Einblenden" : "Ausblenden"}
                 </button>
@@ -3553,6 +3723,9 @@
       if (item.kind === "REL_ONLY") return "";
       if (showPast) {
         const d = item.daysUntil;
+        if (d === 0 && item.kind === "BIRTHDAY" && item.isCongratulatedToday) {
+          return `<span class="countdown-pill" style="background:rgba(22,163,74,0.16); color:#15803D; font-weight:800;">✅ Gratuliert</span>`;
+        }
         const label = d === 0 ? "Heute" : (d === -1 ? "Gestern" : `vor ${Math.abs(d)}T`);
         return `<span class="countdown-pill" style="background:var(--warn-bg); color:var(--warn-amber);">${escapeHtml(label)}</span>`;
       }
@@ -3561,7 +3734,13 @@
       }
       const d = item.daysUntil;
       if (d <= 0) {
-        const text = item.kind === "BIRTHDAY" ? "🎂 Heute!" : (item.kind === "TIMER" ? "⏳ Fällig!" : "🔔 Heute!");
+        if (item.kind === "BIRTHDAY" && item.isCongratulatedToday) {
+          return `<span class="countdown-pill" style="background:rgba(22,163,74,0.16); color:#15803D; font-weight:800;">✅ Gratuliert</span>`;
+        }
+        if (item.kind === "BIRTHDAY") {
+          return `<span class="countdown-pill" style="background:rgba(245,158,11,0.22); color:#B45309; border:1px solid #F59E0B; font-weight:800;">🎉 Heute!</span>`;
+        }
+        const text = item.kind === "TIMER" ? "⏳ Fällig!" : "🔔 Heute!";
         return `<span class="countdown-pill" style="background:var(--warn-bg); color:var(--warn-amber);">${escapeHtml(text)}</span>`;
       }
       if (d === 1) {
@@ -3583,6 +3762,7 @@
           if (person.birthdayIso && person.birthdayIso.trim()) {
             const negDays = ContactResolver.negativeDaysSinceLastBirthday(person.birthdayIso, today);
             if (negDays !== null) {
+              const congrats = negDays === 0 ? getOngoingBirthdayCongrats(person, today) : null;
               hasAnyTimelineEntry = true;
               items.push({
                 uniqueKey: `past_bday_${person.id}`,
@@ -3590,7 +3770,9 @@
                 kind: "BIRTHDAY",
                 daysUntil: negDays,
                 priority: 0,
-                headline: formatPassedBirthdayLine(person.birthdayIso),
+                isCongratulatedToday: Boolean(congrats),
+                congratsChannel: congrats ? congrats.channel : "",
+                headline: formatPassedBirthdayLine(person.birthdayIso) + (congrats ? `  •  ✅ ${congrats.channel}` : ""),
                 subline: "",
                 greetingOccasion: "Nachträglich zum Geburtstag"
               });
@@ -3621,6 +3803,7 @@
         if (person.birthdayIso && person.birthdayIso.trim()) {
           const bdayDays = ContactResolver.daysUntilNextBirthday(person.birthdayIso, today);
           if (bdayDays !== null) {
+            const congrats = bdayDays === 0 ? getOngoingBirthdayCongrats(person, today) : null;
             hasAnyTimelineEntry = true;
             items.push({
               uniqueKey: `bday_${person.id}`,
@@ -3628,7 +3811,9 @@
               kind: "BIRTHDAY",
               daysUntil: bdayDays,
               priority: 0,
-              headline: `🎂 ${formatCompactBirthdayLine(person.birthdayIso)}`,
+              isCongratulatedToday: Boolean(congrats),
+              congratsChannel: congrats ? congrats.channel : "",
+              headline: `🎂 ${formatCompactBirthdayLine(person.birthdayIso)}${congrats ? `  •  ✅ ${congrats.channel}` : ""}`,
               subline: "",
               greetingOccasion: "Herzlichen Glückwunsch zum Geburtstag"
             });
@@ -3795,16 +3980,28 @@
           ...incRels
         ];
         const pillHtml = renderOverviewCountdownPillHtml(item, showPastDates);
-        const topHighlightHtml = isFirstNext
+        const isTodayBdayOpen = !showPastDates && item.kind === "BIRTHDAY" && item.daysUntil === 0 && !item.isCongratulatedToday;
+        const isTodayBdayDone = !showPastDates && item.kind === "BIRTHDAY" && item.daysUntil === 0 && item.isCongratulatedToday;
+        const topHighlightHtml = isTodayBdayOpen
           ? `<div style="margin-bottom:5px;">
-               <span style="font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; background:${item.daysUntil <= 0 ? 'var(--warn-bg)' : 'rgba(59,130,246,0.14)'}; color:${item.daysUntil <= 0 ? 'var(--warn-amber)' : 'var(--accent-steel)'};">
-                 ${item.daysUntil <= 0 ? "🔥 Heute anstehend" : "⭐ Als Nächstes anstehend"}
+               <span style="font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; background:rgba(245,158,11,0.20); color:#B45309; border:1px solid #F59E0B;">
+                 🎉🎂 Heute Geburtstag!
                </span>
              </div>`
-          : "";
-        const borderStyle = isFirstNext
-          ? `border: 1.5px solid ${item.daysUntil <= 0 ? 'var(--warn-amber)' : 'var(--accent-steel)'};`
-          : "";
+          : (isFirstNext
+            ? `<div style="margin-bottom:5px;">
+                 <span style="font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; background:${item.daysUntil <= 0 ? 'var(--warn-bg)' : 'rgba(59,130,246,0.14)'}; color:${item.daysUntil <= 0 ? 'var(--warn-amber)' : 'var(--accent-steel)'};">
+                   ${item.daysUntil <= 0 ? "🔥 Heute anstehend" : "⭐ Als Nächstes anstehend"}
+                 </span>
+               </div>`
+            : "");
+        const borderStyle = isTodayBdayOpen
+          ? `border: 1.8px solid #F59E0B; background: linear-gradient(90deg, rgba(245,158,11,0.09), var(--card-slate));`
+          : (isTodayBdayDone
+            ? `border: 1.5px solid rgba(22,163,74,0.45);`
+            : (isFirstNext
+              ? `border: 1.5px solid ${item.daysUntil <= 0 ? 'var(--warn-amber)' : 'var(--accent-steel)'};`
+              : ""));
 
         return `
           <div class="card" style="padding: 10px 12px; ${borderStyle}">
@@ -3829,7 +4026,7 @@
                   : ""}
               </div>
               <div class="btn-row">
-                <button class="compact-btn primary" onclick="openPopupForPerson(${person.id}, '${escapeHtml(item.greetingOccasion || "Erinnerung")}')">💬 Gruß</button>
+                <button class="compact-btn ${isTodayBdayDone ? '' : 'primary'}" style="${isTodayBdayDone ? 'border-color:rgba(22,163,74,0.5); color:#15803D; font-weight:700;' : ''}" onclick="openPopupForPerson(${person.id}, '${escapeHtml(item.greetingOccasion || "Erinnerung")}')">${isTodayBdayDone ? "✅ Gruß" : "💬 Gruß"}</button>
               </div>
             </div>
           </div>
@@ -5014,14 +5211,17 @@
       visiblePersons.forEach(p => {
         if (p.birthdayIso && matchesPersonSearchAndLetter(p, tabSearchQuery, tabSelectedLetter)) {
           const days = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
+          const congrats = days === 0 ? getOngoingBirthdayCongrats(p, today) : null;
           rows.push({
             days: days ?? 999,
             person: p,
             personId: p.id,
             personName: p.name,
+            isBirthday: true,
+            isCongratulatedToday: Boolean(congrats),
             title: `🎂 ${formatLastNameFirst(p.name)}`,
-            sub: `${formatIsoToDdMmYyyy(p.birthdayIso)} (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`,
-            badge: days === 0 ? "Heute!" : `in ${days}T`
+            sub: `${formatIsoToDdMmYyyy(p.birthdayIso)} (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})${congrats ? ` • ✅ ${congrats.channel}` : ""}`,
+            badge: days === 0 ? (congrats ? "✅ Gratuliert" : "🎉 Heute!") : `in ${days}T`
           });
         }
       });
@@ -5043,21 +5243,28 @@
           })}
         </div>
       `;
-      const listHtml = rows.map(r => `
-        <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      const listHtml = rows.map(r => {
+        const pillStyle = (r.isBirthday && r.days === 0)
+          ? (r.isCongratulatedToday
+            ? "background:rgba(22,163,74,0.16); color:#15803D; font-weight:800;"
+            : "background:rgba(245,158,11,0.22); color:#B45309; border:1px solid #F59E0B; font-weight:800;")
+          : "";
+        return `
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center; gap:10px; ${(r.isBirthday && r.days === 0 && !r.isCongratulatedToday) ? 'border:1.6px solid #F59E0B;' : ''}">
           <div style="cursor:pointer;" onclick="openDetailModal(${r.personId})">
             ${renderPersonAvatarHtml(r.personName)}
           </div>
           <div style="flex:1; min-width:0; cursor:pointer;" onclick="openDetailModal(${r.personId})">
             <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
               <span class="person-name-link" style="font-size:14px;">${escapeHtml(r.title)}</span>
-              <span class="countdown-pill ${r.days === 0 ? 'today' : (r.days <= 7 ? 'soon' : '')}">${escapeHtml(r.badge)}</span>
+              <span class="countdown-pill ${r.days === 0 ? 'today' : (r.days <= 7 ? 'soon' : '')}" style="${pillStyle}">${escapeHtml(r.badge)}</span>
             </div>
             <div class="person-sub">${escapeHtml(r.sub)}</div>
           </div>
-          <button class="compact-btn primary" onclick="openPopupForPerson(${r.personId}, '${escapeHtml(r.title)}')">💬 Gruß</button>
+          <button class="compact-btn ${r.isCongratulatedToday ? '' : 'primary'}" style="${r.isCongratulatedToday ? 'border-color:rgba(22,163,74,0.5); color:#15803D; font-weight:700;' : ''}" onclick="openPopupForPerson(${r.personId}, '${escapeHtml(r.title)}')">${r.isCongratulatedToday ? "✅ Gruß" : "💬 Gruß"}</button>
         </div>
-      `).join("");
+      `;
+      }).join("");
       return searchCard + listHtml;
     }
 
@@ -5537,32 +5744,74 @@
 
     function renderWidget() {
       const container = document.getElementById("widget-rows");
+      const widgetBox = document.getElementById("widget-box");
+      const widgetTitle = document.getElementById("widget-title");
       const today = todayIso();
       const items = [];
+      let hasOpenBirthdayToday = false;
+
       for (const p of state.persons.filter(x => !x.isHidden)) {
         const bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today);
-        if (bdayDays !== null && bdayDays <= 60) {
-          items.push({ sortKey: bdayDays, personId: p.id, name: p.name, subtitle: `Geburtstag (${ContactResolver.formatUpcomingAge(p.birthdayIso, today)})`, badge: bdayDays === 0 ? "Heute" : `in ${bdayDays}T` });
+        if (bdayDays !== null && bdayDays <= 366) {
+          const isToday = bdayDays === 0;
+          const congrats = isToday ? getOngoingBirthdayCongrats(p, today) : null;
+          if (isToday && !congrats) hasOpenBirthdayToday = true;
+          const ageLabel = ContactResolver.formatUpcomingAge(p.birthdayIso, today);
+          items.push({
+            sortKey: bdayDays,
+            priority: 0,
+            personId: p.id,
+            isBirthdayToday: isToday,
+            isCongratulatedToday: Boolean(congrats),
+            displayName: isToday ? (congrats ? `✅🎂 ${p.name}` : `🎉🎂 ${p.name}`) : `🎂 ${p.name}`,
+            reason: isToday ? `🎂 Heute Geburtstag! (${ageLabel})` : `Geburtstag (${ageLabel})`,
+            badge: isToday ? (congrats ? "✅ HEUTE" : "🎂 HEUTE!") : (bdayDays === 1 ? "Morgen" : `${bdayDays}T`)
+          });
         }
       }
       for (const ev of state.specialEvents) {
         const diff = daysUntilEventSpec(ev.dateIso, today);
-        if (diff >= 0 && diff <= 45) {
+        if (diff >= 0 && diff <= 180) {
           const person = state.persons.find(p => p.id === ev.personId && !p.isHidden);
-          const isWeekly = isWeeklyDateSpec(ev.dateIso) || isRepeatDateSpec(ev.dateIso);
-          if (person) items.push({ sortKey: diff, personId: person.id, name: person.name, subtitle: isWeekly ? `${formatIsoToDdMmYyyy(ev.dateIso)}: ${ev.title}` : `Erinnerung: ${ev.title}`, badge: diff === 0 ? "Heute" : `in ${diff}T` });
+          if (person) {
+            items.push({
+              sortKey: diff,
+              priority: 1,
+              personId: person.id,
+              isBirthdayToday: false,
+              isCongratulatedToday: false,
+              displayName: `🔔 ${person.name}`,
+              reason: `Erinnerung: ${ev.title}`,
+              badge: diff === 0 ? "Heute" : (diff === 1 ? "Morgen" : `${diff}T`)
+            });
+          }
         }
       }
-      items.sort((a, b) => a.sortKey - b.sortKey);
-      container.innerHTML = items.slice(0, 5).map(item => `
-        <div class="widget-row" onclick="openPopupForPerson(${item.personId}, '${escapeHtml(item.subtitle)}')">
-          <div>
-            <div class="widget-row-name">${escapeHtml(item.name)}</div>
-            <div class="widget-row-sub">${escapeHtml(item.subtitle)}</div>
+      items.sort((a, b) => (a.sortKey - b.sortKey) || (a.priority - b.priority));
+
+      if (widgetBox) {
+        widgetBox.classList.toggle("has-today-bday", hasOpenBirthdayToday);
+      }
+      if (widgetTitle) {
+        widgetTitle.textContent = hasOpenBirthdayToday ? "🎉 HEUTE GEBURTSTAG!" : "🎂 Kompakt (2×1) – 4 Zeilen";
+      }
+
+      const topFour = items.slice(0, 4);
+      if (topFour.length === 0) {
+        container.innerHTML = `<div style="font-size:11px; color:var(--text-muted); padding:4px 2px; white-space:nowrap;">Keine Termine</div>`;
+        return;
+      }
+      container.innerHTML = topFour.map(item => {
+        const rowCls = item.isBirthdayToday
+          ? (item.isCongratulatedToday ? "widget-row bday-done" : "widget-row bday-today")
+          : "widget-row";
+        return `
+          <div class="${rowCls}" onclick="openPopupForPerson(${item.personId}, '${escapeHtml(item.reason)}')">
+            <div class="widget-row-name">${escapeHtml(item.displayName)}</div>
+            <div class="widget-row-badge">${escapeHtml(item.badge)}</div>
           </div>
-          <div class="widget-row-badge">${escapeHtml(item.badge)}</div>
-        </div>
-      `).join("");
+        `;
+      }).join("");
     }
 
     function renderMultiRelationRowsHtml(mode, candidatePersons, detailOwnerId) {
@@ -5640,6 +5889,30 @@
               <div class="modal-footer" style="justify-content:flex-end;">
                 <button class="compact-btn" onclick="cancelDeleteConfirm()">Abbrechen</button>
                 <button class="compact-btn danger" onclick="executeDeleteConfirm()">Ja, löschen</button>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (pendingCongratsConfirm !== null) {
+        const cp = state.persons.find(x => x.id === pendingCongratsConfirm.personId);
+        const rec = pendingCongratsConfirm.existingRecord;
+        const timePart = rec && rec.timestampIso && rec.timestampIso.includes(" ")
+          ? ` um ${rec.timestampIso.split(" ")[1]} Uhr`
+          : "";
+        modalRoot.innerHTML = `
+          <div class="modal-backdrop" onclick="cancelDuplicateCongrats()">
+            <div class="modal" style="max-width:330px;" onclick="event.stopPropagation()">
+              <div class="modal-title" style="color:#15803D;">✅ Bereits gratuliert!</div>
+              <div style="font-size:13px; color:var(--text-primary); line-height:1.45;">
+                Du hast <b>${escapeHtml(cp ? cp.name : "diesem Kontakt")}</b> zum laufenden Geburtstag heute bereits gratuliert (über <b>${escapeHtml(rec ? rec.channel : "Nachricht")}</b>${escapeHtml(timePart)}).<br/><br/>
+                Trotzdem erneut über <b>${escapeHtml(pendingCongratsConfirm.channel)}</b> öffnen?
+              </div>
+              <div class="modal-footer" style="justify-content:flex-end;">
+                <button class="compact-btn" onclick="cancelDuplicateCongrats()">Abbrechen</button>
+                <button class="compact-btn primary" onclick="confirmDuplicateCongrats()">✓ Trotzdem</button>
               </div>
             </div>
           </div>
@@ -6870,44 +7143,74 @@
           </div>
         ` : "";
 
+        const isOngoingBday = isPersonOngoingBirthdayToday(p);
+        const ongoingCongrats = isOngoingBday ? getOngoingBirthdayCongrats(p) : null;
+        const ongoingBdayBarHtml = isOngoingBday ? (ongoingCongrats ? `
+          <div style="background:rgba(22,163,74,0.13); border:1.2px solid rgba(22,163,74,0.45); border-radius:9px; padding:7px 10px; display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <div style="display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden;">
+              <span style="font-size:12px; font-weight:800; color:#15803D; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">✅ Gratuliert (${escapeHtml(ongoingCongrats.channel)})</span>
+              ${infoHintBtn("popup_congrats_done", "Bereits gratuliert", `Zum aktuellen Geburtstag wurde heute bereits über „${ongoingCongrats.channel}“ gratuliert (${ongoingCongrats.timestampIso}). Bei erneutem Klick auf einen Kanal fragt die App sicherheitshalber nach.`)}
+            </div>
+            <button class="compact-btn" style="padding:3px 8px; font-size:10.5px; flex-shrink:0;" onclick="clearBirthdayCongratulated(${p.id})">↺ Reset</button>
+          </div>
+        ` : `
+          <div style="background:rgba(245,158,11,0.14); border:1.2px solid #F59E0B; border-radius:9px; padding:7px 10px; display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <div style="display:flex; align-items:center; gap:5px; min-width:0; overflow:hidden;">
+              <span style="font-size:12px; font-weight:800; color:#B45309; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🎉 Heute Geburtstag</span>
+              ${infoHintBtn("popup_congrats_open", "Gratulations-Bestätigung", "Sobald du über irgendeinen Kanal (WhatsApp, SMS, Anruf, Mail, Teilen, Kopie …) gratulierst oder rechts auf „✓ Gratuliert“ tippst, wird der laufende Geburtstag automatisch als erledigt bestätigt.")}
+            </div>
+            <button class="compact-btn primary" style="padding:3px 9px; font-size:10.5px; font-weight:700; flex-shrink:0;" onclick="markPersonContacted(${p.id}, 'Persönlich')">✓ Gratuliert</button>
+          </div>
+        `) : "";
+
         modalRoot.innerHTML = `
           <div class="modal-backdrop" onclick="closeModals(event)">
             <div class="modal" onclick="event.stopPropagation()">
               <div>
-                <div class="modal-title" style="font-size:17px;">Nachricht an ${escapeHtml(p.name)}</div>
-                <div style="font-size:13px; color:var(--accent-steel); margin-top:2px;">${escapeHtml(popupState.reason)}</div>
+                <div class="modal-title" style="font-size:17px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">💬 ${escapeHtml(p.name)}</div>
+                <div style="font-size:12.5px; color:var(--accent-steel); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(popupState.reason)}</div>
               </div>
+              ${ongoingBdayBarHtml}
               ${resolved.warningNotice ? `<div class="warning-box">${escapeHtml(resolved.warningNotice)}</div>` : ""}
               <div class="field-group">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
-                  <label class="field-label">Nachricht / Gruß (zufälliger Glückwunsch)</label>
-                  <button class="compact-btn" style="padding:2px 7px; font-size:10.5px;" onclick="rerollPopupGreeting()" title="Anderen zufälligen Geburtstagsgruß würfeln">🎲 Anderer Spruch</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:2px;">
+                  <div style="display:flex; align-items:center; gap:5px; min-width:0;">
+                    <label class="field-label" style="white-space:nowrap;">😂 Grußtext</label>
+                    ${infoHintBtn("popup_funny_greetings", "Witzige Geburtstagsgrüße", "Es sind 100 trockene, witzige & leicht freche Geburtstagsgrüße hinterlegt (mit automatischer Namens-Einsetzung). Mit „🎲 Spruch“ würfelst du jederzeit einen neuen Spruch oder passt sie unter ⚙ Optionen an.")}
+                  </div>
+                  <div style="display:flex; gap:4px; flex-shrink:0;">
+                    <button class="compact-btn" style="padding:2px 7px; font-size:10.5px;" onclick="rerollPopupGreeting()" title="Anderen witzigen Spruch würfeln">🎲 Spruch</button>
+                    <button class="compact-btn" style="padding:2px 7px; font-size:10.5px;" onclick="dispatchChannel('Kopiert')" title="Grußtext kopieren">📋 Kopie</button>
+                  </div>
                 </div>
                 <input id="p-msg" class="field-input" value="${escapeHtml(popupState.quickMessageText)}" oninput="popupState.quickMessageText = this.value" />
               </div>
               <div class="btn-row">
-                <button class="compact-btn primary" style="display:inline-flex; align-items:center; gap:6px;" onclick="dispatchChannel('WhatsApp')">
+                <button class="compact-btn primary" style="display:inline-flex; align-items:center; gap:5px;" onclick="dispatchChannel('WhatsApp')">
                   ${CHANNEL_ICONS.WhatsApp} <span>WhatsApp</span>
                 </button>
-                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:6px;" onclick="dispatchChannel('SMS')">
+                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:5px;" onclick="dispatchChannel('SMS')">
                   ${CHANNEL_ICONS.SMS} <span>SMS</span>
                 </button>
-                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:6px;" onclick="dispatchChannel('Anruf')">
+                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:5px;" onclick="dispatchChannel('Anruf')">
                   ${CHANNEL_ICONS.Anruf} <span>Anruf</span>
                 </button>
                 ${resolved.email ? `
-                  <button class="compact-btn" style="display:inline-flex; align-items:center; gap:6px;" onclick="dispatchChannel('Mail')">
+                  <button class="compact-btn" style="display:inline-flex; align-items:center; gap:5px;" onclick="dispatchChannel('Mail')">
                     ${CHANNEL_ICONS.Mail} <span>Mail</span>
                   </button>
                 ` : ""}
+                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:5px;" onclick="dispatchChannel('Teilen')">
+                  <span>📤 Teilen</span>
+                </button>
                 ${extraButtonsHtml}
-                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:5px; border-style:dashed;" onclick="popupState.showAddMessenger = !popupState.showAddMessenger; renderModals();">
-                  <span>＋ Hinzufügen</span>
+                <button class="compact-btn" style="display:inline-flex; align-items:center; gap:4px; border-style:dashed;" onclick="popupState.showAddMessenger = !popupState.showAddMessenger; renderModals();">
+                  <span>＋ Mehr</span>
                 </button>
               </div>
               ${pickerHtml}
               <div class="modal-footer">
-                <button class="compact-btn" onclick="markPersonContacted(${p.id})">Kontaktiert</button>
+                <button class="compact-btn" onclick="markPersonContacted(${p.id}, 'Persönlich')">${isOngoingBday ? "✓ Gratuliert" : "✓ Kontaktiert"}</button>
                 <button class="compact-btn" onclick="popupState=null; renderModals();">Schließen</button>
               </div>
             </div>
@@ -9553,7 +9856,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.47",
+        version: "1.0.48",
         createdAt: dateStr,
         state
       };
@@ -9571,7 +9874,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.47",
+        version: "1.0.48",
         createdAt: dateStr,
         state
       };
@@ -9646,7 +9949,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.47 gestartet.");
+    addLog("Remember Me v1.0.48 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

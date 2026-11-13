@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Remember Me</string>
-    <string name="widget_mini_label">🎂 Mini (2×1) – Nächster Termin</string>
-    <string name="widget_mini_desc">Sehr kompaktes Mini-Widget: zeigt sofort den nächsten Geburtstag oder Termin.</string>
+    <string name="widget_mini_label">🎂 Kompakt (2×1) – 4 Zeilen</string>
+    <string name="widget_mini_desc">4 einzeilige Termine im 2-Felder-Widget mit besonderer Heute-Geburtstags-Markierung.</string>
     <string name="widget_strip_label">🎂 Kompakt-Leiste (4×1)</string>
-    <string name="widget_strip_desc">Flache 1-Zeilen-Leiste mit den nächsten Geburtstagen nebeneinander.</string>
+    <string name="widget_strip_desc">Flache Leiste mit den nächsten Geburtstagen und Heute-Markierung.</string>
     <string name="widget_compact_list_label">🎂 Kompakt-Liste (3×2)</string>
-    <string name="widget_compact_list_desc">Platzsparende Liste der nächsten Geburtstage, Erinnerungen und Timer.</string>
+    <string name="widget_compact_list_desc">Platzsparende Liste ab 4 Zeilen mit besonderer Heute-Geburtstags-Markierung.</string>
     <string name="widget_large_label">🎂 Übersicht Groß (4×3)</string>
-    <string name="widget_large_desc">Große, scrollbare Kompakt-Übersicht für bis zu 15 anstehende Termine.</string>
+    <string name="widget_large_desc">Große, scrollbare Übersicht für bis zu 15 anstehende Termine.</string>
 </resources>

@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import de.kontaktchronik.app.data.KontaktChronikDao
+import de.kontaktchronik.app.model.BirthdayCongratulationTracker
 import de.kontaktchronik.app.model.DirectMessageEntity
 import de.kontaktchronik.app.model.MessageDirection
 import de.kontaktchronik.app.model.PersonEntity
@@ -79,6 +80,9 @@ class DirectMessagingService(
                     isRead = true
                 )
             )
+            if (BirthdayCongratulationTracker.isOngoingBirthday(person.birthdayIso)) {
+                BirthdayCongratulationTracker.markCongratulated(context, person.id, "App-Direkt")
+            }
             dao.updatePerson(person.copy(lastContactedIso = LocalDate.now().toString()))
             return true
         }
@@ -90,6 +94,9 @@ class DirectMessagingService(
             text
         }
         if (resolved.phone.isNotBlank()) {
+            if (BirthdayCongratulationTracker.isOngoingBirthday(person.birthdayIso)) {
+                BirthdayCongratulationTracker.markCongratulated(context, person.id, "WhatsApp")
+            }
             QuickActionDispatcher.openWhatsApp(context, resolved.phone, composedPayload)
         }
         return false

@@ -25,6 +25,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import de.kontaktchronik.app.data.AppDatabase
+import de.kontaktchronik.app.model.BirthdayCongratulationTracker
 import de.kontaktchronik.app.model.ContactResolver
 import de.kontaktchronik.app.model.PersonEntity
 import de.kontaktchronik.app.model.TimerUnit
@@ -98,14 +99,28 @@ object QuickActionDispatcher {
         }
     }
 
-    fun openEmail(context: Context, email: String, subject: String = "") {
+    fun openEmail(context: Context, email: String, subject: String = "", body: String = "") {
         val clean = email.trim()
         if (clean.isEmpty()) return
         val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$clean")).apply {
             putExtra(Intent.EXTRA_SUBJECT, subject)
+            if (body.isNotBlank()) {
+                putExtra(Intent.EXTRA_TEXT, body)
+            }
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(intent)
+        runCatching { context.startActivity(intent) }
+    }
+
+    fun openSystemShare(context: Context, text: String, chooserTitle: String = "Teilen") {
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        val chooser = Intent.createChooser(shareIntent, chooserTitle).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        runCatching { context.startActivity(chooser) }
     }
 
     fun openExtraMessenger(context: Context, channel: String, phone: String, presetText: String = "") {
@@ -283,6 +298,13 @@ object BirthdayNotificationHelper {
         }
     }
 
+    fun cancelBirthdayNotificationForPerson(context: Context, personId: Long) {
+        if (personId <= 0L) return
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notifId = BIRTHDAY_NOTIF_BASE_ID + (personId % 400_000L).toInt()
+        nm.cancel(notifId)
+    }
+
     fun cancelActiveBirthdayNotifications(context: Context) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -327,6 +349,9 @@ object BirthdayNotificationHelper {
             if (person.isHidden || hiddenIds.contains(person.id)) continue
             val bdayDays = ContactResolver.daysUntilNextBirthday(person.birthdayIso, today)
             if (bdayDays == 0L) {
+                if (BirthdayCongratulationTracker.getOngoingRecord(context, person, today) != null) {
+                    continue
+                }
                 val idToken = person.id.toString()
                 if (alreadyNotified.add(idToken)) {
                     val ageInfo = ContactResolver.formatUpcomingAge(person.birthdayIso, today)

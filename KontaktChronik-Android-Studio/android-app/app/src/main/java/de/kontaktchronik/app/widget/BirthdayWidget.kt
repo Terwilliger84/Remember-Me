@@ -36,6 +36,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import de.kontaktchronik.app.data.AppDatabase
+import de.kontaktchronik.app.model.BirthdayCongratulationTracker
 import de.kontaktchronik.app.model.ContactResolver
 import de.kontaktchronik.app.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -50,9 +51,12 @@ data class WidgetRowItem(
     val icon: String,
     val name: String,
     val shortMeta: String,
+    val compactDateOnly: String,
     val popupReason: String,
     val badge: String,
-    val isTodayOrDue: Boolean
+    val isTodayOrDue: Boolean,
+    val isBirthdayToday: Boolean = false,
+    val isCongratulatedToday: Boolean = false
 )
 
 data class WidgetPalette(
@@ -64,7 +68,18 @@ data class WidgetPalette(
     val badgeBg: Color,
     val badgeText: Color,
     val todayBadgeBg: Color,
-    val todayBadgeText: Color
+    val todayBadgeText: Color,
+    val bdayTodayFrame: Color,
+    val bdayTodayRowBg: Color,
+    val bdayTodayText: Color,
+    val bdayTodaySubText: Color,
+    val bdayTodayBadgeBg: Color,
+    val bdayTodayBadgeText: Color,
+    val bdayDoneFrame: Color,
+    val bdayDoneRowBg: Color,
+    val bdayDoneText: Color,
+    val bdayDoneBadgeBg: Color,
+    val bdayDoneBadgeText: Color
 )
 
 object RememberMeWidgetHelper {
@@ -80,7 +95,18 @@ object RememberMeWidgetHelper {
                 badgeBg = Color(0xFF263E57),
                 badgeText = Color(0xFFE2E8F0),
                 todayBadgeBg = Color(0xFF3182CE),
-                todayBadgeText = Color(0xFFFFFFFF)
+                todayBadgeText = Color(0xFFFFFFFF),
+                bdayTodayFrame = Color(0xFFFBBF24),
+                bdayTodayRowBg = Color(0xFF3B2810),
+                bdayTodayText = Color(0xFFFEF3C7),
+                bdayTodaySubText = Color(0xFFFCD34D),
+                bdayTodayBadgeBg = Color(0xFFD97706),
+                bdayTodayBadgeText = Color(0xFFFFFFFF),
+                bdayDoneFrame = Color(0xFF34D399),
+                bdayDoneRowBg = Color(0xFF13362B),
+                bdayDoneText = Color(0xFFD1FAE5),
+                bdayDoneBadgeBg = Color(0xFF059669),
+                bdayDoneBadgeText = Color(0xFFFFFFFF)
             )
             "xmas" -> WidgetPalette(
                 bg = Color(0xFF14261C),
@@ -91,7 +117,18 @@ object RememberMeWidgetHelper {
                 badgeBg = Color(0xFF284736),
                 badgeText = Color(0xFFE6FFFA),
                 todayBadgeBg = Color(0xFFC53030),
-                todayBadgeText = Color(0xFFFFFFFF)
+                todayBadgeText = Color(0xFFFFFFFF),
+                bdayTodayFrame = Color(0xFFFBBF24),
+                bdayTodayRowBg = Color(0xFF3E2414),
+                bdayTodayText = Color(0xFFFEF3C7),
+                bdayTodaySubText = Color(0xFFFDE68A),
+                bdayTodayBadgeBg = Color(0xFFD97706),
+                bdayTodayBadgeText = Color(0xFFFFFFFF),
+                bdayDoneFrame = Color(0xFF34D399),
+                bdayDoneRowBg = Color(0xFF163D2D),
+                bdayDoneText = Color(0xFFD1FAE5),
+                bdayDoneBadgeBg = Color(0xFF059669),
+                bdayDoneBadgeText = Color(0xFFFFFFFF)
             )
             "classic" -> WidgetPalette(
                 bg = Color(0xFF0F172A),
@@ -102,7 +139,18 @@ object RememberMeWidgetHelper {
                 badgeBg = Color(0xFF334155),
                 badgeText = Color(0xFFE2E8F0),
                 todayBadgeBg = Color(0xFF0284C7),
-                todayBadgeText = Color(0xFFFFFFFF)
+                todayBadgeText = Color(0xFFFFFFFF),
+                bdayTodayFrame = Color(0xFFFBBF24),
+                bdayTodayRowBg = Color(0xFF3B2810),
+                bdayTodayText = Color(0xFFFEF3C7),
+                bdayTodaySubText = Color(0xFFFCD34D),
+                bdayTodayBadgeBg = Color(0xFFD97706),
+                bdayTodayBadgeText = Color(0xFFFFFFFF),
+                bdayDoneFrame = Color(0xFF34D399),
+                bdayDoneRowBg = Color(0xFF12352A),
+                bdayDoneText = Color(0xFFD1FAE5),
+                bdayDoneBadgeBg = Color(0xFF059669),
+                bdayDoneBadgeText = Color(0xFFFFFFFF)
             )
             else -> WidgetPalette( // "warm" – Sanftes Blau (Hell)
                 bg = Color(0xFFEBF3FC),
@@ -113,7 +161,18 @@ object RememberMeWidgetHelper {
                 badgeBg = Color(0xFFD6E6F7),
                 badgeText = Color(0xFF1E4E8C),
                 todayBadgeBg = Color(0xFF2B6CB0),
-                todayBadgeText = Color(0xFFFFFFFF)
+                todayBadgeText = Color(0xFFFFFFFF),
+                bdayTodayFrame = Color(0xFFF59E0B),
+                bdayTodayRowBg = Color(0xFFFFFBEB),
+                bdayTodayText = Color(0xFF92400E),
+                bdayTodaySubText = Color(0xFFB45309),
+                bdayTodayBadgeBg = Color(0xFFD97706),
+                bdayTodayBadgeText = Color(0xFFFFFFFF),
+                bdayDoneFrame = Color(0xFF10B981),
+                bdayDoneRowBg = Color(0xFFECFDF5),
+                bdayDoneText = Color(0xFF065F46),
+                bdayDoneBadgeBg = Color(0xFF15803D),
+                bdayDoneBadgeText = Color(0xFFFFFFFF)
             )
         }
     }
@@ -132,7 +191,7 @@ object RememberMeWidgetHelper {
 
     private fun shortAgeNumber(birthdayIso: String?, today: LocalDate): String {
         val raw = ContactResolver.formatUpcomingAge(birthdayIso, today)
-        if (raw.isBlank() || raw.equals("Alter unbekannt", ignoreCase = true)) return ""
+        if (raw.isBlank() || raw.equals("Alter unbekannt", ignoreCase = true) || raw.equals("Geburtstag", ignoreCase = true)) return ""
         val digits = raw.filter { it.isDigit() }
         return if (digits.isNotBlank()) "${digits}." else ""
     }
@@ -209,13 +268,16 @@ object RememberMeWidgetHelper {
         val persons = dao.getAllPersonsOnce().filter { !it.isHidden && !hiddenIds.contains(it.id) }
         val events = dao.getAllSpecialEventsOnce()
         val today = LocalDate.now()
+        val congratsRecords = BirthdayCongratulationTracker.loadAllRecords(context)
 
-        // Sortierschlüssel: (Tage bis Ereignis, Typ-Priorität, Name) – Kontakte können mehrfach vorkommen
+        // Sortierschlüssel: (Tage bis Ereignis, Typ-Priorität, Name)
         val candidates = mutableListOf<Triple<Long, Int, WidgetRowItem>>()
 
         for (p in persons) {
             val bdayDays = ContactResolver.daysUntilNextBirthday(p.birthdayIso, today)
-            if (bdayDays != null && bdayDays <= 180L) {
+            if (bdayDays != null && bdayDays <= 366L) {
+                val isBdayToday = bdayDays == 0L
+                val isCongratulated = isBdayToday && congratsRecords[p.id]?.year == today.year
                 val ddMm = shortDateDdMm(p.birthdayIso)
                 val ageDot = shortAgeNumber(p.birthdayIso, today)
                 val meta = when {
@@ -224,14 +286,20 @@ object RememberMeWidgetHelper {
                     else -> "Geburtstag"
                 }
                 val ageText = ContactResolver.formatUpcomingAge(p.birthdayIso, today)
-                val reason = if (ageText.equals("Alter unbekannt", ignoreCase = true)) {
+                val reason = if (ageText.equals("Alter unbekannt", ignoreCase = true) || ageText.equals("Geburtstag", ignoreCase = true)) {
                     "🎂 Geburtstag"
                 } else {
                     "🎂 Geburtstag ($ageText)"
                 }
-                val badge = when (bdayDays) {
-                    0L -> "Heute!"
-                    1L -> "Morgen"
+                val icon = when {
+                    isBdayToday && isCongratulated -> "🎂"
+                    isBdayToday -> "🎉🎂"
+                    else -> "🎂"
+                }
+                val badge = when {
+                    isBdayToday && isCongratulated -> "✅ HEUTE"
+                    isBdayToday -> "🎂 HEUTE!"
+                    bdayDays == 1L -> "Morgen"
                     else -> "${bdayDays}T"
                 }
                 candidates += Triple(
@@ -240,12 +308,15 @@ object RememberMeWidgetHelper {
                     WidgetRowItem(
                         key = "bday_${p.id}",
                         personId = p.id,
-                        icon = "🎂",
+                        icon = icon,
                         name = p.name,
                         shortMeta = meta,
+                        compactDateOnly = ddMm,
                         popupReason = reason,
                         badge = badge,
-                        isTodayOrDue = bdayDays == 0L
+                        isTodayOrDue = isBdayToday,
+                        isBirthdayToday = isBdayToday,
+                        isCongratulatedToday = isCongratulated
                     )
                 )
             }
@@ -274,6 +345,7 @@ object RememberMeWidgetHelper {
                                 icon = "⏳",
                                 name = p.name,
                                 shortMeta = "Timer ($ddMm)",
+                                compactDateOnly = ddMm,
                                 popupReason = "⏳ Melde-Timer",
                                 badge = badge,
                                 isTodayOrDue = diff <= 0L
@@ -308,6 +380,7 @@ object RememberMeWidgetHelper {
                             icon = if (isRecurring) "🔁" else "🔔",
                             name = person.name,
                             shortMeta = "${ev.title} ($ddMm)",
+                            compactDateOnly = ddMm,
                             popupReason = "🔔 ${ev.title}",
                             badge = badge,
                             isTodayOrDue = diff == 0L
@@ -318,7 +391,11 @@ object RememberMeWidgetHelper {
         }
 
         val sorted = candidates
-            .sortedWith(compareBy<Triple<Long, Int, WidgetRowItem>> { it.first }.thenBy { it.second }.thenBy { it.third.name.lowercase() })
+            .sortedWith(
+                compareBy<Triple<Long, Int, WidgetRowItem>> { it.first }
+                    .thenBy { it.second }
+                    .thenBy { it.third.name.lowercase() }
+            )
             .take(maxItems)
             .map { it.third }
 
@@ -357,21 +434,39 @@ object RememberMeWidgetUpdater {
 }
 
 @Composable
-private fun CompactBadgePill(text: String, isHighlighted: Boolean, palette: WidgetPalette) {
-    val bg = if (isHighlighted) palette.todayBadgeBg else palette.badgeBg
-    val fg = if (isHighlighted) palette.todayBadgeText else palette.badgeText
+private fun CompactBadgePill(
+    item: WidgetRowItem,
+    palette: WidgetPalette,
+    ultraTight: Boolean = false
+) {
+    val bg = when {
+        item.isBirthdayToday && item.isCongratulatedToday -> palette.bdayDoneBadgeBg
+        item.isBirthdayToday -> palette.bdayTodayBadgeBg
+        item.isTodayOrDue -> palette.todayBadgeBg
+        else -> palette.badgeBg
+    }
+    val fg = when {
+        item.isBirthdayToday && item.isCongratulatedToday -> palette.bdayDoneBadgeText
+        item.isBirthdayToday -> palette.bdayTodayBadgeText
+        item.isTodayOrDue -> palette.todayBadgeText
+        else -> palette.badgeText
+    }
     Box(
         modifier = GlanceModifier
             .background(ColorProvider(bg))
-            .cornerRadius(6.dp)
-            .padding(horizontal = 5.dp, vertical = 2.dp),
+            .cornerRadius(if (ultraTight) 5.dp else 6.dp)
+            .padding(
+                horizontal = if (ultraTight) 4.dp else 5.dp,
+                vertical = if (ultraTight) 1.dp else 1.5.dp
+            ),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = text,
+            text = item.badge,
+            maxLines = 1,
             style = TextStyle(
                 color = ColorProvider(fg),
-                fontSize = 10.sp,
+                fontSize = if (ultraTight) 8.8.sp else 9.8.sp,
                 fontWeight = FontWeight.Bold
             )
         )
@@ -383,141 +478,231 @@ private fun CompactSingleRowEntry(
     context: Context,
     item: WidgetRowItem,
     palette: WidgetPalette,
-    showMetaInline: Boolean = true
+    inlineMetaMode: Int = 2, // 0 = kein Meta, 1 = nur Datum dd.MM., 2 = volles Kurz-Meta
+    ultraTight: Boolean = false
 ) {
     val launchIntent = RememberMeWidgetHelper.buildPersonPopupIntent(context, item)
+    val metaText = when (inlineMetaMode) {
+        2 -> item.shortMeta
+        1 -> item.compactDateOnly
+        else -> ""
+    }
+
+    if (item.isBirthdayToday) {
+        val frameColor = if (item.isCongratulatedToday) palette.bdayDoneFrame else palette.bdayTodayFrame
+        val innerBg = if (item.isCongratulatedToday) palette.bdayDoneRowBg else palette.bdayTodayRowBg
+        val titleColor = if (item.isCongratulatedToday) palette.bdayDoneText else palette.bdayTodayText
+        val subColor = if (item.isCongratulatedToday) palette.bdayDoneText else palette.bdayTodaySubText
+
+        Box(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .background(ColorProvider(frameColor))
+                .cornerRadius(if (ultraTight) 6.dp else 8.dp)
+                .padding(if (ultraTight) 1.dp else 1.5.dp)
+        ) {
+            Row(
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .background(ColorProvider(innerBg))
+                    .cornerRadius(if (ultraTight) 5.dp else 7.dp)
+                    .clickable(actionStartActivity(launchIntent))
+                    .padding(
+                        horizontal = if (ultraTight) 4.dp else 6.dp,
+                        vertical = if (ultraTight) 1.dp else 2.5.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${item.icon} ${item.name}",
+                    modifier = GlanceModifier.defaultWeight(),
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = ColorProvider(titleColor),
+                        fontSize = if (ultraTight) 9.8.sp else 11.2.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+                if (metaText.isNotBlank() && !ultraTight) {
+                    Spacer(modifier = GlanceModifier.width(4.dp))
+                    Text(
+                        text = metaText,
+                        maxLines = 1,
+                        style = TextStyle(
+                            color = ColorProvider(subColor),
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+                Spacer(modifier = GlanceModifier.width(4.dp))
+                CompactBadgePill(item = item, palette = palette, ultraTight = ultraTight)
+            }
+        }
+        return
+    }
+
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
             .background(ColorProvider(palette.rowBg))
-            .cornerRadius(8.dp)
+            .cornerRadius(if (ultraTight) 6.dp else 7.dp)
             .clickable(actionStartActivity(launchIntent))
-            .padding(horizontal = 6.dp, vertical = 3.dp),
+            .padding(
+                horizontal = if (ultraTight) 5.dp else 6.dp,
+                vertical = if (ultraTight) 1.2.dp else 2.5.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = GlanceModifier.defaultWeight()) {
-            Text(
-                text = "${item.icon} ${item.name}",
-                style = TextStyle(
-                    color = ColorProvider(palette.textPrimary),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium
-                )
+        Text(
+            text = "${item.icon} ${item.name}",
+            modifier = GlanceModifier.defaultWeight(),
+            maxLines = 1,
+            style = TextStyle(
+                color = ColorProvider(palette.textPrimary),
+                fontSize = if (ultraTight) 9.8.sp else 11.sp,
+                fontWeight = FontWeight.Medium
             )
-            if (!showMetaInline && item.shortMeta.isNotBlank()) {
-                Text(
-                    text = item.shortMeta,
-                    style = TextStyle(
-                        color = ColorProvider(palette.textSecondary),
-                        fontSize = 9.5.sp
-                    )
-                )
-            }
-        }
-        if (showMetaInline && item.shortMeta.isNotBlank()) {
+        )
+        if (metaText.isNotBlank()) {
             Spacer(modifier = GlanceModifier.width(4.dp))
             Text(
-                text = item.shortMeta,
+                text = metaText,
+                maxLines = 1,
                 style = TextStyle(
                     color = ColorProvider(palette.textSecondary),
-                    fontSize = 10.sp
+                    fontSize = if (ultraTight) 8.8.sp else 9.8.sp
                 )
             )
         }
-        Spacer(modifier = GlanceModifier.width(5.dp))
-        CompactBadgePill(
-            text = item.badge,
-            isHighlighted = item.isTodayOrDue,
-            palette = palette
-        )
+        Spacer(modifier = GlanceModifier.width(4.dp))
+        CompactBadgePill(item = item, palette = palette, ultraTight = ultraTight)
     }
 }
 
 /**
- * 1. MINI-WIDGET (2x1): Ultra-kompakt für den nächsten Termin (wächst automatisch mit, wenn höher gezogen).
+ * Optimierter 4-Zeilen-Block für ein 2-Felder-Widget (2×1, 1×2 oder 2×2):
+ * Passt exakt 4 einzeilige Einträge ohne Textumbruch ein und hebt heutige Geburtstage besonders hervor.
  */
-class MiniBirthdayWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Exact
+@Composable
+private fun FourRowTwoCellWidgetContent(
+    context: Context,
+    rows: List<WidgetRowItem>,
+    palette: WidgetPalette
+) {
+    val size = LocalSize.current
+    val openAppIntent = RememberMeWidgetHelper.buildOpenAppIntent(context)
+    val visibleCount = if (size.height >= 175.dp) 6 else 4
+    val shownRows = rows.take(visibleCount)
+    val hasOpenBirthdayToday = shownRows.any { it.isBirthdayToday && !it.isCongratulatedToday }
+    val hasAnyBirthdayToday = shownRows.any { it.isBirthdayToday }
 
-    override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (palette, rows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 4)
-        provideContent {
-            val size = LocalSize.current
-            val openAppIntent = RememberMeWidgetHelper.buildOpenAppIntent(context)
-            Column(
-                modifier = GlanceModifier
-                    .fillMaxSize()
-                    .background(ColorProvider(palette.bg))
-                    .cornerRadius(12.dp)
-                    .padding(6.dp)
-            ) {
-                if (rows.isEmpty()) {
-                    Box(
+    val ultraTight = size.height < 92.dp
+    val showSlimHeader = size.height >= 126.dp
+    val inlineMetaMode = when {
+        size.width >= 225.dp -> 2
+        size.width >= 165.dp && !ultraTight -> 1
+        else -> 0
+    }
+
+    val outerModifier = if (hasOpenBirthdayToday) {
+        GlanceModifier
+            .fillMaxSize()
+            .background(ColorProvider(palette.bdayTodayFrame))
+            .cornerRadius(12.dp)
+            .padding(if (ultraTight) 1.dp else 1.5.dp)
+    } else {
+        GlanceModifier.fillMaxSize()
+    }
+
+    Box(modifier = outerModifier) {
+        Column(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(ColorProvider(palette.bg))
+                .cornerRadius(if (hasOpenBirthdayToday) 11.dp else 12.dp)
+                .padding(
+                    horizontal = if (ultraTight) 4.dp else 6.dp,
+                    vertical = if (ultraTight) 2.5.dp else 4.dp
+                )
+        ) {
+            if (shownRows.isEmpty()) {
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxSize()
+                        .clickable(actionStartActivity(openAppIntent)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🎂 Keine Termine",
+                        maxLines = 1,
+                        style = TextStyle(
+                            color = ColorProvider(palette.textSecondary),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+            } else {
+                if (showSlimHeader) {
+                    val hdrText = when {
+                        hasOpenBirthdayToday -> "🎉 HEUTE GEBURTSTAG!"
+                        hasAnyBirthdayToday -> "🎂 Heute erledigt ✓"
+                        else -> "🎂 Termine"
+                    }
+                    val hdrColor = when {
+                        hasOpenBirthdayToday -> palette.bdayTodayBadgeBg
+                        hasAnyBirthdayToday -> palette.bdayDoneBadgeBg
+                        else -> palette.accent
+                    }
+                    Row(
                         modifier = GlanceModifier
-                            .fillMaxSize()
-                            .clickable(actionStartActivity(openAppIntent)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .clickable(actionStartActivity(openAppIntent))
+                            .padding(horizontal = 2.dp, vertical = 1.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "🎂 Keine Termine",
+                            text = hdrText,
+                            modifier = GlanceModifier.defaultWeight(),
+                            maxLines = 1,
                             style = TextStyle(
-                                color = ColorProvider(palette.textSecondary),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
+                                color = ColorProvider(hdrColor),
+                                fontSize = 10.8.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         )
-                    }
-                } else if (size.height < 90.dp) {
-                    val first = rows.first()
-                    val firstIntent = RememberMeWidgetHelper.buildPersonPopupIntent(context, first)
-                    Column(
-                        modifier = GlanceModifier
-                            .fillMaxSize()
-                            .background(ColorProvider(palette.rowBg))
-                            .cornerRadius(9.dp)
-                            .clickable(actionStartActivity(firstIntent))
-                            .padding(horizontal = 7.dp, vertical = 4.dp)
-                    ) {
-                        Row(
-                            modifier = GlanceModifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${first.icon} ${first.shortMeta}",
-                                modifier = GlanceModifier.defaultWeight(),
-                                style = TextStyle(
-                                    color = ColorProvider(palette.accent),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            )
-                            CompactBadgePill(
-                                text = first.badge,
-                                isHighlighted = first.isTodayOrDue,
-                                palette = palette
-                            )
-                        }
-                        Spacer(modifier = GlanceModifier.height(2.dp))
                         Text(
-                            text = first.name,
+                            text = "↗",
+                            maxLines = 1,
                             style = TextStyle(
-                                color = ColorProvider(palette.textPrimary),
-                                fontSize = 12.sp,
+                                color = ColorProvider(palette.textSecondary),
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         )
                     }
-                } else {
-                    val visibleCount = if (size.height >= 140.dp) 3 else 2
-                    rows.take(visibleCount).forEachIndexed { idx, item ->
-                        if (idx > 0) Spacer(modifier = GlanceModifier.height(3.dp))
-                        CompactSingleRowEntry(
-                            context = context,
-                            item = item,
-                            palette = palette,
-                            showMetaInline = false
-                        )
-                    }
+                    Spacer(modifier = GlanceModifier.height(2.5.dp))
+                }
+
+                val rowGap = if (ultraTight) 1.5.dp else 2.5.dp
+                shownRows.forEachIndexed { idx, item ->
+                    if (idx > 0) Spacer(modifier = GlanceModifier.height(rowGap))
+                    CompactSingleRowEntry(
+                        context = context,
+                        item = item,
+                        palette = palette,
+                        inlineMetaMode = inlineMetaMode,
+                        ultraTight = ultraTight
+                    )
+                }
+
+                if (shownRows.size < 4) {
+                    Box(
+                        modifier = GlanceModifier
+                            .fillMaxSize()
+                            .clickable(actionStartActivity(openAppIntent))
+                    ) {}
                 }
             }
         }
@@ -525,7 +710,25 @@ class MiniBirthdayWidget : GlanceAppWidget() {
 }
 
 /**
- * 2. KOMPAKT-LEISTE (4x1): Flache 1-Zeilen-Leiste über die Bildschirmbreite (2 bis 3 Termine nebeneinander).
+ * 1. KOMPAKT-WIDGET (2×1 / 2 Felder groß): Zeigt 4 einzeilige Terminzeilen mit Heute-Geburtstags-Markierung.
+ */
+class MiniBirthdayWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Exact
+
+    override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val (palette, rows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 8)
+        provideContent {
+            FourRowTwoCellWidgetContent(
+                context = context,
+                rows = rows,
+                palette = palette
+            )
+        }
+    }
+}
+
+/**
+ * 2. KOMPAKT-LEISTE (4×1): Flache Leiste über die Breite; auf 2 Felder verkleinert automatisch 4 Zeilen.
  */
 class StripBirthdayWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
@@ -534,74 +737,113 @@ class StripBirthdayWidget : GlanceAppWidget() {
         val (palette, rows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 6)
         provideContent {
             val size = LocalSize.current
+            if (size.width < 225.dp) {
+                FourRowTwoCellWidgetContent(
+                    context = context,
+                    rows = rows,
+                    palette = palette
+                )
+                return@provideContent
+            }
+
             val openAppIntent = RememberMeWidgetHelper.buildOpenAppIntent(context)
-            Box(
-                modifier = GlanceModifier
+            val colCount = if (size.width >= 310.dp && rows.size >= 3) 3 else minOf(2, rows.size)
+            val shown = rows.take(colCount)
+            val hasOpenBdayToday = shown.any { it.isBirthdayToday && !it.isCongratulatedToday }
+
+            val outerMod = if (hasOpenBdayToday) {
+                GlanceModifier
                     .fillMaxSize()
-                    .background(ColorProvider(palette.bg))
+                    .background(ColorProvider(palette.bdayTodayFrame))
                     .cornerRadius(12.dp)
-                    .padding(6.dp)
-            ) {
-                if (rows.isEmpty()) {
-                    Row(
-                        modifier = GlanceModifier
-                            .fillMaxSize()
-                            .clickable(actionStartActivity(openAppIntent))
-                            .padding(horizontal = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "🎂 Remember Me – Keine anstehenden Termine",
-                            style = TextStyle(
-                                color = ColorProvider(palette.textSecondary),
-                                fontSize = 11.5.sp
+                    .padding(1.5.dp)
+            } else {
+                GlanceModifier.fillMaxSize()
+            }
+
+            Box(modifier = outerMod) {
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxSize()
+                        .background(ColorProvider(palette.bg))
+                        .cornerRadius(if (hasOpenBdayToday) 11.dp else 12.dp)
+                        .padding(5.dp)
+                ) {
+                    if (shown.isEmpty()) {
+                        Row(
+                            modifier = GlanceModifier
+                                .fillMaxSize()
+                                .clickable(actionStartActivity(openAppIntent))
+                                .padding(horizontal = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "🎂 Keine anstehenden Termine",
+                                maxLines = 1,
+                                style = TextStyle(
+                                    color = ColorProvider(palette.textSecondary),
+                                    fontSize = 11.sp
+                                )
                             )
-                        )
-                    }
-                } else {
-                    val colCount = if (size.width >= 310.dp && rows.size >= 3) 3 else minOf(2, rows.size)
-                    Row(
-                        modifier = GlanceModifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        rows.take(colCount).forEachIndexed { idx, item ->
-                            if (idx > 0) Spacer(modifier = GlanceModifier.width(5.dp))
-                            val itemIntent = RememberMeWidgetHelper.buildPersonPopupIntent(context, item)
-                            Column(
-                                modifier = GlanceModifier
-                                    .defaultWeight()
-                                    .background(ColorProvider(palette.rowBg))
-                                    .cornerRadius(8.dp)
-                                    .clickable(actionStartActivity(itemIntent))
-                                    .padding(horizontal = 6.dp, vertical = 4.dp)
-                            ) {
-                                Row(
-                                    modifier = GlanceModifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
+                        }
+                    } else {
+                        Row(
+                            modifier = GlanceModifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            shown.forEachIndexed { idx, item ->
+                                if (idx > 0) Spacer(modifier = GlanceModifier.width(5.dp))
+                                val itemIntent = RememberMeWidgetHelper.buildPersonPopupIntent(context, item)
+                                val cardBg = when {
+                                    item.isBirthdayToday && item.isCongratulatedToday -> palette.bdayDoneRowBg
+                                    item.isBirthdayToday -> palette.bdayTodayRowBg
+                                    else -> palette.rowBg
+                                }
+                                val nameCol = when {
+                                    item.isBirthdayToday && item.isCongratulatedToday -> palette.bdayDoneText
+                                    item.isBirthdayToday -> palette.bdayTodayText
+                                    else -> palette.textPrimary
+                                }
+                                val subCol = when {
+                                    item.isBirthdayToday && item.isCongratulatedToday -> palette.bdayDoneText
+                                    item.isBirthdayToday -> palette.bdayTodaySubText
+                                    else -> palette.textSecondary
+                                }
+                                Column(
+                                    modifier = GlanceModifier
+                                        .defaultWeight()
+                                        .background(ColorProvider(cardBg))
+                                        .cornerRadius(8.dp)
+                                        .clickable(actionStartActivity(itemIntent))
+                                        .padding(horizontal = 6.dp, vertical = 4.dp)
                                 ) {
+                                    Row(
+                                        modifier = GlanceModifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "${item.icon} ${item.shortMeta}",
+                                            modifier = GlanceModifier.defaultWeight(),
+                                            maxLines = 1,
+                                            style = TextStyle(
+                                                color = ColorProvider(subCol),
+                                                fontSize = 9.5.sp,
+                                                fontWeight = if (item.isBirthdayToday) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        )
+                                        CompactBadgePill(item = item, palette = palette, ultraTight = true)
+                                    }
+                                    Spacer(modifier = GlanceModifier.height(1.dp))
                                     Text(
-                                        text = "${item.icon} ${item.shortMeta}",
-                                        modifier = GlanceModifier.defaultWeight(),
+                                        text = item.name,
+                                        maxLines = 1,
                                         style = TextStyle(
-                                            color = ColorProvider(palette.textSecondary),
-                                            fontSize = 9.5.sp
+                                            color = ColorProvider(nameCol),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     )
-                                    CompactBadgePill(
-                                        text = item.badge,
-                                        isHighlighted = item.isTodayOrDue,
-                                        palette = palette
-                                    )
                                 }
-                                Spacer(modifier = GlanceModifier.height(1.dp))
-                                Text(
-                                    text = item.name,
-                                    style = TextStyle(
-                                        color = ColorProvider(palette.textPrimary),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                )
                             }
                         }
                     }
@@ -612,13 +854,13 @@ class StripBirthdayWidget : GlanceAppWidget() {
 }
 
 /**
- * 3. KOMPAKT-LISTE (3x2 / Standard): Deutlich kompakter als bisher, einzeilige Karten & scrollbar.
+ * 3. KOMPAKT-LISTE (3×2 / 2×2): Einzeilige Karten, mind. 4 volle Zeilen auf 2 Feldern Höhe & scrollbar.
  */
 class BirthdayGlanceWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val (palette, rows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 8)
+        val (palette, rows) = RememberMeWidgetHelper.loadWidgetState(context, maxItems = 10)
         provideContent {
             CompactListWidgetLayout(
                 context = context,
@@ -632,7 +874,7 @@ class BirthdayGlanceWidget : GlanceAppWidget() {
 }
 
 /**
- * 4. ÜBERSICHT GROSS (4x3): Große, dennoch sehr kompakte & scrollbare Liste für bis zu 15 Termine.
+ * 4. ÜBERSICHT GROSS (4×3): Scrollbare Liste für bis zu 15 Termine mit Heute-Geburtstags-Markierung.
  */
 class LargeBirthdayWidget : GlanceAppWidget() {
     override val sizeMode: SizeMode = SizeMode.Exact
@@ -642,7 +884,7 @@ class LargeBirthdayWidget : GlanceAppWidget() {
         provideContent {
             CompactListWidgetLayout(
                 context = context,
-                headerTitle = "🎂 Geburtstage & Termine (${rows.size})",
+                headerTitle = "🎂 Termine (${rows.size})",
                 rows = rows,
                 palette = palette,
                 compactMode = false
@@ -660,69 +902,111 @@ private fun CompactListWidgetLayout(
     compactMode: Boolean
 ) {
     val size = LocalSize.current
-    val showInlineMeta = size.width >= 210.dp
+    if (size.height < 118.dp) {
+        FourRowTwoCellWidgetContent(
+            context = context,
+            rows = rows,
+            palette = palette
+        )
+        return
+    }
+
+    val inlineMetaMode = when {
+        size.width >= 220.dp -> 2
+        size.width >= 165.dp -> 1
+        else -> 0
+    }
     val openAppIntent = RememberMeWidgetHelper.buildOpenAppIntent(context)
+    val hasOpenBirthdayToday = rows.any { it.isBirthdayToday && !it.isCongratulatedToday }
+    val hasAnyBirthdayToday = rows.any { it.isBirthdayToday }
 
-    Column(
-        modifier = GlanceModifier
+    val effectiveHeader = when {
+        hasOpenBirthdayToday -> "🎉 HEUTE GEBURTSTAG!"
+        hasAnyBirthdayToday -> "🎂 Heute gratuliert ✓"
+        else -> headerTitle
+    }
+    val effectiveHeaderColor = when {
+        hasOpenBirthdayToday -> palette.bdayTodayBadgeBg
+        hasAnyBirthdayToday -> palette.bdayDoneBadgeBg
+        else -> palette.accent
+    }
+
+    val outerModifier = if (hasOpenBirthdayToday) {
+        GlanceModifier
             .fillMaxSize()
-            .background(ColorProvider(palette.bg))
+            .background(ColorProvider(palette.bdayTodayFrame))
             .cornerRadius(13.dp)
-            .padding(if (compactMode) 6.dp else 8.dp)
-    ) {
-        Row(
+            .padding(1.5.dp)
+    } else {
+        GlanceModifier.fillMaxSize()
+    }
+
+    Box(modifier = outerModifier) {
+        Column(
             modifier = GlanceModifier
-                .fillMaxWidth()
-                .clickable(actionStartActivity(openAppIntent))
-                .padding(horizontal = 2.dp, vertical = 1.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .background(ColorProvider(palette.bg))
+                .cornerRadius(if (hasOpenBirthdayToday) 12.dp else 13.dp)
+                .padding(if (compactMode) 5.dp else 7.dp)
         ) {
-            Text(
-                text = headerTitle,
-                modifier = GlanceModifier.defaultWeight(),
-                style = TextStyle(
-                    color = ColorProvider(palette.accent),
-                    fontSize = if (compactMode) 11.5.sp else 12.5.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            )
-            Text(
-                text = "Öffnen ↗",
-                style = TextStyle(
-                    color = ColorProvider(palette.textSecondary),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            )
-        }
-
-        Spacer(modifier = GlanceModifier.height(4.dp))
-
-        if (rows.isEmpty()) {
-            Box(
+            Row(
                 modifier = GlanceModifier
-                    .fillMaxSize()
-                    .clickable(actionStartActivity(openAppIntent)),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .clickable(actionStartActivity(openAppIntent))
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Keine anstehenden Einträge",
+                    text = effectiveHeader,
+                    modifier = GlanceModifier.defaultWeight(),
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = ColorProvider(effectiveHeaderColor),
+                        fontSize = if (compactMode) 11.sp else 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+                Text(
+                    text = "Öffnen ↗",
+                    maxLines = 1,
                     style = TextStyle(
                         color = ColorProvider(palette.textSecondary),
-                        fontSize = 11.sp
+                        fontSize = 9.8.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 )
             }
-        } else {
-            LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                items(rows, itemId = { it.key.hashCode().toLong() }) { item ->
-                    Column(modifier = GlanceModifier.fillMaxWidth().padding(bottom = 3.dp)) {
-                        CompactSingleRowEntry(
-                            context = context,
-                            item = item,
-                            palette = palette,
-                            showMetaInline = showInlineMeta
+
+            Spacer(modifier = GlanceModifier.height(3.dp))
+
+            if (rows.isEmpty()) {
+                Box(
+                    modifier = GlanceModifier
+                        .fillMaxSize()
+                        .clickable(actionStartActivity(openAppIntent)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Keine anstehenden Termine",
+                        maxLines = 1,
+                        style = TextStyle(
+                            color = ColorProvider(palette.textSecondary),
+                            fontSize = 11.sp
                         )
+                    )
+                }
+            } else {
+                LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
+                    items(rows, itemId = { it.key.hashCode().toLong() }) { item ->
+                        Column(modifier = GlanceModifier.fillMaxWidth().padding(bottom = 2.5.dp)) {
+                            CompactSingleRowEntry(
+                                context = context,
+                                item = item,
+                                palette = palette,
+                                inlineMetaMode = inlineMetaMode,
+                                ultraTight = false
+                            )
+                        }
                     }
                 }
             }

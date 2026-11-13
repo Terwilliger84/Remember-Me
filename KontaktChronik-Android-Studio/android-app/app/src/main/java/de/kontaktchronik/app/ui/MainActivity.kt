@@ -347,25 +347,30 @@ private val CenteredPillTextStyle = TextStyle(
 )
 
 @Composable
-fun BirthdayCountdownPill(birthdayIso: String?, isPastMode: Boolean) {
+fun BirthdayCountdownPill(
+    birthdayIso: String?,
+    isPastMode: Boolean,
+    isCongratulatedToday: Boolean = false
+) {
     if (birthdayIso.isNullOrBlank()) return
     val today = LocalDate.now()
     if (isPastMode) {
         val neg = ContactResolver.negativeDaysSinceLastBirthday(birthdayIso, today) ?: return
-        val label = when (neg) {
-            0L -> "🎂 Heute!"
+        val label = when {
+            neg == 0L && isCongratulatedToday -> "✅ Gratuliert"
+            neg == 0L -> "🎂 Heute!"
             else -> "vor ${abs(neg)}T"
         }
         Box(
             modifier = Modifier
-                .background(BtnBg, RoundedCornerShape(999.dp))
-                .border(1.dp, BorderSlate, RoundedCornerShape(999.dp))
+                .background(if (neg == 0L && isCongratulatedToday) TreeGreen.copy(alpha = 0.16f) else BtnBg, RoundedCornerShape(999.dp))
+                .border(1.dp, if (neg == 0L && isCongratulatedToday) TreeGreen else BorderSlate, RoundedCornerShape(999.dp))
                 .padding(horizontal = 8.dp, vertical = 3.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
-                color = TextSecondary,
+                color = if (neg == 0L && isCongratulatedToday) TreeGreen else TextSecondary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -379,22 +384,27 @@ fun BirthdayCountdownPill(birthdayIso: String?, isPastMode: Boolean) {
     val days = ContactResolver.daysUntilNextBirthday(birthdayIso, today) ?: return
     val isToday = days == 0L
     val isSoon = days in 1L..14L
-    val label = when (days) {
-        0L -> "🎂 Heute!"
-        1L -> "🎂 Morgen!"
+    val label = when {
+        isToday && isCongratulatedToday -> "✅ Gratuliert"
+        isToday -> "🎉 Heute!"
+        days == 1L -> "🎂 Morgen!"
         else -> "🎂 in ${days}T"
     }
+    val festiveGold = Color(0xFFD97706)
     val bgColor = when {
-        isToday -> WarnAmber
+        isToday && isCongratulatedToday -> TreeGreen.copy(alpha = 0.16f)
+        isToday -> festiveGold
         isSoon -> AccentSteel.copy(alpha = 0.16f)
         else -> BtnBg
     }
     val borderColor = when {
-        isToday -> WarnAmber
+        isToday && isCongratulatedToday -> TreeGreen
+        isToday -> festiveGold
         isSoon -> AccentSteel
         else -> BorderSlate
     }
     val textColor = when {
+        isToday && isCongratulatedToday -> TreeGreen
         isToday -> Color.White
         isSoon -> AccentSteel
         else -> TextSecondary
@@ -1999,27 +2009,43 @@ data class OverviewTimelineItem(
     val isUrgent: Boolean,
     val isSoon: Boolean,
     val isRecurring: Boolean,
+    val isBirthdayToday: Boolean = false,
+    val isCongratulatedToday: Boolean = false,
     val primaryLine: String,
     val secondaryLine: String = "",
     val popupReason: String
 )
 
 @Composable
-fun OverviewCountdownPill(pillText: String, isUrgent: Boolean, isSoon: Boolean, isRecurring: Boolean = false) {
+fun OverviewCountdownPill(
+    pillText: String,
+    isUrgent: Boolean,
+    isSoon: Boolean,
+    isRecurring: Boolean = false,
+    isBirthdayToday: Boolean = false,
+    isCongratulatedToday: Boolean = false
+) {
     if (pillText.isBlank()) return
+    val festiveGold = Color(0xFFD97706)
     val bgColor = when {
+        isBirthdayToday && isCongratulatedToday -> TreeGreen.copy(alpha = 0.16f)
+        isBirthdayToday -> festiveGold
         isUrgent -> WarnAmber
         isSoon -> AccentSteel.copy(alpha = 0.16f)
         isRecurring -> TreeGreen.copy(alpha = 0.14f)
         else -> BtnBg
     }
     val borderColor = when {
+        isBirthdayToday && isCongratulatedToday -> TreeGreen
+        isBirthdayToday -> festiveGold
         isUrgent -> WarnAmber
         isSoon -> AccentSteel
         isRecurring -> TreeGreen
         else -> BorderSlate
     }
     val textColor = when {
+        isBirthdayToday && isCongratulatedToday -> TreeGreen
+        isBirthdayToday -> Color.White
         isUrgent -> Color.White
         isSoon -> AccentSteel
         isRecurring -> TreeGreen
@@ -2052,6 +2078,7 @@ fun buildOverviewTimelineItems(
     relations: List<RelationEntity>,
     showPastDates: Boolean,
     sortMode: String, // "upcoming" | "lastname"
+    congratulatedMap: Map<Long, BirthdayCongratulationRecord> = emptyMap(),
     today: LocalDate = LocalDate.now()
 ): List<OverviewTimelineItem> {
     val entries = mutableListOf<OverviewTimelineItem>()
@@ -2061,18 +2088,27 @@ fun buildOverviewTimelineItems(
             if (!person.birthdayIso.isNullOrBlank()) {
                 val negDays = ContactResolver.negativeDaysSinceLastBirthday(person.birthdayIso, today)
                 if (negDays != null) {
-                    val pill = if (negDays == 0L) "🎂 Heute!" else "🎂 vor ${abs(negDays)}T"
+                    val isBdayToday = negDays == 0L
+                    val congRec = if (isBdayToday) congratulatedMap[person.id]?.takeIf { it.year == today.year } else null
+                    val pill = when {
+                        isBdayToday && congRec != null -> "✅ Gratuliert"
+                        isBdayToday -> "🎉 Heute!"
+                        else -> "🎂 vor ${abs(negDays)}T"
+                    }
                     entries += OverviewTimelineItem(
                         uniqueKey = "past_bday_${person.id}",
                         person = person,
                         daysUntil = abs(negDays),
                         typePriority = 0,
                         pillText = pill,
-                        isUrgent = negDays == 0L,
+                        isUrgent = isBdayToday && congRec == null,
                         isSoon = abs(negDays) <= 14L,
                         isRecurring = false,
-                        primaryLine = "🎂 ${formatPassedBirthdayLine(person.birthdayIso, today).orEmpty()}",
-                        popupReason = "Nachträglich zum Geburtstag"
+                        isBirthdayToday = isBdayToday,
+                        isCongratulatedToday = congRec != null,
+                        primaryLine = "🎂 ${formatPassedBirthdayLine(person.birthdayIso, today).orEmpty()}" +
+                            if (congRec != null) " • ✅ ${congRec.channel}" else "",
+                        popupReason = if (isBdayToday) "🎂 Geburtstag" else "Nachträglich zum Geburtstag"
                     )
                 }
             }
@@ -2142,22 +2178,30 @@ fun buildOverviewTimelineItems(
             val bdayDays = ContactResolver.daysUntilNextBirthday(person.birthdayIso, today)
             if (bdayDays != null) {
                 hasAnyDatedEntry = true
-                val pill = when (bdayDays) {
-                    0L -> "🎂 Heute!"
-                    1L -> "🎂 Morgen!"
+                val isBdayToday = bdayDays == 0L
+                val congRec = if (isBdayToday) congratulatedMap[person.id]?.takeIf { it.year == today.year } else null
+                val pill = when {
+                    isBdayToday && congRec != null -> "✅ Gratuliert"
+                    isBdayToday -> "🎉 Heute!"
+                    bdayDays == 1L -> "🎂 Morgen!"
                     else -> "🎂 in ${bdayDays}T"
                 }
                 val ageInfo = ContactResolver.formatUpcomingAge(person.birthdayIso, today)
+                val baseBdayLine = formatCompactBirthdayLine(person.birthdayIso, today).orEmpty()
                 entries += OverviewTimelineItem(
                     uniqueKey = "bday_${person.id}",
                     person = person,
                     daysUntil = bdayDays,
                     typePriority = 0,
                     pillText = pill,
-                    isUrgent = bdayDays == 0L,
+                    isUrgent = isBdayToday && congRec == null,
                     isSoon = bdayDays in 1L..14L,
                     isRecurring = false,
-                    primaryLine = "🎂 ${formatCompactBirthdayLine(person.birthdayIso, today).orEmpty()}",
+                    isBirthdayToday = isBdayToday,
+                    isCongratulatedToday = congRec != null,
+                    primaryLine = (if (isBdayToday && congRec == null) "🎉🎂 " else "🎂 ") +
+                        baseBdayLine +
+                        (if (congRec != null) " • ✅ ${congRec.channel}" else ""),
                     secondaryLine = if (relationSummary.isNotBlank() && person.hasNoOwnPhone) "🔗 $relationSummary" else "",
                     popupReason = "🎂 Geburtstag ($ageInfo)"
                 )
@@ -3285,6 +3329,10 @@ fun KontaktChronikApp(
         findDuplicateSuggestionGroups(visiblePersons, dismissedMergePairs)
     }
     var syncStatus by remember { mutableStateOf("") }
+    var congratsRevision by remember { mutableStateOf(0) }
+    val congratulatedRecords = remember(persons, congratsRevision) {
+        BirthdayCongratulationTracker.loadAllRecords(context)
+    }
     var pendingConfirmMessage by remember { mutableStateOf<String?>(null) }
     var pendingConfirmAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val clipboardManager = LocalClipboardManager.current
@@ -3550,7 +3598,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.47",
+                "Remember Me v1.0.48",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -3847,7 +3895,13 @@ fun KontaktChronikApp(
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
-                                            BirthdayCountdownPill(birthdayIso = person.birthdayIso, isPastMode = false)
+                                            val isCongratToday = congratulatedRecords[person.id]?.year == LocalDate.now().year &&
+                                                BirthdayCongratulationTracker.isOngoingBirthday(person.birthdayIso)
+                                            BirthdayCountdownPill(
+                                                birthdayIso = person.birthdayIso,
+                                                isPastMode = false,
+                                                isCongratulatedToday = isCongratToday
+                                            )
                                             if (isHidden) {
                                                 Text(
                                                     text = "🙈",
@@ -3861,7 +3915,7 @@ fun KontaktChronikApp(
                                         }
                                         if (!subText.isNullOrBlank()) {
                                             Text(
-                                                text = subText,
+                                                text = subText + if (congratulatedRecords[person.id]?.year == LocalDate.now().year && BirthdayCongratulationTracker.isOngoingBirthday(person.birthdayIso)) " • ✅ ${congratulatedRecords[person.id]?.channel.orEmpty()}" else "",
                                                 color = TextSecondary,
                                                 fontSize = 11.5.sp,
                                                 maxLines = 1,
@@ -3871,8 +3925,23 @@ fun KontaktChronikApp(
                                         }
                                     }
                                 }
-                                CompactButton(if (isHidden) "Einbl." else "Ausbl.") {
-                                    setPersonHidden(person.id, !isHidden)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CompactButton("💬") {
+                                        val relPairs = relations
+                                            .filter { it.fromPersonId == person.id }
+                                            .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                                        val resolved = ContactResolver.resolveTarget(person, relPairs)
+                                        val isBday = BirthdayCongratulationTracker.isOngoingBirthday(person.birthdayIso)
+                                        popupReason = if (isBday) "🎂 Geburtstag" else "Nachricht"
+                                        quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
+                                        popupPerson = person
+                                    }
+                                    CompactButton(if (isHidden) "Einbl." else "Ausbl.") {
+                                        setPersonHidden(person.id, !isHidden)
+                                    }
                                 }
                             }
                         }
@@ -4210,10 +4279,17 @@ fun KontaktChronikApp(
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f, fill = false)
                                         )
-                                        BirthdayCountdownPill(birthdayIso = p.birthdayIso, isPastMode = false)
+                                        val isCongratToday = congratulatedRecords[p.id]?.year == LocalDate.now().year &&
+                                            BirthdayCongratulationTracker.isOngoingBirthday(p.birthdayIso)
+                                        BirthdayCountdownPill(
+                                            birthdayIso = p.birthdayIso,
+                                            isPastMode = false,
+                                            isCongratulatedToday = isCongratToday
+                                        )
                                     }
                                     Text(
-                                        formatCompactBirthdayLine(p.birthdayIso).orEmpty(),
+                                        formatCompactBirthdayLine(p.birthdayIso).orEmpty() +
+                                            if (congratulatedRecords[p.id]?.year == LocalDate.now().year && BirthdayCongratulationTracker.isOngoingBirthday(p.birthdayIso)) " • ✅ ${congratulatedRecords[p.id]?.channel.orEmpty()}" else "",
                                         color = TextSecondary,
                                         fontSize = 11.5.sp,
                                         maxLines = 1,
@@ -4288,14 +4364,15 @@ fun KontaktChronikApp(
                     if (!isFilteringByLetterOrQuery) 0
                     else hiddenOverviewList.count { matchesPersonSearchAndLetter(it, tabSearchQuery, tabSelectedLetter) }
                 }
-                val timelineItems = remember(filteredOverview, persons, specialEvents, relations, showPastDates, overviewSortMode) {
+                val timelineItems = remember(filteredOverview, persons, specialEvents, relations, showPastDates, overviewSortMode, congratulatedRecords) {
                     buildOverviewTimelineItems(
                         filteredPersons = filteredOverview,
                         allPersons = persons,
                         specialEvents = specialEvents,
                         relations = relations,
                         showPastDates = showPastDates,
-                        sortMode = overviewSortMode
+                        sortMode = overviewSortMode,
+                        congratulatedMap = congratulatedRecords
                     )
                 }
                 val nextUpcomingDays = remember(timelineItems, showPastDates) {
@@ -4436,17 +4513,25 @@ fun KontaktChronikApp(
                                 nextUpcomingDays != null &&
                                 entry.daysUntil == nextUpcomingDays
 
+                            val festiveGold = Color(0xFFF59E0B)
                             val cardBorder = when {
+                                entry.isBirthdayToday && entry.isCongratulatedToday -> TreeGreen
+                                entry.isBirthdayToday -> festiveGold
                                 entry.isUrgent -> WarnAmber
                                 isNextHighlight -> AccentSteel
                                 else -> BorderSlate
+                            }
+                            val cardBg = when {
+                                entry.isBirthdayToday && !entry.isCongratulatedToday ->
+                                    if (isLightMode) Color(0xFFFFFBEB) else Color(0xFF332411)
+                                else -> CardSlate
                             }
 
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(CardSlate, RoundedCornerShape(10.dp))
-                                    .border(if (isNextHighlight || entry.isUrgent) 1.5.dp else 1.dp, cardBorder, RoundedCornerShape(10.dp))
+                                    .background(cardBg, RoundedCornerShape(10.dp))
+                                    .border(if (isNextHighlight || entry.isUrgent || entry.isBirthdayToday) 1.5.dp else 1.dp, cardBorder, RoundedCornerShape(10.dp))
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -4482,19 +4567,23 @@ fun KontaktChronikApp(
                                                 pillText = entry.pillText,
                                                 isUrgent = entry.isUrgent,
                                                 isSoon = entry.isSoon,
-                                                isRecurring = entry.isRecurring
+                                                isRecurring = entry.isRecurring,
+                                                isBirthdayToday = entry.isBirthdayToday,
+                                                isCongratulatedToday = entry.isCongratulatedToday
                                             )
                                         }
                                         if (entry.primaryLine.isNotBlank()) {
                                             Text(
                                                 text = entry.primaryLine,
                                                 color = when {
+                                                    entry.isBirthdayToday && entry.isCongratulatedToday -> TreeGreen
+                                                    entry.isBirthdayToday -> Color(0xFFD97706)
                                                     showPastDates || entry.isUrgent -> WarnAmber
                                                     entry.isRecurring -> TreeGreen
                                                     else -> TextSecondary
                                                 },
                                                 fontSize = 11.5.sp,
-                                                fontWeight = if (entry.isUrgent || isNextHighlight) FontWeight.SemiBold else FontWeight.Normal,
+                                                fontWeight = if (entry.isUrgent || entry.isBirthdayToday || isNextHighlight) FontWeight.SemiBold else FontWeight.Normal,
                                                 maxLines = 1,
                                                 softWrap = false,
                                                 overflow = TextOverflow.Ellipsis
@@ -4516,7 +4605,7 @@ fun KontaktChronikApp(
                                     popupReason = entry.popupReason
                                     quickMessageText = pickRandomBirthdayGreeting(
                                         extractFirstName(resolved.targetPersonName),
-                                        showPastDates
+                                        showPastDates && !entry.isBirthdayToday
                                     )
                                     popupPerson = person
                                 }
@@ -4568,9 +4657,10 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.47")
+                put("version", "1.0.48")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
+                put("birthdayCongratulated", BirthdayCongratulationTracker.exportToJsonObject(context))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
                 put("birthdayPopupHour", birthdayPopupHour)
                 put("birthdayPopupMinute", birthdayPopupMinute)
@@ -5061,6 +5151,13 @@ fun KontaktChronikApp(
                                     dismissedMergePairs = combined
                                     appPrefs.edit().putStringSet("dismissed_merge_pairs", combined).apply()
                                 }
+                                BirthdayCongratulationTracker.importFromJsonObject(
+                                    context = context,
+                                    json = stateObj.optJSONObject("birthdayCongratulated"),
+                                    idRemap = restoredIdMap
+                                )
+                                congratsRevision++
+                                RememberMeWidgetUpdater.updateAllAsync(context)
                                 showRestoreInput = false
                                 restoreJsonText = ""
                                 showOptionsDialog = false
@@ -6173,32 +6270,54 @@ fun KontaktChronikApp(
                         photoBase64 = photoVal,
                         onPickPhoto = { detailPhotoPickerLauncher.launch("image/*") },
                         onRemovePhoto = { photoVal = "" },
-                        extraActionRow = if (persons.size >= 2 || treeEnabled) {
-                            {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (persons.size >= 2) {
-                                        CompactButton("🔗 Duplikat") {
-                                            mergeInitialPersonIds = listOf(dp.id)
-                                            detailPerson = null
-                                            showMergeContactsDialog = true
-                                        }
+                        extraActionRow = {
+                            val isDpBdayToday = BirthdayCongratulationTracker.isOngoingBirthday(dp.birthdayIso)
+                            val dpCongratRec = congratulatedRecords[dp.id]?.takeIf { isDpBdayToday && it.year == LocalDate.now().year }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val msgBtnLabel = when {
+                                    isDpBdayToday && dpCongratRec != null -> "✅ Gratuliert (${dpCongratRec.channel})"
+                                    isDpBdayToday -> "🎂 Gratulieren"
+                                    else -> "💬 Nachricht"
+                                }
+                                if (isDpBdayToday && dpCongratRec == null) {
+                                    PrimaryActionButton(msgBtnLabel) {
+                                        val resolved = ContactResolver.resolveTarget(dp, currentRelations)
+                                        popupReason = "🎂 Geburtstag"
+                                        quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
+                                        detailPerson = null
+                                        popupPerson = dp
                                     }
-                                    if (treeEnabled) {
-                                        CompactButton("🌳 Baum") {
-                                            selectedTreeRootId = dp.id
-                                            detailPerson = null
-                                            activeTab = "Stammbaum"
-                                        }
+                                } else {
+                                    CompactButton(msgBtnLabel) {
+                                        val resolved = ContactResolver.resolveTarget(dp, currentRelations)
+                                        popupReason = if (isDpBdayToday) "🎂 Geburtstag" else "Nachricht"
+                                        quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
+                                        detailPerson = null
+                                        popupPerson = dp
+                                    }
+                                }
+                                if (persons.size >= 2) {
+                                    CompactButton("🔗 Duplikat") {
+                                        mergeInitialPersonIds = listOf(dp.id)
+                                        detailPerson = null
+                                        showMergeContactsDialog = true
+                                    }
+                                }
+                                if (treeEnabled) {
+                                    CompactButton("🌳 Baum") {
+                                        selectedTreeRootId = dp.id
+                                        detailPerson = null
+                                        activeTab = "Stammbaum"
                                     }
                                 }
                             }
-                        } else null
+                        }
                     )
 
                     ContactFormSectionCard(
@@ -6684,7 +6803,7 @@ fun KontaktChronikApp(
         }
     }
 
-    // Dialog: Nachricht über vorhandene Kanäle (WhatsApp, SMS, Anruf, Mail + "+ Hinzufügen" für weitere Messenger)
+    // Dialog: Nachricht & Geburtstags-Gratulation über alle Kanäle (inkl. kanalübergreifender Bestätigung am laufenden Geburtstag)
     popupPerson?.let { p ->
         val relPairs = relations
             .filter { it.fromPersonId == p.id }
@@ -6698,6 +6817,13 @@ fun KontaktChronikApp(
         }
         var showAddMessenger by remember { mutableStateOf(false) }
         val availableExtras = listOf("Telegram", "Signal", "Threema", "Messenger", "Instagram", "Viber")
+        val isOngoingBday = remember(p.birthdayIso) {
+            BirthdayCongratulationTracker.isOngoingBirthday(p.birthdayIso)
+        }
+        val ongoingCongrats = remember(p.id, p.birthdayIso, congratulatedRecords) {
+            if (isOngoingBday) congratulatedRecords[p.id]?.takeIf { it.year == LocalDate.now().year } else null
+        }
+        var pendingDuplicateChannel by remember(p.id) { mutableStateOf<Pair<String, () -> Unit>?>(null) }
 
         fun toggleMessenger(name: String) {
             val next = if (enabledExtras.contains(name)) enabledExtras - name else enabledExtras + name
@@ -6705,27 +6831,167 @@ fun KontaktChronikApp(
             prefs.edit().putStringSet("enabled_extra_messengers", next.toSet()).apply()
         }
 
+        fun recordAndRunChannel(channelLabel: String, launchAction: () -> Unit) {
+            if (isOngoingBday) {
+                BirthdayCongratulationTracker.markCongratulated(context, p.id, channelLabel)
+                BirthdayNotificationHelper.cancelBirthdayNotificationForPerson(context, p.id)
+                congratsRevision++
+                RememberMeWidgetUpdater.updateAllAsync(context)
+            }
+            scope.launch {
+                db.updatePerson(p.copy(lastContactedIso = LocalDate.now().toString()))
+            }
+            launchAction()
+        }
+
+        fun dispatchViaChannel(channelLabel: String, launchAction: () -> Unit) {
+            if (isOngoingBday && ongoingCongrats != null) {
+                pendingDuplicateChannel = channelLabel to {
+                    recordAndRunChannel(channelLabel, launchAction)
+                }
+            } else {
+                recordAndRunChannel(channelLabel, launchAction)
+            }
+        }
+
         Dialog(onDismissRequest = { popupPerson = null }) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(CardSlate, RoundedCornerShape(10.dp))
-                    .border(1.dp, BorderSlate, RoundedCornerShape(10.dp))
+                    .background(CardSlate, RoundedCornerShape(12.dp))
+                    .border(
+                        1.5.dp,
+                        when {
+                            isOngoingBday && ongoingCongrats != null -> TreeGreen
+                            isOngoingBday -> Color(0xFFF59E0B)
+                            else -> BorderSlate
+                        },
+                        RoundedCornerShape(12.dp)
+                    )
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Nachricht an ${p.name}", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                Text(popupReason, color = AccentSteel, fontSize = 13.sp)
+                Text(
+                    "💬 ${formatLastNameFirst(p.name)}",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    popupReason,
+                    color = AccentSteel,
+                    fontSize = 12.5.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Bestätigungs-Leiste am laufenden aktuellen Geburtstag (kanalübergreifend)
+                if (isOngoingBday) {
+                    if (ongoingCongrats != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(TreeGreen.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+                                .border(1.dp, TreeGreen, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "✅ Gratuliert (${ongoingCongrats.channel})",
+                                    color = TreeGreen,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                InfoHintIcon(
+                                    title = "Bereits gratuliert",
+                                    text = "Am laufenden Geburtstag bereits${if (ongoingCongrats.timeHm.isNotBlank()) " um ${ongoingCongrats.timeHm} Uhr" else ""} über ${ongoingCongrats.channel} gratuliert. Beim erneuten Klick auf einen Kanal fragt die App sicherheitshalber nach."
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            CompactButton("↺ Reset") {
+                                BirthdayCongratulationTracker.clearCongratulated(context, p.id)
+                                congratsRevision++
+                                RememberMeWidgetUpdater.updateAllAsync(context)
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFF59E0B).copy(alpha = 0.14f), RoundedCornerShape(8.dp))
+                                .border(1.dp, Color(0xFFF59E0B), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "🎉 Heute Geburtstag",
+                                    color = Color(0xFFD97706),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                InfoHintIcon(
+                                    title = "Gratulations-Bestätigung",
+                                    text = "Wird beim Öffnen eines Kanals (WhatsApp, SMS, Anruf, Mail, App, Teilen) oder per Klick auf ‚✓ Gratuliert‘ automatisch für den heutigen Geburtstag bestätigt."
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            CompactButton("✓ Gratuliert") {
+                                BirthdayCongratulationTracker.markCongratulated(context, p.id, "Persönlich")
+                                BirthdayNotificationHelper.cancelBirthdayNotificationForPerson(context, p.id)
+                                congratsRevision++
+                                RememberMeWidgetUpdater.updateAllAsync(context)
+                                scope.launch {
+                                    db.updatePerson(p.copy(lastContactedIso = LocalDate.now().toString()))
+                                }
+                            }
+                        }
+                    }
+                }
 
                 resolved.warningNotice?.let { warning ->
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(Color(0xFF3B2F1E), RoundedCornerShape(6.dp))
                             .border(1.dp, WarnAmber, RoundedCornerShape(6.dp))
-                            .padding(8.dp)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(warning, color = Color(0xFFFDE68A), fontSize = 12.sp)
+                        Text(
+                            text = "↪ Über ${resolved.targetPersonName}",
+                            color = Color(0xFFFDE68A),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        InfoHintIcon(title = "Weiterleitung", text = warning)
                     }
                 }
 
@@ -6734,29 +7000,46 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Nachricht",
-                        color = TextSecondary,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                    CompactButton("🎲 Spruch") {
-                        quickMessageText = pickRandomBirthdayGreeting(
-                            extractFirstName(resolved.targetPersonName),
-                            false
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            "😂 Grußtext",
+                            color = TextSecondary,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
+                        InfoHintIcon(
+                            title = "Witzige Geburtstagsgrüße",
+                            text = "100 witzige & trockene Geburtstagsgrüße sind hinterlegt. Tippe auf ‚🎲 Spruch‘ zum Neu-Würfeln oder bearbeite die Liste unter ⚙ Optionen → 🎂 Grüße."
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        CompactButton("📋 Kopie") {
+                            dispatchViaChannel("Kopiert") {
+                                clipboardManager.setText(AnnotatedString(quickMessageText))
+                                syncStatus = "Spruch kopiert"
+                            }
+                        }
+                        CompactButton("🎲 Spruch") {
+                            quickMessageText = pickRandomBirthdayGreeting(
+                                extractFirstName(resolved.targetPersonName),
+                                false
+                            )
+                        }
                     }
                 }
                 OutlinedTextField(
                     value = quickMessageText,
                     onValueChange = { quickMessageText = it },
-                    label = { Text("Nachricht / Gruß", fontSize = 11.sp) },
+                    label = { Text("Nachricht / Gruß", fontSize = 11.sp, maxLines = 1, softWrap = false) },
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Haupt-Kanäle mit Symbolen: WhatsApp, SMS, Anruf (+ Mail wenn vorhanden)
+                // Haupt-Kanäle mit Symbolen: WhatsApp, SMS, Anruf, Mail, Teilen
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -6764,22 +7047,35 @@ fun KontaktChronikApp(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     ChannelButton(channel = "WhatsApp", isPrimary = true) {
-                        QuickActionDispatcher.openWhatsApp(context, resolved.phone, quickMessageText)
+                        dispatchViaChannel("WhatsApp") {
+                            QuickActionDispatcher.openWhatsApp(context, resolved.phone, quickMessageText)
+                        }
                     }
                     ChannelButton(channel = "SMS") {
-                        QuickActionDispatcher.openSms(context, resolved.phone, quickMessageText)
+                        dispatchViaChannel("SMS") {
+                            QuickActionDispatcher.openSms(context, resolved.phone, quickMessageText)
+                        }
                     }
                     ChannelButton(channel = "Anruf") {
-                        QuickActionDispatcher.startPhoneCall(context, resolved.phone)
+                        dispatchViaChannel("Anruf") {
+                            QuickActionDispatcher.startPhoneCall(context, resolved.phone)
+                        }
                     }
                     if (resolved.email.isNotBlank()) {
                         ChannelButton(channel = "Mail") {
-                            QuickActionDispatcher.openEmail(context, resolved.email, popupReason)
+                            dispatchViaChannel("Mail") {
+                                QuickActionDispatcher.openEmail(context, resolved.email, popupReason, quickMessageText)
+                            }
+                        }
+                    }
+                    CompactButton("📤 Teilen") {
+                        dispatchViaChannel("Teilen") {
+                            QuickActionDispatcher.openSystemShare(context, quickMessageText, popupReason)
                         }
                     }
                 }
 
-                // Hinzugefügte Messenger + Button "+ Hinzufügen"
+                // Hinzugefügte Messenger + Button "+ App"
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -6789,7 +7085,9 @@ fun KontaktChronikApp(
                 ) {
                     enabledExtras.forEach { extra ->
                         ChannelButton(channel = extra) {
-                            QuickActionDispatcher.openExtraMessenger(context, extra, resolved.phone, quickMessageText)
+                            dispatchViaChannel(extra) {
+                                QuickActionDispatcher.openExtraMessenger(context, extra, resolved.phone, quickMessageText)
+                            }
                         }
                     }
                     CompactButton("+ App") {
@@ -6807,10 +7105,12 @@ fun KontaktChronikApp(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            "Weitere Messenger ein-/ausblenden:",
+                            "Messenger wählen:",
                             color = TextSecondary,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(availableExtras) { m ->
@@ -6829,17 +7129,76 @@ fun KontaktChronikApp(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CompactButton("✓ Gemeldet") {
-                        scope.launch {
-                            db.updatePerson(p.copy(lastContactedIso = LocalDate.now().toString()))
-                            popupPerson = null
+                    if (isOngoingBday) {
+                        if (ongoingCongrats == null) {
+                            PrimaryActionButton("✓ Gratuliert") {
+                                BirthdayCongratulationTracker.markCongratulated(context, p.id, "Persönlich")
+                                BirthdayNotificationHelper.cancelBirthdayNotificationForPerson(context, p.id)
+                                congratsRevision++
+                                RememberMeWidgetUpdater.updateAllAsync(context)
+                                scope.launch {
+                                    db.updatePerson(p.copy(lastContactedIso = LocalDate.now().toString()))
+                                    popupPerson = null
+                                }
+                            }
+                        } else {
+                            CompactButton("✅ Erledigt") {
+                                popupPerson = null
+                            }
+                        }
+                    } else {
+                        CompactButton("✓ Gemeldet") {
+                            scope.launch {
+                                db.updatePerson(p.copy(lastContactedIso = LocalDate.now().toString()))
+                                popupPerson = null
+                            }
                         }
                     }
                     CompactButton("Schließen") { popupPerson = null }
                 }
             }
+        }
+
+        pendingDuplicateChannel?.let { (nextChannel, proceedAction) ->
+            val prevChannel = ongoingCongrats?.channel ?: "App"
+            val prevTime = ongoingCongrats?.timeHm?.takeIf { it.isNotBlank() }?.let { " um $it Uhr" }.orEmpty()
+            AlertDialog(
+                onDismissRequest = { pendingDuplicateChannel = null },
+                containerColor = CardSlate,
+                title = {
+                    Text(
+                        "✅ Bereits gratuliert!",
+                        color = TreeGreen,
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                text = {
+                    Text(
+                        "Du hast ${formatLastNameFirst(p.name)} zum aktuellen Geburtstag heute bereits gratuliert (über $prevChannel$prevTime).\n\nTrotzdem erneut über $nextChannel öffnen?",
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                },
+                dismissButton = {
+                    CompactButton("Abbrechen") {
+                        pendingDuplicateChannel = null
+                    }
+                },
+                confirmButton = {
+                    PrimaryActionButton("✓ Trotzdem") {
+                        pendingDuplicateChannel = null
+                        proceedAction()
+                    }
+                }
+            )
         }
     }
 
@@ -7010,6 +7369,8 @@ fun KontaktChronikApp(
                     }
 
                     db.updatePerson(mergedEntity)
+                    BirthdayCongratulationTracker.mergeRecords(context, targetPrimary.id, secondaryIds)
+                    congratsRevision++
 
                     val prefsEditor = appPrefs.edit()
                     prefsEditor.putString(
