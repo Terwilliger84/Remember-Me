@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_outer_frame"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_r13"
+    android:forceDarkAllowed="false"
+    android:padding="1.5dp">
+
+    <LinearLayout
+        android:id="@+id/w_inner_box"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_bg_r12"
+        android:orientation="vertical"
+        android:padding="6dp">
+
+        <LinearLayout
+            android:id="@+id/w_header_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="2dp"
+            android:paddingEnd="2dp"
+            android:paddingBottom="4dp">
+
+            <TextView
+                android:id="@+id/w_header_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="🎂 Termine"
+                android:textSize="11.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/w_header_open"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="Öffnen ↗"
+                android:textSize="9.8sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/w_empty_text"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:text="Keine anstehenden Termine"
+            android:textSize="11sp"
+            android:visibility="gone" />
+
+        <ListView
+            android:id="@+id/w_list_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:divider="@android:color/transparent"
+            android:dividerHeight="3dp"
+            android:scrollbars="none" />
+    </LinearLayout>
+</FrameLayout>

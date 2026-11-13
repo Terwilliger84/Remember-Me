@@ -12,8 +12,8 @@ android {
         applicationId = "de.kontaktchronik.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 149
-        versionName = "1.0.49"
+        versionCode = 150
+        versionName = "1.0.50"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -64,8 +64,4 @@ dependencies {
 
     // WorkManager for periodic birthday, timer, and special event checks
     implementation("androidx.work:work-runtime-ktx:2.9.0")
-
-    // Jetpack Glance for Android Homescreen Widget
-    implementation("androidx.glance:glance-appwidget:1.1.0")
-    implementation("androidx.glance:glance-material3:1.1.0")
 }

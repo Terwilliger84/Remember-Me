@@ -1,0 +1,417 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_outer_frame"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_r12"
+    android:forceDarkAllowed="false"
+    android:padding="1.5dp">
+
+    <LinearLayout
+        android:id="@+id/w_inner_box"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_bg_r11"
+        android:orientation="vertical"
+        android:paddingStart="5dp"
+        android:paddingTop="3dp"
+        android:paddingEnd="5dp"
+        android:paddingBottom="3dp">
+
+        <LinearLayout
+            android:id="@+id/w_header_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="2dp"
+            android:paddingEnd="2dp"
+            android:paddingBottom="2dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/w_header_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="🎂 Termine"
+                android:textColor="#FF182B42"
+                android:textSize="10.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/w_header_open"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="↗"
+                android:textColor="#FF415A77"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/w_empty_text"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:text="🎂 Keine Termine"
+            android:textColor="#FF415A77"
+            android:textSize="11sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/w_rows_container"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <!-- Slot 0 -->
+            <FrameLayout
+                android:id="@+id/slot_frame_0"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/widget_bg_r7"
+                android:padding="1dp">
+                <LinearLayout
+                    android:id="@+id/slot_inner_0"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/widget_bg_r7"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp">
+                    <TextView
+                        android:id="@+id/slot_name_0"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/slot_meta_0"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="9.2sp" />
+                    <TextView
+                        android:id="@+id/slot_badge_0"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:background="@drawable/widget_bg_r5"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:paddingStart="4.5dp"
+                        android:paddingTop="1dp"
+                        android:paddingEnd="4.5dp"
+                        android:paddingBottom="1dp"
+                        android:singleLine="true"
+                        android:textSize="9sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- Slot 1 -->
+            <FrameLayout
+                android:id="@+id/slot_frame_1"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="1.8dp"
+                android:layout_weight="1"
+                android:background="@drawable/widget_bg_r7"
+                android:padding="1dp">
+                <LinearLayout
+                    android:id="@+id/slot_inner_1"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/widget_bg_r7"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp">
+                    <TextView
+                        android:id="@+id/slot_name_1"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/slot_meta_1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="9.2sp" />
+                    <TextView
+                        android:id="@+id/slot_badge_1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:background="@drawable/widget_bg_r5"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:paddingStart="4.5dp"
+                        android:paddingTop="1dp"
+                        android:paddingEnd="4.5dp"
+                        android:paddingBottom="1dp"
+                        android:singleLine="true"
+                        android:textSize="9sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- Slot 2 -->
+            <FrameLayout
+                android:id="@+id/slot_frame_2"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="1.8dp"
+                android:layout_weight="1"
+                android:background="@drawable/widget_bg_r7"
+                android:padding="1dp">
+                <LinearLayout
+                    android:id="@+id/slot_inner_2"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/widget_bg_r7"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp">
+                    <TextView
+                        android:id="@+id/slot_name_2"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/slot_meta_2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="9.2sp" />
+                    <TextView
+                        android:id="@+id/slot_badge_2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:background="@drawable/widget_bg_r5"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:paddingStart="4.5dp"
+                        android:paddingTop="1dp"
+                        android:paddingEnd="4.5dp"
+                        android:paddingBottom="1dp"
+                        android:singleLine="true"
+                        android:textSize="9sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- Slot 3 -->
+            <FrameLayout
+                android:id="@+id/slot_frame_3"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="1.8dp"
+                android:layout_weight="1"
+                android:background="@drawable/widget_bg_r7"
+                android:padding="1dp">
+                <LinearLayout
+                    android:id="@+id/slot_inner_3"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/widget_bg_r7"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp">
+                    <TextView
+                        android:id="@+id/slot_name_3"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/slot_meta_3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="9.2sp" />
+                    <TextView
+                        android:id="@+id/slot_badge_3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:background="@drawable/widget_bg_r5"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:paddingStart="4.5dp"
+                        android:paddingTop="1dp"
+                        android:paddingEnd="4.5dp"
+                        android:paddingBottom="1dp"
+                        android:singleLine="true"
+                        android:textSize="9sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- Slot 4 (für größere Höhe >= 175dp) -->
+            <FrameLayout
+                android:id="@+id/slot_frame_4"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="1.8dp"
+                android:layout_weight="1"
+                android:background="@drawable/widget_bg_r7"
+                android:padding="1dp"
+                android:visibility="gone">
+                <LinearLayout
+                    android:id="@+id/slot_inner_4"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/widget_bg_r7"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp">
+                    <TextView
+                        android:id="@+id/slot_name_4"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/slot_meta_4"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="9.2sp" />
+                    <TextView
+                        android:id="@+id/slot_badge_4"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:background="@drawable/widget_bg_r5"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:paddingStart="4.5dp"
+                        android:paddingTop="1dp"
+                        android:paddingEnd="4.5dp"
+                        android:paddingBottom="1dp"
+                        android:singleLine="true"
+                        android:textSize="9sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </FrameLayout>
+
+            <!-- Slot 5 (für größere Höhe >= 175dp) -->
+            <FrameLayout
+                android:id="@+id/slot_frame_5"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="1.8dp"
+                android:layout_weight="1"
+                android:background="@drawable/widget_bg_r7"
+                android:padding="1dp"
+                android:visibility="gone">
+                <LinearLayout
+                    android:id="@+id/slot_inner_5"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/widget_bg_r7"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="5dp"
+                    android:paddingEnd="5dp">
+                    <TextView
+                        android:id="@+id/slot_name_5"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/slot_meta_5"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="9.2sp" />
+                    <TextView
+                        android:id="@+id/slot_badge_5"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:background="@drawable/widget_bg_r5"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:paddingStart="4.5dp"
+                        android:paddingTop="1dp"
+                        android:paddingEnd="4.5dp"
+                        android:paddingBottom="1dp"
+                        android:singleLine="true"
+                        android:textSize="9sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
