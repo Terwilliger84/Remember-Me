@@ -3523,7 +3523,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.50",
+                "Remember Me v1.0.51",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4582,7 +4582,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.50")
+                put("version", "1.0.51")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))

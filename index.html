@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <title>Remember Me v1.0.50 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.51 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
@@ -728,14 +728,10 @@
 
     .widget-box {
       background: var(--bg-slate);
-      border: 1.5px solid var(--border-slate);
+      border: 1px solid var(--border-slate);
       border-radius: 12px;
       padding: 8px 10px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.32);
-    }
-    .widget-box.has-bday-today {
-      border-color: #f59e0b;
-      box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35), 0 10px 25px rgba(0, 0, 0, 0.32);
     }
 
     .widget-header {
@@ -2570,7 +2566,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.50</div>
+          <div class="app-title">Remember Me v1.0.51</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -5949,9 +5945,6 @@
       }
       items.sort((a, b) => (a.sortKey - b.sortKey) || (a.priority - b.priority));
 
-      if (widgetBox) {
-        widgetBox.classList.toggle("has-today-bday", hasOpenBirthdayToday);
-      }
       if (widgetTitle) {
         widgetTitle.textContent = hasOpenBirthdayToday ? "🎉 HEUTE GEBURTSTAG!" : "🎂 Kompakt (2×1) – 4 Zeilen";
       }
@@ -10019,7 +10012,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.50",
+        version: "1.0.51",
         createdAt: dateStr,
         state
       };
@@ -10037,7 +10030,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.50",
+        version: "1.0.51",
         createdAt: dateStr,
         state
       };
@@ -10112,7 +10105,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.50 gestartet.");
+    addLog("Remember Me v1.0.51 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

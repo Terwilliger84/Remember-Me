@@ -432,6 +432,9 @@ private object NativeWidgetRenderer {
     private val TILE_BADGE_IDS = intArrayOf(R.id.tile_badge_0, R.id.tile_badge_1, R.id.tile_badge_2)
     private val TILE_NAME_IDS = intArrayOf(R.id.tile_name_0, R.id.tile_name_1, R.id.tile_name_2)
 
+    private fun dpToPx(context: Context, dp: Float): Int =
+        (dp * context.resources.displayMetrics.density + 0.5f).toInt().coerceAtLeast(1)
+
     private fun RemoteViews.tintRounded(viewId: Int, argb: Int) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             setColorStateList(viewId, "setBackgroundTintList", ColorStateList.valueOf(argb))
@@ -545,8 +548,8 @@ private object NativeWidgetRenderer {
             else -> 0
         }
 
-        val outerCol = if (hasOpenBdayToday) palette.bdayTodayFrame else palette.border
-        rv.tintRounded(R.id.w_outer_frame, outerCol)
+        // Kein goldener Rand um das gesamte Widget – immer dezenter Theme-Rahmen
+        rv.tintRounded(R.id.w_outer_frame, palette.border)
         rv.tintRounded(R.id.w_inner_box, palette.bg)
 
         val openAppPi = RememberMeWidgetHelper.buildOpenAppPendingIntent(context, 100_000 + appWidgetId)
@@ -603,6 +606,8 @@ private object NativeWidgetRenderer {
             val metaId = SLOT_META_IDS[slotIdx]
             val badgeId = SLOT_BADGE_IDS[slotIdx]
 
+            val rowPad = dpToPx(context, if (item.isBirthdayToday && !item.isCongratulatedToday) 1.5f else 0.9f)
+            rv.setViewPadding(frameId, rowPad, rowPad, rowPad, rowPad)
             rv.tintRounded(frameId, cols[0])
             rv.tintRounded(innerId, cols[1])
 
@@ -644,9 +649,9 @@ private object NativeWidgetRenderer {
         val rv = RemoteViews(context.packageName, R.layout.widget_strip_row)
         val colCount = if (widthDp >= 310 && rows.size >= 3) 3 else minOf(2, rows.size)
         val shown = rows.take(colCount)
-        val hasOpenBdayToday = shown.any { it.isBirthdayToday && !it.isCongratulatedToday }
 
-        rv.tintRounded(R.id.w_outer_frame, if (hasOpenBdayToday) palette.bdayTodayFrame else palette.border)
+        // Kein goldener Rand um das gesamte Widget – immer dezenter Theme-Rahmen
+        rv.tintRounded(R.id.w_outer_frame, palette.border)
         rv.tintRounded(R.id.w_inner_box, palette.bg)
 
         val openAppPi = RememberMeWidgetHelper.buildOpenAppPendingIntent(context, 200_000 + appWidgetId)
@@ -673,6 +678,8 @@ private object NativeWidgetRenderer {
             rv.setViewVisibility(frameId, View.VISIBLE)
             val cols = resolveRowColors(item, palette)
             val innerId = TILE_INNER_IDS[idx]
+            val rowPad = dpToPx(context, if (item.isBirthdayToday && !item.isCongratulatedToday) 1.5f else 0.9f)
+            rv.setViewPadding(frameId, rowPad, rowPad, rowPad, rowPad)
             rv.tintRounded(frameId, cols[0])
             rv.tintRounded(innerId, cols[1])
 
@@ -710,7 +717,8 @@ private object NativeWidgetRenderer {
             else -> 0
         }
 
-        rv.tintRounded(R.id.w_outer_frame, if (hasOpenBdayToday) palette.bdayTodayFrame else palette.border)
+        // Kein goldener Rand um das gesamte Widget – immer dezenter Theme-Rahmen
+        rv.tintRounded(R.id.w_outer_frame, palette.border)
         rv.tintRounded(R.id.w_inner_box, palette.bg)
 
         val effectiveHeader = when {
@@ -749,6 +757,8 @@ private object NativeWidgetRenderer {
             rows.forEachIndexed { index, item ->
                 val itemRv = RemoteViews(context.packageName, R.layout.widget_list_item)
                 val cols = resolveRowColors(item, palette)
+                val liPad = dpToPx(context, if (item.isBirthdayToday && !item.isCongratulatedToday) 1.5f else 0.9f)
+                itemRv.setViewPadding(R.id.li_frame, liPad, liPad, liPad, liPad)
                 itemRv.tintRounded(R.id.li_frame, cols[0])
                 itemRv.tintRounded(R.id.li_inner, cols[1])
 
