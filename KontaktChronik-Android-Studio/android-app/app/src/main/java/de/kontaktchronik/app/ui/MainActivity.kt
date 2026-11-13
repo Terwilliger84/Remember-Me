@@ -74,6 +74,7 @@ import de.kontaktchronik.app.data.AppDatabase
 import de.kontaktchronik.app.data.ContactDeduplicator
 import de.kontaktchronik.app.data.ContactsSyncRepository
 import de.kontaktchronik.app.data.DeviceContactFullDetails
+import de.kontaktchronik.app.data.PhotoSyncMode
 import de.kontaktchronik.app.messaging.DirectMessagingService
 import de.kontaktchronik.app.model.*
 import de.kontaktchronik.app.reminders.BirthdayNotificationHelper
@@ -3429,16 +3430,143 @@ fun KontaktChronikApp(
         }
     }
 
+    var pendingAfterContactsPermission by remember { mutableStateOf<(() -> Unit)?>(null) }
+
     val contactPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { perms ->
-        if (perms[Manifest.permission.READ_CONTACTS] == true) {
+        val hasRead = perms[Manifest.permission.READ_CONTACTS] == true ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+        val hasWrite = perms[Manifest.permission.WRITE_CONTACTS] == true ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CONTACTS) == PackageManager.PERMISSION_GRANTED
+        val deferred = pendingAfterContactsPermission
+        pendingAfterContactsPermission = null
+        if (hasWrite && deferred != null) {
+            deferred.invoke()
+        } else if (hasRead) {
             scope.launch {
                 val count = syncContactsRespectingMerged()
                 syncStatus = "$count Kontakte synchronisiert"
             }
         } else {
             syncStatus = "Kontakt-Berechtigung verweigert"
+        }
+    }
+
+    fun deleteContactEverywhere(target: PersonEntity) {
+        scope.launch {
+            val existingCid = target.importedFromDeviceContactId?.takeIf { it.isNotBlank() }
+            if (existingCid != null) {
+                val updatedIgnored = mergedAwayDeviceCids + existingCid
+                mergedAwayDeviceCids = updatedIgnored
+                appPrefs.edit().putStringSet("merged_away_device_cids", updatedIgnored).apply()
+            }
+
+            val hasWrite = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (hasWrite) {
+                val removedCids = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    syncRepo.deleteDeviceContactForPerson(context.contentResolver, target)
+                }
+                if (removedCids.isNotEmpty()) {
+                    val updatedIgnored = mergedAwayDeviceCids + removedCids
+                    mergedAwayDeviceCids = updatedIgnored
+                    appPrefs.edit().putStringSet("merged_away_device_cids", updatedIgnored).apply()
+                }
+            } else {
+                val snapshotTarget = target
+                pendingAfterContactsPermission = {
+                    scope.launch {
+                        val removedCids = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            syncRepo.deleteDeviceContactForPerson(context.contentResolver, snapshotTarget)
+                        }
+                        if (removedCids.isNotEmpty()) {
+                            val updatedIgnored = mergedAwayDeviceCids + removedCids
+                            mergedAwayDeviceCids = updatedIgnored
+                            appPrefs.edit().putStringSet("merged_away_device_cids", updatedIgnored).apply()
+                        }
+                        syncStatus = "Kontakt auch am Handy gelöscht"
+                    }
+                }
+                contactPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.READ_CONTACTS,
+                        Manifest.permission.WRITE_CONTACTS
+                    )
+                )
+            }
+
+            // Lokale Verknüpfungen, Erinnerungen, Nachrichten & Widget-Daten restlos aufräumen
+            val allRels = db.getAllRelationsOnce()
+            allRels.filter { it.fromPersonId == target.id || it.toPersonId == target.id }
+                .forEach { db.deleteRelation(it) }
+            val allEvs = db.getAllSpecialEventsOnce()
+            allEvs.filter { it.personId == target.id }
+                .forEach { db.deleteSpecialEvent(it) }
+            db.deleteMessagesForPerson(target.id)
+
+            BirthdayCongratulationTracker.clearCongratulated(context, target.id)
+            BirthdayNotificationHelper.cancelBirthdayNotificationForPerson(context, target.id)
+            congratsRevision++
+
+            val nextHidden = hiddenPersonIds - target.id
+            hiddenPersonIds = nextHidden
+            val filteredDismissed = dismissedMergePairs.filterNot { raw ->
+                val parts = raw.split(":")
+                parts.getOrNull(0)?.toLongOrNull() == target.id ||
+                    parts.getOrNull(1)?.toLongOrNull() == target.id
+            }.toSet()
+            dismissedMergePairs = filteredDismissed
+            appPrefs.edit()
+                .remove("extra_infos_${target.id}")
+                .putStringSet("hidden_person_ids", nextHidden.map { it.toString() }.toSet())
+                .putStringSet("dismissed_merge_pairs", filteredDismissed)
+                .apply()
+
+            if (wichtelGroups.any { g -> g.participants.any { it.personId == target.id } }) {
+                saveWichtelGroups(
+                    wichtelGroups.map { g ->
+                        g.copy(
+                            participants = g.participants.map { part ->
+                                if (part.personId == target.id) part.copy(personId = null) else part
+                            }
+                        )
+                    }
+                )
+            }
+            if (wichtelHistory.any { h -> h.pairings.any { it.giverPersonId == target.id || it.receiverPersonId == target.id } }) {
+                saveWichtelHistory(
+                    wichtelHistory.map { h ->
+                        h.copy(
+                            pairings = h.pairings.map { pair ->
+                                pair.copy(
+                                    giverPersonId = if (pair.giverPersonId == target.id) null else pair.giverPersonId,
+                                    receiverPersonId = if (pair.receiverPersonId == target.id) null else pair.receiverPersonId
+                                )
+                            }
+                        )
+                    }
+                )
+            }
+
+            db.deletePerson(target)
+
+            if (detailPerson?.id == target.id) detailPerson = null
+            if (popupPerson?.id == target.id) popupPerson = null
+            if (selectedTreeRootId == target.id) {
+                selectedTreeRootId = visiblePersons.firstOrNull { it.id != target.id }?.id
+            }
+            RememberMeWidgetUpdater.updateAllAsync(context)
+            syncStatus = "Kontakt in App & am Handy gelöscht"
+        }
+    }
+
+    fun requestDeleteContactEverywhere(target: PersonEntity) {
+        pendingConfirmMessage = "Kontakt „${formatLastNameFirst(target.name)}“ in App & am Handy unwiderruflich löschen?"
+        pendingConfirmAction = {
+            deleteContactEverywhere(target)
         }
     }
 
@@ -3523,7 +3651,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.51",
+                "Remember Me v1.0.52",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -3854,18 +3982,25 @@ fun KontaktChronikApp(
                                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    CompactButton("💬") {
-                                        val relPairs = relations
-                                            .filter { it.fromPersonId == person.id }
-                                            .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
-                                        val resolved = ContactResolver.resolveTarget(person, relPairs)
-                                        val isBday = BirthdayCongratulationTracker.isOngoingBirthday(person.birthdayIso)
-                                        popupReason = if (isBday) "🎂 Geburtstag" else "Nachricht"
-                                        quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
-                                        popupPerson = person
+                                    if (!isHidden) {
+                                        CompactButton("💬") {
+                                            val relPairs = relations
+                                                .filter { it.fromPersonId == person.id }
+                                                .mapNotNull { rel -> persons.find { it.id == rel.toPersonId }?.let { rel to it } }
+                                            val resolved = ContactResolver.resolveTarget(person, relPairs)
+                                            val isBday = BirthdayCongratulationTracker.isOngoingBirthday(person.birthdayIso)
+                                            popupReason = if (isBday) "🎂 Geburtstag" else "Nachricht"
+                                            quickMessageText = pickRandomBirthdayGreeting(extractFirstName(resolved.targetPersonName), false)
+                                            popupPerson = person
+                                        }
                                     }
                                     CompactButton(if (isHidden) "Einbl." else "Ausbl.") {
                                         setPersonHidden(person.id, !isHidden)
+                                    }
+                                    if (isHidden) {
+                                        DangerActionButton("🗑️") {
+                                            requestDeleteContactEverywhere(person)
+                                        }
                                     }
                                 }
                             }
@@ -4543,6 +4678,7 @@ fun KontaktChronikApp(
     }
 
     if (pendingConfirmMessage != null) {
+        val isDeletePrompt = pendingConfirmMessage.orEmpty().contains("löschen", ignoreCase = true)
         AlertDialog(
             onDismissRequest = {
                 pendingConfirmMessage = null
@@ -4550,7 +4686,14 @@ fun KontaktChronikApp(
             },
             containerColor = CardSlate,
             title = {
-                Text("Sicherheitsabfrage", color = WarnAmber, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Sicherheitsabfrage",
+                    color = WarnAmber,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
+                )
             },
             text = {
                 Text(pendingConfirmMessage.orEmpty(), color = TextPrimary, fontSize = 13.sp)
@@ -4562,11 +4705,20 @@ fun KontaktChronikApp(
                 }
             },
             confirmButton = {
-                CompactButton("Ja, löschen") {
-                    val action = pendingConfirmAction
-                    pendingConfirmMessage = null
-                    pendingConfirmAction = null
-                    action?.invoke()
+                if (isDeletePrompt) {
+                    DangerActionButton("🗑️ Löschen") {
+                        val action = pendingConfirmAction
+                        pendingConfirmMessage = null
+                        pendingConfirmAction = null
+                        action?.invoke()
+                    }
+                } else {
+                    CompactButton("✓ Bestätigen") {
+                        val action = pendingConfirmAction
+                        pendingConfirmMessage = null
+                        pendingConfirmAction = null
+                        action?.invoke()
+                    }
                 }
             }
         )
@@ -4582,7 +4734,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.51")
+                put("version", "1.0.52")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -5441,38 +5593,67 @@ fun KontaktChronikApp(
                 val cleanBaseIso = normalizeDateInputToIso(startDateText)
                     .takeIf { it.isNotBlank() && !it.startsWith("--") }
                     ?: LocalDate.now().toString()
+                val hasWrite = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.WRITE_CONTACTS
+                ) == PackageManager.PERMISSION_GRANTED
 
                 if (createNewContactMode) {
                     if (newContactName.isNotBlank()) {
-                        db.upsertPerson(
-                            PersonEntity(
-                                name = newContactName.trim(),
-                                birthdayIso = null,
-                                hasNoOwnPhone = false,
-                                phone = newContactPhone.trim(),
-                                email = "",
-                                notes = timerNote.trim(),
-                                timerEnabled = true,
-                                timerInterval = cleanInterval,
-                                timerUnit = unitVal,
-                                lastContactedIso = cleanBaseIso
-                            )
+                        val baseNew = PersonEntity(
+                            name = newContactName.trim(),
+                            birthdayIso = null,
+                            hasNoOwnPhone = false,
+                            phone = newContactPhone.trim(),
+                            email = "",
+                            notes = timerNote.trim(),
+                            timerEnabled = true,
+                            timerInterval = cleanInterval,
+                            timerUnit = unitVal,
+                            lastContactedIso = cleanBaseIso
                         )
+                        val createdCid = if (hasWrite) {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                syncRepo.saveOrUpdateDeviceContact(
+                                    contentResolver = context.contentResolver,
+                                    person = baseNew,
+                                    photoSyncMode = PhotoSyncMode.KEEP_DEVICE_PHOTO
+                                )
+                            }
+                        } else null
+                        db.upsertPerson(baseNew.copy(importedFromDeviceContactId = createdCid))
+                        syncRepo.ensureDefaultPhotosForAllPersons()
                         showTimerEntryDialog = false
                         editingTimerPerson = null
                     }
                 } else {
                     val target = visiblePersons.find { it.id == selectedContactId }
                     if (target != null) {
-                        db.updatePerson(
-                            target.copy(
-                                timerEnabled = true,
-                                timerInterval = cleanInterval,
-                                timerUnit = unitVal,
-                                lastContactedIso = cleanBaseIso,
-                                notes = if (timerNote.isNotBlank()) timerNote.trim() else target.notes
-                            )
+                        val newNotes = if (timerNote.isNotBlank()) timerNote.trim() else target.notes
+                        var updatedTarget = target.copy(
+                            timerEnabled = true,
+                            timerInterval = cleanInterval,
+                            timerUnit = unitVal,
+                            lastContactedIso = cleanBaseIso,
+                            notes = newNotes
                         )
+                        if (hasWrite && newNotes != target.notes) {
+                            val extras = parseExtraInfosPref(appPrefs.getString("extra_infos_${target.id}", null))
+                            val cid = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                syncRepo.saveOrUpdateDeviceContact(
+                                    contentResolver = context.contentResolver,
+                                    person = updatedTarget,
+                                    extraInfos = extras,
+                                    photoSyncMode = PhotoSyncMode.KEEP_DEVICE_PHOTO,
+                                    previousNameForLookup = target.name,
+                                    previousPhoneForLookup = target.phone
+                                )
+                            }
+                            if (!cid.isNullOrBlank()) {
+                                updatedTarget = updatedTarget.copy(importedFromDeviceContactId = cid)
+                            }
+                        }
+                        db.updatePerson(updatedTarget)
                         showTimerEntryDialog = false
                         editingTimerPerson = null
                     }
@@ -5769,6 +5950,7 @@ fun KontaktChronikApp(
             if (name.isNotBlank()) {
                 scope.launch {
                     val parsedTimerDays = timerInterval.trim().toIntOrNull()?.takeIf { it > 0 }
+                    val userPickedPhoto = photoVal.isNotBlank()
                     val basePerson = PersonEntity(
                         name = name.trim(),
                         birthdayIso = normalizeDateInputToIso(bday),
@@ -5782,51 +5964,61 @@ fun KontaktChronikApp(
                         lastContactedIso = LocalDate.now().toString(),
                         photoBase64 = photoVal
                     )
+                    val extrasSnapshot = extraInfos.toList()
                     var deviceCid: String? = null
-                    if (saveInDeviceContacts) {
-                        val hasWrite = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.WRITE_CONTACTS
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (hasWrite) {
-                            deviceCid = syncRepo.saveOrUpdateDeviceContact(
-                                context.contentResolver,
-                                basePerson,
-                                extraInfos
+                    val hasWrite = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.WRITE_CONTACTS
+                    ) == PackageManager.PERMISSION_GRANTED
+
+                    if (saveInDeviceContacts && hasWrite) {
+                        deviceCid = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            syncRepo.saveOrUpdateDeviceContact(
+                                contentResolver = context.contentResolver,
+                                person = basePerson,
+                                extraInfos = extrasSnapshot,
+                                photoSyncMode = if (userPickedPhoto) PhotoSyncMode.UPDATE_OR_CLEAR else PhotoSyncMode.KEEP_DEVICE_PHOTO
                             )
-                            syncStatus = "Kontakt in App & Handykontakten gespeichert"
-                        } else {
-                            contactPermissionLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.READ_CONTACTS,
-                                    Manifest.permission.WRITE_CONTACTS
-                                )
-                            )
-                            runCatching {
-                                val displayNameForIntent = listOf(firstName.trim(), lastName.trim())
-                                    .filter { it.isNotBlank() }
-                                    .joinToString(" ")
-                                    .ifBlank { basePerson.name }
-                                val insertIntent = Intent(Intent.ACTION_INSERT).apply {
-                                    type = android.provider.ContactsContract.Contacts.CONTENT_TYPE
-                                    putExtra(android.provider.ContactsContract.Intents.Insert.NAME, displayNameForIntent)
-                                    putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, basePerson.phone)
-                                    putExtra(android.provider.ContactsContract.Intents.Insert.EMAIL, basePerson.email)
-                                    putExtra(android.provider.ContactsContract.Intents.Insert.NOTES, basePerson.notes)
-                                }
-                                context.startActivity(insertIntent)
-                            }
                         }
+                        syncStatus = "Kontakt in App & Handykontakten gespeichert"
                     }
                     val newId = db.upsertPerson(
                         basePerson.copy(importedFromDeviceContactId = deviceCid)
                     )
+                    syncRepo.ensureDefaultPhotosForAllPersons()
+                    if (saveInDeviceContacts && !hasWrite) {
+                        pendingAfterContactsPermission = {
+                            scope.launch {
+                                val createdCid = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    syncRepo.saveOrUpdateDeviceContact(
+                                        contentResolver = context.contentResolver,
+                                        person = basePerson,
+                                        extraInfos = extrasSnapshot,
+                                        photoSyncMode = if (userPickedPhoto) PhotoSyncMode.UPDATE_OR_CLEAR else PhotoSyncMode.KEEP_DEVICE_PHOTO
+                                    )
+                                }
+                                if (!createdCid.isNullOrBlank()) {
+                                    val currentSaved = db.getAllPersonsOnce().find { it.id == newId }
+                                    if (currentSaved != null) {
+                                        db.updatePerson(currentSaved.copy(importedFromDeviceContactId = createdCid))
+                                    }
+                                    syncStatus = "Kontakt in App & Handykontakten gespeichert"
+                                }
+                            }
+                        }
+                        contactPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.READ_CONTACTS,
+                                Manifest.permission.WRITE_CONTACTS
+                            )
+                        )
+                    }
                     for ((lbl, targetId) in pendingCreateRelations) {
                         if (targetId > 0L && lbl.isNotBlank()) {
                             addBidirectionalRelation(newId, targetId, lbl)
                         }
                     }
-                    val serializedExtras = extraInfos
+                    val serializedExtras = extrasSnapshot
                         .map { sanitizeSingleLineExtraText(it.first) to sanitizeSingleLineExtraText(it.second) }
                         .filter { it.first.isNotBlank() || it.second.isNotBlank() }
                         .joinToString("\n") { "${it.first}\t${it.second}" }
@@ -6064,11 +6256,14 @@ fun KontaktChronikApp(
         var bdayVal by remember(dp) { mutableStateOf(formatIsoToDdMmYyyy(dp.birthdayIso)) }
         var phoneVal by remember(dp) { mutableStateOf(dp.phone) }
         var noPhoneVal by remember(dp) { mutableStateOf(dp.hasNoOwnPhone) }
-        var saveInDeviceVal by remember(dp) { mutableStateOf(true) }
+        var saveInDeviceVal by remember(dp) {
+            mutableStateOf(!prefs.getBoolean("device_sync_disabled_${dp.id}", false))
+        }
         var isHiddenVal by remember(dp, hiddenPersonIds) { mutableStateOf(dp.isHidden || hiddenPersonIds.contains(dp.id)) }
         var emailVal by remember(dp) { mutableStateOf(dp.email) }
         var notesVal by remember(dp) { mutableStateOf(dp.notes) }
         var photoVal by remember(dp) { mutableStateOf(dp.photoBase64) }
+        var photoModifiedByUser by remember(dp.id) { mutableStateOf(false) }
         val detailPhotoPickerLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.GetContent()
         ) { uri ->
@@ -6076,6 +6271,7 @@ fun KontaktChronikApp(
                 val encoded = encodeUriToBase64Jpeg(context, uri)
                 if (encoded.isNotBlank()) {
                     photoVal = encoded
+                    photoModifiedByUser = true
                 }
             }
         }
@@ -6083,6 +6279,115 @@ fun KontaktChronikApp(
             val raw = prefs.getString("extra_infos_${dp.id}", "").orEmpty()
             mutableStateOf(parseExtraInfosPref(raw))
         }
+        var deviceDetailsLoaded by remember(dp.id) {
+            mutableStateOf(dp.importedFromDeviceContactId.isNullOrBlank())
+        }
+
+        fun mergeDeviceDetailsIntoFields(
+            details: DeviceContactFullDetails,
+            currentPhone: String,
+            currentEmail: String,
+            currentNotes: String,
+            currentExtras: List<Pair<String, String>>
+        ): Pair<List<Pair<String, String>>, String> {
+            val existingPhoneKeys = buildSet {
+                val pk = ContactDeduplicator.canonicalPhoneKey(currentPhone)
+                if (pk.isNotBlank()) add(pk)
+                currentExtras.forEach { (_, v) ->
+                    if (ContactDeduplicator.isPhoneLike(v)) {
+                        val k = ContactDeduplicator.canonicalPhoneKey(v)
+                        if (k.isNotBlank()) add(k)
+                    }
+                }
+            }.toMutableSet()
+
+            val existingEmailKeys = buildSet {
+                val ek = ContactDeduplicator.canonicalEmailKey(currentEmail)
+                if (ek.isNotBlank()) add(ek)
+                currentExtras.forEach { (_, v) ->
+                    if (ContactDeduplicator.isEmailLike(v)) {
+                        val k = ContactDeduplicator.canonicalEmailKey(v)
+                        if (k.isNotBlank()) add(k)
+                    }
+                }
+            }.toMutableSet()
+
+            val existingAddrKeys = buildSet {
+                currentExtras.forEach { (l, v) ->
+                    if (ContactDeduplicator.isAddressLabel(l)) {
+                        val k = ContactDeduplicator.canonicalTextKey(v)
+                        if (k.isNotBlank()) add(k)
+                    }
+                }
+            }.toMutableSet()
+
+            val mergedExtras = currentExtras.toMutableList()
+            details.phones.forEach { (lbl, num) ->
+                val k = ContactDeduplicator.canonicalPhoneKey(num)
+                if (k.isNotBlank() && existingPhoneKeys.add(k)) {
+                    val niceLbl = if (lbl.equals("Telefon", ignoreCase = true)) "2. Telefon" else lbl
+                    mergedExtras.add(niceLbl to num)
+                }
+            }
+            details.emails.forEach { (lbl, mail) ->
+                val k = ContactDeduplicator.canonicalEmailKey(mail)
+                if (k.isNotBlank() && existingEmailKeys.add(k)) {
+                    val niceLbl = if (lbl.equals("E-Mail", ignoreCase = true)) "2. E-Mail" else lbl
+                    mergedExtras.add(niceLbl to mail)
+                }
+            }
+            details.addresses.forEach { (lbl, addr) ->
+                val k = ContactDeduplicator.canonicalTextKey(addr)
+                if (k.isNotBlank() && existingAddrKeys.add(k)) {
+                    mergedExtras.add(lbl.ifBlank { "Adresse" } to addr)
+                }
+            }
+            val mergedNotes = if (currentNotes.isBlank() && details.notes.isNotEmpty()) {
+                ContactDeduplicator.deduplicateNotes(
+                    rawNotes = details.notes,
+                    seenPhoneKeys = existingPhoneKeys,
+                    seenEmailKeys = existingEmailKeys,
+                    seenAddressKeys = existingAddrKeys
+                )
+            } else {
+                currentNotes
+            }
+            return mergedExtras to mergedNotes
+        }
+
+        LaunchedEffect(dp.id) {
+            val cid = dp.importedFromDeviceContactId?.takeIf { it.isNotBlank() }
+            if (cid == null || !saveInDeviceVal) {
+                deviceDetailsLoaded = true
+                return@LaunchedEffect
+            }
+            val hasRead = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!hasRead) {
+                deviceDetailsLoaded = true
+                return@LaunchedEffect
+            }
+            val details = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                syncRepo.readDeviceContactFullDetails(context.contentResolver, cid)
+            }
+            val (mergedExtras, mergedNotes) = mergeDeviceDetailsIntoFields(
+                details = details,
+                currentPhone = phoneVal,
+                currentEmail = emailVal,
+                currentNotes = notesVal,
+                currentExtras = extraInfos
+            )
+            if (mergedExtras != extraInfos) {
+                extraInfos = mergedExtras
+            }
+            if (notesVal.isBlank() && mergedNotes.isNotBlank()) {
+                notesVal = mergedNotes
+            }
+            deviceDetailsLoaded = true
+        }
+
         var newEvTitle by remember { mutableStateOf("") }
         var newEvCount by remember { mutableStateOf("1") }
         var newEvUnit by remember { mutableStateOf("DAYS") }
@@ -6101,32 +6406,92 @@ fun KontaktChronikApp(
 
         fun saveDetailChanges() {
             scope.launch {
+                var finalExtras = extraInfos
+                var finalNotes = notesVal.trim()
+                val existingCid = dp.importedFromDeviceContactId?.takeIf { it.isNotBlank() }
+                if (!deviceDetailsLoaded && existingCid != null && saveInDeviceVal) {
+                    val hasRead = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.READ_CONTACTS
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasRead) {
+                        val details = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            syncRepo.readDeviceContactFullDetails(context.contentResolver, existingCid)
+                        }
+                        val (mExt, mNot) = mergeDeviceDetailsIntoFields(
+                            details = details,
+                            currentPhone = phoneVal,
+                            currentEmail = emailVal,
+                            currentNotes = finalNotes,
+                            currentExtras = finalExtras
+                        )
+                        finalExtras = mExt
+                        finalNotes = mNot
+                    }
+                }
+
+                val photoMode = if (photoModifiedByUser) {
+                    PhotoSyncMode.UPDATE_OR_CLEAR
+                } else {
+                    PhotoSyncMode.KEEP_DEVICE_PHOTO
+                }
                 var updated = dp.copy(
                     name = nameVal.trim().ifBlank { dp.name },
                     birthdayIso = normalizeDateInputToIso(bdayVal),
                     phone = phoneVal.trim(),
                     hasNoOwnPhone = noPhoneVal,
                     email = emailVal.trim(),
-                    notes = notesVal.trim(),
+                    notes = finalNotes,
                     isHidden = isHiddenVal,
                     photoBase64 = photoVal
                 )
+                val prevNameSnapshot = dp.name
+                val prevPhoneSnapshot = dp.phone
+                val extrasSnapshot = finalExtras.toList()
+
                 if (saveInDeviceVal) {
                     val hasWrite = ContextCompat.checkSelfPermission(
                         context,
                         Manifest.permission.WRITE_CONTACTS
                     ) == PackageManager.PERMISSION_GRANTED
                     if (hasWrite) {
-                        val cid = syncRepo.saveOrUpdateDeviceContact(
-                            context.contentResolver,
-                            updated,
-                            extraInfos
-                        )
+                        val cid = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            syncRepo.saveOrUpdateDeviceContact(
+                                contentResolver = context.contentResolver,
+                                person = updated,
+                                extraInfos = extrasSnapshot,
+                                photoSyncMode = photoMode,
+                                previousNameForLookup = prevNameSnapshot,
+                                previousPhoneForLookup = prevPhoneSnapshot
+                            )
+                        }
                         if (!cid.isNullOrBlank()) {
                             updated = updated.copy(importedFromDeviceContactId = cid)
                         }
-                        syncStatus = "Kontakt in App & Handykontakten aktualisiert"
+                        syncStatus = "Kontakt in App & am Handy aktualisiert"
                     } else {
+                        val updatedSnapshot = updated
+                        pendingAfterContactsPermission = {
+                            scope.launch {
+                                val cid = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    syncRepo.saveOrUpdateDeviceContact(
+                                        contentResolver = context.contentResolver,
+                                        person = updatedSnapshot,
+                                        extraInfos = extrasSnapshot,
+                                        photoSyncMode = photoMode,
+                                        previousNameForLookup = prevNameSnapshot,
+                                        previousPhoneForLookup = prevPhoneSnapshot
+                                    )
+                                }
+                                if (!cid.isNullOrBlank()) {
+                                    val latest = db.getAllPersonsOnce().find { it.id == dp.id }
+                                    if (latest != null) {
+                                        db.updatePerson(latest.copy(importedFromDeviceContactId = cid))
+                                    }
+                                }
+                                syncStatus = "Kontakt in App & am Handy aktualisiert"
+                            }
+                        }
                         contactPermissionLauncher.launch(
                             arrayOf(
                                 Manifest.permission.READ_CONTACTS,
@@ -6136,14 +6501,20 @@ fun KontaktChronikApp(
                     }
                 }
                 db.updatePerson(updated)
+                if (photoVal.isBlank()) {
+                    syncRepo.ensureDefaultPhotosForAllPersons()
+                }
                 setPersonHidden(dp.id, isHiddenVal)
                 for ((lbl, targetId) in pendingDetailRelations) {
                     if (targetId > 0L && lbl.isNotBlank()) {
                         addBidirectionalRelation(dp.id, targetId, lbl)
                     }
                 }
-                val serializedExtras = serializeExtraInfosPref(extraInfos)
-                prefs.edit().putString("extra_infos_${dp.id}", serializedExtras).apply()
+                val serializedExtras = serializeExtraInfosPref(extrasSnapshot)
+                prefs.edit()
+                    .putString("extra_infos_${dp.id}", serializedExtras)
+                    .putBoolean("device_sync_disabled_${dp.id}", !saveInDeviceVal)
+                    .apply()
                 if (newEvTitle.isNotBlank()) {
                     val cCount = newEvCount.toIntOrNull()?.coerceAtLeast(1) ?: 1
                     val nextDateIso = addIntervalToIsoDate(LocalDate.now(), cCount, newEvUnit).toString()
@@ -6161,6 +6532,7 @@ fun KontaktChronikApp(
                         )
                     )
                 }
+                RememberMeWidgetUpdater.updateAllAsync(context)
                 detailPerson = null
             }
         }
@@ -6230,7 +6602,10 @@ fun KontaktChronikApp(
                         birthdayText = bdayVal.trim(),
                         photoBase64 = photoVal,
                         onPickPhoto = { detailPhotoPickerLauncher.launch("image/*") },
-                        onRemovePhoto = { photoVal = "" },
+                        onRemovePhoto = {
+                            photoVal = ""
+                            photoModifiedByUser = true
+                        },
                         extraActionRow = {
                             val isDpBdayToday = BirthdayCongratulationTracker.isOngoingBirthday(dp.birthdayIso)
                             val dpCongratRec = congratulatedRecords[dp.id]?.takeIf { isDpBdayToday && it.year == LocalDate.now().year }
@@ -6744,13 +7119,7 @@ fun KontaktChronikApp(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     DangerActionButton("🗑️ Löschen") {
-                        pendingConfirmMessage = "Kontakt „${dp.name}\" wirklich unwiderruflich löschen?"
-                        pendingConfirmAction = {
-                            scope.launch {
-                                db.deletePerson(dp)
-                                detailPerson = null
-                            }
-                        }
+                        requestDeleteContactEverywhere(dp)
                     }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -7310,11 +7679,13 @@ fun KontaktChronikApp(
                             Manifest.permission.WRITE_CONTACTS
                         ) == PackageManager.PERMISSION_GRANTED
                         if (hasWrite) {
+                            val hasRealDevicePhoto = deviceDetailsMap.values.any { it.realPhotoBase64.isNotBlank() }
                             val updatedCid = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                                 val savedCid = syncRepo.saveOrUpdateDeviceContact(
                                     contentResolver = context.contentResolver,
                                     person = mergedEntity,
-                                    extraInfos = currentPreview.deduplicatedExtraInfos
+                                    extraInfos = currentPreview.deduplicatedExtraInfos,
+                                    photoSyncMode = if (hasRealDevicePhoto) PhotoSyncMode.UPDATE_OR_CLEAR else PhotoSyncMode.KEEP_DEVICE_PHOTO
                                 )
                                 secondaryDeviceCids
                                     .filter { it != savedCid && it != mergedEntity.importedFromDeviceContactId }

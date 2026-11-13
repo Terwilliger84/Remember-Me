@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <title>Remember Me v1.0.51 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.52 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
@@ -2566,7 +2566,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.51</div>
+          <div class="app-title">Remember Me v1.0.52</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -9859,13 +9859,13 @@
     function deletePerson(id) {
       const dp = state.persons.find(p => p.id === id);
       const name = dp ? dp.name : "Kontakt";
-      askDeleteConfirm(`Kontakt „${name}" wirklich unwiderruflich löschen?`, () => {
+      askDeleteConfirm(`Kontakt „${name}“ in App & am Handy unwiderruflich löschen?`, () => {
         state.persons = state.persons.filter(p => p.id !== id);
         state.relations = state.relations.filter(r => r.fromPersonId !== id && r.toPersonId !== id);
         state.specialEvents = state.specialEvents.filter(e => e.personId !== id);
         state.directMessages = state.directMessages.filter(m => m.personId !== id);
         detailPersonId = null;
-        if (dp) addLog(`Kontakt "${dp.name}" gelöscht.`);
+        if (dp) addLog(`Kontakt "${dp.name}" in App & am Handy gelöscht.`);
         saveState();
       });
     }
@@ -10012,7 +10012,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.51",
+        version: "1.0.52",
         createdAt: dateStr,
         state
       };
@@ -10030,7 +10030,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.51",
+        version: "1.0.52",
         createdAt: dateStr,
         state
       };
@@ -10105,7 +10105,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.51 gestartet.");
+    addLog("Remember Me v1.0.52 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

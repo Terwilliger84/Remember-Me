@@ -90,6 +90,14 @@ interface KontaktChronikDao {
 
     @Query("UPDATE direct_messages SET personId = :targetPersonId WHERE personId = :oldPersonId")
     suspend fun reassignMessagesForPerson(oldPersonId: Long, targetPersonId: Long)
+
+    @Query("DELETE FROM direct_messages WHERE personId = :personId")
+    suspend fun deleteMessagesForPerson(personId: Long)
+}
+
+enum class PhotoSyncMode {
+    KEEP_DEVICE_PHOTO,
+    UPDATE_OR_CLEAR
 }
 
 @Database(
@@ -409,10 +417,32 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
         val allContactIds = linkedSetOf<String>()
         val rawDisplayByCid = mutableMapOf<String, String>()
         val structuredFormattedByCid = mutableMapOf<String, String>()
+        val structuredPriorityByCid = mutableMapOf<String, Int>()
         val companyByCid = mutableMapOf<String, String>()
         val birthdaysByContactId = mutableMapOf<String, String>()
         val phonesByContactId = mutableMapOf<String, String>()
+        val phonePriorityByCid = mutableMapOf<String, Int>()
         val emailsByContactId = mutableMapOf<String, String>()
+
+        val rawPriorityById = mutableMapOf<Long, Int>()
+        runCatching {
+            contentResolver.query(
+                ContactsContract.RawContacts.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.RawContacts._ID,
+                    ContactsContract.RawContacts.ACCOUNT_TYPE
+                ),
+                "${ContactsContract.RawContacts.DELETED} = 0",
+                null,
+                null
+            )?.use { rc ->
+                val idIdx = rc.getColumnIndexOrThrow(ContactsContract.RawContacts._ID)
+                val typeIdx = rc.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_TYPE)
+                while (rc.moveToNext()) {
+                    rawPriorityById[rc.getLong(idIdx)] = accountWritePriority(rc.getString(typeIdx))
+                }
+            }
+        }
 
         // 1. Alle Kontakte aus dem Telefonbuch lesen (auch ohne Geburtstag/Datum oder ohne Anzeigename)
         contentResolver.query(
@@ -440,11 +470,12 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             }
         }
 
-        // 1b. Echte Vor- und Nachnamen aus StructuredName lesen (für exakte Nachnamen-Sortierung)
+        // 1b. Echte Vor- und Nachnamen aus StructuredName lesen (bevorzugt Google / Telefonbuch vor Messenger)
         contentResolver.query(
             ContactsContract.Data.CONTENT_URI,
             arrayOf(
                 ContactsContract.Data.CONTACT_ID,
+                ContactsContract.Data.RAW_CONTACT_ID,
                 ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME,
                 ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME,
                 ContactsContract.CommonDataKinds.StructuredName.MIDDLE_NAME,
@@ -455,27 +486,33 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             null
         )?.use { cursor ->
             val idIdx = cursor.getColumnIndexOrThrow(ContactsContract.Data.CONTACT_ID)
+            val rawIdx = cursor.getColumnIndexOrThrow(ContactsContract.Data.RAW_CONTACT_ID)
             val dispIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME)
             val givenIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME)
             val midIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.StructuredName.MIDDLE_NAME)
             val famIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME)
             while (cursor.moveToNext()) {
                 val cid = cursor.getString(idIdx) ?: continue
+                val rid = cursor.getLong(rawIdx)
+                val prio = rawPriorityById[rid] ?: 50
                 allContactIds.add(cid)
                 val disp = cursor.getString(dispIdx)?.trim().orEmpty()
                 val given = cursor.getString(givenIdx)?.trim().orEmpty()
                 val mid = cursor.getString(midIdx)?.trim().orEmpty()
                 val fam = cursor.getString(famIdx)?.trim().orEmpty()
-                if (disp.isNotBlank() && !rawDisplayByCid.containsKey(cid)) {
+                if (disp.isNotBlank() && (!rawDisplayByCid.containsKey(cid) || prio > (structuredPriorityByCid[cid] ?: -100))) {
                     rawDisplayByCid[cid] = disp
                 }
-                if (!structuredFormattedByCid.containsKey(cid)) {
-                    val firstCombined = listOf(given, mid).filter { it.isNotBlank() }.joinToString(" ").trim()
-                    if (fam.isNotBlank() && firstCombined.isNotBlank() && !fam.equals(firstCombined, ignoreCase = true)) {
-                        structuredFormattedByCid[cid] = "$fam, $firstCombined"
-                    } else if (fam.isNotBlank() && firstCombined.isBlank()) {
-                        structuredFormattedByCid[cid] = fam
-                    }
+                val firstCombined = listOf(given, mid).filter { it.isNotBlank() }.joinToString(" ").trim()
+                val candidateStructured = when {
+                    fam.isNotBlank() && firstCombined.isNotBlank() && !fam.equals(firstCombined, ignoreCase = true) ->
+                        "$fam, $firstCombined"
+                    fam.isNotBlank() && firstCombined.isBlank() -> fam
+                    else -> ""
+                }
+                if (candidateStructured.isNotBlank() && prio > (structuredPriorityByCid[cid] ?: -100)) {
+                    structuredFormattedByCid[cid] = candidateStructured
+                    structuredPriorityByCid[cid] = prio
                 }
             }
         }
@@ -543,6 +580,7 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
             arrayOf(
                 ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+                ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID,
                 ContactsContract.CommonDataKinds.Phone.NUMBER
             ),
             null,
@@ -550,13 +588,17 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             null
         )?.use { cursor ->
             val idIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+            val rawIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID)
             val numIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
             while (cursor.moveToNext()) {
                 val cid = cursor.getString(idIdx) ?: continue
+                val rid = cursor.getLong(rawIdx)
+                val prio = rawPriorityById[rid] ?: 50
                 val num = cursor.getString(numIdx)?.trim().orEmpty()
-                if (num.isNotBlank() && !phonesByContactId.containsKey(cid)) {
+                if (num.isNotBlank() && prio > (phonePriorityByCid[cid] ?: -100)) {
                     allContactIds.add(cid)
                     phonesByContactId[cid] = num
+                    phonePriorityByCid[cid] = prio
                 }
             }
         }
@@ -665,16 +707,218 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
         return importedCount
     }
 
+    private data class RawContactRef(
+        val id: Long,
+        val accountType: String?,
+        val accountName: String?,
+        val contactId: String
+    )
+
+    private fun accountWritePriority(accountType: String?): Int {
+        val t = accountType?.trim()?.lowercase().orEmpty()
+        if (t.isEmpty()) return 80
+        val nonEditableMarkers = listOf(
+            "whatsapp",
+            "tachyon",
+            "telegram",
+            "thoughtcrime",
+            "threema",
+            "viber",
+            "facebook",
+            "linkedin",
+            "skype",
+            "instagram",
+            "snapchat",
+            "tiktok",
+            ".sim",
+            "contact.sim"
+        )
+        if (nonEditableMarkers.any { t.contains(it) }) return -1
+        return when {
+            t == "com.google" -> 100
+            t == "vnd.sec.contact.phone" || t == "com.osp.app.signin" -> 90
+            t.contains("outlook") || t.contains("exchange") -> 60
+            else -> 50
+        }
+    }
+
+    private fun queryActiveRawContactsForContactId(
+        contentResolver: ContentResolver,
+        contactId: String
+    ): List<RawContactRef> {
+        if (contactId.isBlank()) return emptyList()
+        val result = mutableListOf<RawContactRef>()
+        runCatching {
+            contentResolver.query(
+                ContactsContract.RawContacts.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.RawContacts._ID,
+                    ContactsContract.RawContacts.ACCOUNT_TYPE,
+                    ContactsContract.RawContacts.ACCOUNT_NAME,
+                    ContactsContract.RawContacts.CONTACT_ID
+                ),
+                "${ContactsContract.RawContacts.CONTACT_ID} = ? AND ${ContactsContract.RawContacts.DELETED} = 0",
+                arrayOf(contactId),
+                null
+            )?.use { c ->
+                val idIdx = c.getColumnIndexOrThrow(ContactsContract.RawContacts._ID)
+                val typeIdx = c.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_TYPE)
+                val nameIdx = c.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_NAME)
+                val cidIdx = c.getColumnIndexOrThrow(ContactsContract.RawContacts.CONTACT_ID)
+                while (c.moveToNext()) {
+                    val rid = c.getLong(idIdx)
+                    val at = c.getString(typeIdx)
+                    val an = c.getString(nameIdx)
+                    val cid = c.getString(cidIdx) ?: contactId
+                    result.add(RawContactRef(rid, at, an, cid))
+                }
+            }
+        }
+        return result
+    }
+
+    private fun resolvePreferredWritableAccount(contentResolver: ContentResolver): Pair<String?, String?> {
+        val counts = mutableMapOf<Pair<String, String>, Int>()
+        runCatching {
+            contentResolver.query(
+                ContactsContract.RawContacts.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.RawContacts.ACCOUNT_TYPE,
+                    ContactsContract.RawContacts.ACCOUNT_NAME
+                ),
+                "${ContactsContract.RawContacts.DELETED} = 0",
+                null,
+                null
+            )?.use { c ->
+                val typeIdx = c.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_TYPE)
+                val nameIdx = c.getColumnIndexOrThrow(ContactsContract.RawContacts.ACCOUNT_NAME)
+                while (c.moveToNext()) {
+                    val at = c.getString(typeIdx)?.trim().orEmpty()
+                    val an = c.getString(nameIdx)?.trim().orEmpty()
+                    if (at.isNotEmpty() && an.isNotEmpty() && accountWritePriority(at) >= 85) {
+                        val key = at to an
+                        counts[key] = (counts[key] ?: 0) + 1
+                    }
+                }
+            }
+        }
+        val bestGoogle = counts.entries
+            .filter { it.key.first.equals("com.google", ignoreCase = true) }
+            .maxByOrNull { it.value }
+            ?.key
+        if (bestGoogle != null) return bestGoogle.first to bestGoogle.second
+
+        val bestLocal = counts.entries
+            .maxByOrNull { it.value }
+            ?.key
+        return if (bestLocal != null) bestLocal.first to bestLocal.second else (null to null)
+    }
+
+    /**
+     * Sucht eindeutig passende Android-Kontakt-IDs als Fallback, falls importedFromDeviceContactId
+     * leer oder durch Android-Neuaggregation veraltet ist – niemals allein über gemeinsame Festnetznummern!
+     */
+    private fun findFallbackDeviceContactIds(
+        contentResolver: ContentResolver,
+        targetName: String,
+        targetPhone: String
+    ): List<String> {
+        val trimmedName = targetName.trim()
+        if (trimmedName.isBlank()) return emptyList()
+        val candidateNameKeys = buildSet {
+            val direct = ContactDeduplicator.canonicalTextKey(trimmedName)
+            if (direct.isNotBlank()) add(direct)
+            if (trimmedName.contains(",")) {
+                val fam = trimmedName.substringBefore(",").trim()
+                val giv = trimmedName.substringAfter(",").trim()
+                val swapped = ContactDeduplicator.canonicalTextKey("$giv $fam")
+                if (swapped.isNotBlank()) add(swapped)
+            }
+        }
+        if (candidateNameKeys.isEmpty()) return emptyList()
+
+        val nameMatchedCids = linkedSetOf<String>()
+        runCatching {
+            contentResolver.query(
+                ContactsContract.Contacts.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.Contacts._ID,
+                    ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+                    ContactsContract.Contacts.DISPLAY_NAME
+                ),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val idIdx = cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID)
+                val primIdx = cursor.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)
+                val dispIdx = cursor.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME)
+                while (cursor.moveToNext()) {
+                    val cid = cursor.getString(idIdx) ?: continue
+                    val pName = cursor.getString(primIdx)?.trim().orEmpty()
+                    val dName = cursor.getString(dispIdx)?.trim().orEmpty()
+                    val k1 = ContactDeduplicator.canonicalTextKey(pName)
+                    val k2 = ContactDeduplicator.canonicalTextKey(dName)
+                    if ((k1.isNotBlank() && candidateNameKeys.contains(k1)) ||
+                        (k2.isNotBlank() && candidateNameKeys.contains(k2))
+                    ) {
+                        nameMatchedCids.add(cid)
+                    }
+                }
+            }
+        }
+        if (nameMatchedCids.isEmpty()) return emptyList()
+
+        val targetPhoneKey = ContactDeduplicator.canonicalPhoneKey(targetPhone)
+        if (targetPhoneKey.isNotBlank()) {
+            val phoneAndNameMatched = mutableListOf<String>()
+            for (cid in nameMatchedCids) {
+                var hasMatchingPhone = false
+                runCatching {
+                    contentResolver.query(
+                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                        arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                        "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+                        arrayOf(cid),
+                        null
+                    )?.use { pc ->
+                        val numIdx = pc.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                        while (pc.moveToNext()) {
+                            val num = pc.getString(numIdx).orEmpty()
+                            if (ContactDeduplicator.canonicalPhoneKey(num) == targetPhoneKey) {
+                                hasMatchingPhone = true
+                                break
+                            }
+                        }
+                    }
+                }
+                if (hasMatchingPhone) {
+                    phoneAndNameMatched.add(cid)
+                }
+            }
+            if (phoneAndNameMatched.isNotEmpty()) return phoneAndNameMatched
+        }
+
+        return if (nameMatchedCids.size == 1) nameMatchedCids.toList() else emptyList()
+    }
+
     /**
      * Liest alle Telefonnummern, E-Mail-Adressen, Postadressen, Notizen und das echte Gerätekontaktfoto
-     * eines Android-Kontakts aus, damit beim Zusammenführen keinerlei Zweitnummern oder Adressen verloren gehen.
+     * eines Android-Kontakts aus, damit beim Bearbeiten und Zusammenführen keinerlei Zweitnummern oder Adressen verloren gehen.
      */
     fun readDeviceContactFullDetails(
         contentResolver: ContentResolver,
         contactId: String
     ): DeviceContactFullDetails {
         if (contactId.isBlank()) return DeviceContactFullDetails()
+        val activeRaws = queryActiveRawContactsForContactId(contentResolver, contactId)
+        val writableRawIds = activeRaws
+            .filter { accountWritePriority(it.accountType) >= 0 }
+            .map { it.id }
+            .toSet()
+
         val phones = mutableListOf<Pair<String, String>>()
+        val fallbackPhones = mutableListOf<Pair<String, String>>()
         val emails = mutableListOf<Pair<String, String>>()
         val addresses = mutableListOf<Pair<String, String>>()
         val notes = mutableListOf<String>()
@@ -683,6 +927,7 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
             contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID,
                     ContactsContract.CommonDataKinds.Phone.NUMBER,
                     ContactsContract.CommonDataKinds.Phone.TYPE,
                     ContactsContract.CommonDataKinds.Phone.LABEL
@@ -691,10 +936,12 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                 arrayOf(contactId),
                 null
             )?.use { cursor ->
+                val rawIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID)
                 val numIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
                 val typeIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.TYPE)
                 val lblIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LABEL)
                 while (cursor.moveToNext()) {
+                    val rid = cursor.getLong(rawIdx)
                     val num = cursor.getString(numIdx)?.trim().orEmpty()
                     if (num.isNotBlank()) {
                         val t = cursor.getInt(typeIdx)
@@ -705,11 +952,16 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                             t == ContactsContract.CommonDataKinds.Phone.TYPE_WORK -> "Telefon Arbeit"
                             else -> "Telefon"
                         }
-                        phones.add(label to num)
+                        if (writableRawIds.isEmpty() || writableRawIds.contains(rid)) {
+                            phones.add(label to num)
+                        } else {
+                            fallbackPhones.add(label to num)
+                        }
                     }
                 }
             }
         }
+        val finalPhones = phones.ifEmpty { fallbackPhones }
 
         runCatching {
             contentResolver.query(
@@ -724,12 +976,19 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                 null
             )?.use { cursor ->
                 val addrIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.ADDRESS)
+                val typeIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.TYPE)
                 val lblIdx = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.LABEL)
                 while (cursor.moveToNext()) {
                     val mail = cursor.getString(addrIdx)?.trim().orEmpty()
                     if (mail.isNotBlank()) {
+                        val t = cursor.getInt(typeIdx)
                         val customLbl = cursor.getString(lblIdx)?.trim().orEmpty()
-                        emails.add(customLbl.ifBlank { "E-Mail" } to mail)
+                        val label = when {
+                            customLbl.isNotBlank() -> customLbl
+                            t == ContactsContract.CommonDataKinds.Email.TYPE_WORK -> "E-Mail Arbeit"
+                            else -> "E-Mail"
+                        }
+                        emails.add(label to mail)
                     }
                 }
             }
@@ -786,7 +1045,7 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
 
         val realPhoto = readContactPhotoAsBase64(contentResolver, contactId)
         return DeviceContactFullDetails(
-            phones = phones,
+            phones = finalPhones,
             emails = emails,
             addresses = addresses,
             notes = notes,
@@ -795,53 +1054,118 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
     }
 
     /**
-     * Entfernt einen zusammengeführten Duplikat-Kontakt aus den Android-Handykontakten.
+     * Entfernt einen Kontakt zuverlässig aus den Android-Handykontakten (sowohl über Lookup-URI
+     * als auch über sämtliche verknüpften RawContacts inkl. Google, Samsung, Outlook & Messenger).
      */
     fun deleteDeviceContactById(
         contentResolver: ContentResolver,
         contactId: String
     ): Boolean {
         if (contactId.isBlank()) return false
-        return try {
-            val deleted = contentResolver.delete(
+        var deletedCount = 0
+        runCatching {
+            contentResolver.query(
+                ContactsContract.Contacts.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.Contacts._ID,
+                    ContactsContract.Contacts.LOOKUP_KEY
+                ),
+                "${ContactsContract.Contacts._ID} = ?",
+                arrayOf(contactId),
+                null
+            )?.use { cursor ->
+                val idIdx = cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID)
+                val lkIdx = cursor.getColumnIndexOrThrow(ContactsContract.Contacts.LOOKUP_KEY)
+                while (cursor.moveToNext()) {
+                    val idLong = cursor.getLong(idIdx)
+                    val lk = cursor.getString(lkIdx)
+                    val lookupUri = if (!lk.isNullOrBlank()) {
+                        ContactsContract.Contacts.getLookupUri(idLong, lk)
+                    } else {
+                        ContentUris.withAppendedId(ContactsContract.Contacts.CONTENT_URI, idLong)
+                    }
+                    if (lookupUri != null) {
+                        deletedCount += contentResolver.delete(lookupUri, null, null)
+                    }
+                }
+            }
+        }
+        runCatching {
+            deletedCount += contentResolver.delete(
                 ContactsContract.RawContacts.CONTENT_URI,
-                "${ContactsContract.RawContacts.CONTACT_ID} = ?",
+                "${ContactsContract.RawContacts.CONTACT_ID} = ? AND ${ContactsContract.RawContacts.DELETED} = 0",
                 arrayOf(contactId)
             )
-            deleted > 0
-        } catch (e: Exception) {
-            false
         }
+        return deletedCount > 0
+    }
+
+    /**
+     * Löscht den zu [person] gehörenden Handykontakt (über gespeicherte CONTACT_ID oder eindeutigen
+     * Namens-/Nummern-Fallback) und gibt alle gelöschten CONTACT_IDs zurück.
+     */
+    fun deleteDeviceContactForPerson(
+        contentResolver: ContentResolver,
+        person: PersonEntity
+    ): Set<String> {
+        val affectedIds = linkedSetOf<String>()
+        val primaryCid = person.importedFromDeviceContactId?.takeIf { it.isNotBlank() }
+        var primaryHadActiveRaws = false
+        if (primaryCid != null) {
+            primaryHadActiveRaws = queryActiveRawContactsForContactId(contentResolver, primaryCid).isNotEmpty()
+            if (deleteDeviceContactById(contentResolver, primaryCid)) {
+                affectedIds.add(primaryCid)
+            } else {
+                affectedIds.add(primaryCid)
+            }
+        }
+        if (!primaryHadActiveRaws) {
+            val fallbackCids = findFallbackDeviceContactIds(contentResolver, person.name, person.phone)
+            for (fbCid in fallbackCids) {
+                deleteDeviceContactById(contentResolver, fbCid)
+                affectedIds.add(fbCid)
+            }
+        }
+        return affectedIds
     }
 
     /**
      * Legt einen Kontakt direkt in den Android-Handykontakten an oder aktualisiert
-     * einen bereits verknüpften Handykontakt (Name, Telefon, E-Mail, Adresse, Geburtstag, Notiz, Zusatznummern)
-     * – strikt dedupliziert, sodass keine Nummer, E-Mail oder Adresse doppelt eingetragen wird.
-     * Gibt die Android CONTACT_ID zurück.
+     * einen bereits verknüpften Handykontakt (Name, Telefon, E-Mail, Adresse, Geburtstag, Notiz, Foto, Zusatznummern)
+     * über alle beschreibbaren Konten (Google, Samsung/Telefon, Outlook) hinweg – ohne Schreibfehler auf
+     * schreibgeschützten WhatsApp-/SIM-RawContacts und ohne Verlust bestehender Fotos.
+     * Gibt die aktuelle Android CONTACT_ID zurück.
      */
     fun saveOrUpdateDeviceContact(
         contentResolver: ContentResolver,
         person: PersonEntity,
-        extraInfos: List<Pair<String, String>> = emptyList()
+        extraInfos: List<Pair<String, String>> = emptyList(),
+        photoSyncMode: PhotoSyncMode = PhotoSyncMode.KEEP_DEVICE_PHOTO,
+        previousNameForLookup: String? = null,
+        previousPhoneForLookup: String? = null
     ): String? {
         return try {
-            var rawContactId: Long? = null
             val existingContactId = person.importedFromDeviceContactId?.takeIf { it.isNotBlank() }
-
-            if (existingContactId != null) {
-                contentResolver.query(
-                    ContactsContract.RawContacts.CONTENT_URI,
-                    arrayOf(ContactsContract.RawContacts._ID),
-                    "${ContactsContract.RawContacts.CONTACT_ID} = ? AND ${ContactsContract.RawContacts.DELETED} = 0",
-                    arrayOf(existingContactId),
-                    null
-                )?.use { c ->
-                    if (c.moveToFirst()) {
-                        rawContactId = c.getLong(0)
-                    }
+            var activeRaws = if (existingContactId != null) {
+                queryActiveRawContactsForContactId(contentResolver, existingContactId)
+            } else {
+                emptyList()
+            }
+            if (activeRaws.isEmpty()) {
+                val lookupName = previousNameForLookup?.takeIf { it.isNotBlank() } ?: person.name
+                val lookupPhone = previousPhoneForLookup ?: person.phone
+                val fallbackCid = findFallbackDeviceContactIds(contentResolver, lookupName, lookupPhone).firstOrNull()
+                if (fallbackCid != null) {
+                    activeRaws = queryActiveRawContactsForContactId(contentResolver, fallbackCid)
                 }
             }
+
+            val editableRaws = activeRaws
+                .filter { accountWritePriority(it.accountType) >= 0 }
+                .sortedByDescending { accountWritePriority(it.accountType) }
+            val primaryRaw = editableRaws.firstOrNull()
+            val secondaryEditableRaws = editableRaws.drop(1)
+            val messengerOrSimRaws = activeRaws.filter { accountWritePriority(it.accountType) < 0 }
 
             // Alle Nummern, E-Mails und Adressen kanonisch deduplizieren
             val seenPhoneKeys = mutableSetOf<String>()
@@ -907,55 +1231,69 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                 seenAddressKeys = seenAddressKeys
             )
 
-            val ops = ArrayList<ContentProviderOperation>()
-            val photoBytes = decodePhotoBase64ToBytes(person.photoBase64)
+            val photoBytes = if (photoSyncMode == PhotoSyncMode.UPDATE_OR_CLEAR) {
+                decodePhotoBase64ToBytes(person.photoBase64)
+            } else {
+                null
+            }
             val hasComma = person.name.contains(",")
             val parsedFamily = if (hasComma) person.name.substringBefore(",").trim() else ""
-            val parsedGiven = if (hasComma) person.name.substringAfter(",").trim() else ""
+            val parsedGiven = if (hasComma) person.name.substringAfter(",").trim() else person.name.trim()
             val androidDisplayName = if (hasComma && parsedGiven.isNotBlank() && parsedFamily.isNotBlank()) {
                 "$parsedGiven $parsedFamily"
             } else {
                 person.name.trim()
             }
 
-            if (rawContactId != null) {
+            fun buildUpdateOpsForRaw(targetRawId: Long): ArrayList<ContentProviderOperation> {
+                val ops = ArrayList<ContentProviderOperation>()
                 val deleteMimes = mutableListOf(
                     ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE,
                     ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE,
                     ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE,
-                    ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE,
-                    ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE,
-                    ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE
+                    ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE,
+                    ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE
                 )
-                if (uniqueAddresses.isNotEmpty()) {
-                    deleteMimes.add(ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
+                if (photoSyncMode == PhotoSyncMode.UPDATE_OR_CLEAR) {
+                    deleteMimes.add(ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE)
                 }
                 val placeholders = deleteMimes.joinToString(", ") { "?" }
                 ops.add(
                     ContentProviderOperation.newDelete(ContactsContract.Data.CONTENT_URI)
                         .withSelection(
                             "${ContactsContract.Data.RAW_CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} IN ($placeholders)",
-                            (listOf(rawContactId.toString()) + deleteMimes).toTypedArray()
+                            (listOf(targetRawId.toString()) + deleteMimes).toTypedArray()
+                        )
+                        .build()
+                )
+                ops.add(
+                    ContentProviderOperation.newDelete(ContactsContract.Data.CONTENT_URI)
+                        .withSelection(
+                            "${ContactsContract.Data.RAW_CONTACT_ID} = ? AND ${ContactsContract.Data.MIMETYPE} = ? AND ${ContactsContract.CommonDataKinds.Event.TYPE} = ?",
+                            arrayOf(
+                                targetRawId.toString(),
+                                ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE,
+                                ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY.toString()
+                            )
                         )
                         .build()
                 )
 
                 val nameOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                    .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                    .withValue(ContactsContract.Data.RAW_CONTACT_ID, targetRawId)
                     .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
                     .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, androidDisplayName)
-                if (hasComma && parsedFamily.isNotBlank()) {
-                    nameOp.withValue(ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME, parsedFamily)
-                }
-                if (hasComma && parsedGiven.isNotBlank()) {
-                    nameOp.withValue(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, parsedGiven)
-                }
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, parsedGiven.ifBlank { null })
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME, parsedFamily.ifBlank { null })
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.MIDDLE_NAME, null)
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.PREFIX, null)
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.SUFFIX, null)
                 ops.add(nameOp.build())
 
-                if (photoBytes != null && photoBytes.isNotEmpty()) {
+                if (photoSyncMode == PhotoSyncMode.UPDATE_OR_CLEAR && photoBytes != null && photoBytes.isNotEmpty()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, targetRawId)
                             .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Photo.CONTENT_ITEM_TYPE)
                             .withValue(ContactsContract.CommonDataKinds.Photo.PHOTO, photoBytes)
                             .build()
@@ -963,45 +1301,57 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                 }
                 uniquePhones.forEach { (lbl, number) ->
                     val pOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                        .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                        .withValue(ContactsContract.Data.RAW_CONTACT_ID, targetRawId)
                         .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
                         .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, number)
-                    if (lbl == null) {
-                        pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
-                    } else {
-                        pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
+                    val lLower = lbl?.lowercase().orEmpty()
+                    when {
+                        lbl == null -> pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                        lLower == "festnetz" || lLower == "privat" -> pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_HOME)
+                        lLower.contains("arbeit") || lLower.contains("büro") || lLower.contains("geschäft") ->
+                            pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_WORK)
+                        else -> pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
                             .withValue(ContactsContract.CommonDataKinds.Phone.LABEL, lbl)
                     }
                     ops.add(pOp.build())
                 }
                 uniqueEmails.forEach { (lbl, mail) ->
                     val eOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                        .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                        .withValue(ContactsContract.Data.RAW_CONTACT_ID, targetRawId)
                         .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
                         .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, mail)
-                    if (lbl == null) {
-                        eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
-                    } else {
-                        eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_CUSTOM)
+                    val lLower = lbl?.lowercase().orEmpty()
+                    when {
+                        lbl == null -> eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                        lLower.contains("arbeit") || lLower.contains("büro") ->
+                            eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_WORK)
+                        else -> eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_CUSTOM)
                             .withValue(ContactsContract.CommonDataKinds.Email.LABEL, lbl)
                     }
                     ops.add(eOp.build())
                 }
                 uniqueAddresses.forEach { (lbl, addr) ->
-                    ops.add(
-                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
-                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS, addr)
-                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_CUSTOM)
-                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.LABEL, lbl)
-                            .build()
-                    )
+                    val aOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValue(ContactsContract.Data.RAW_CONTACT_ID, targetRawId)
+                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS, addr)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredPostal.STREET, addr)
+                    val lLower = lbl.lowercase()
+                    when {
+                        lLower == "adresse" || lLower == "privat" ->
+                            aOp.withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_HOME)
+                        lLower.contains("arbeit") || lLower.contains("büro") ->
+                            aOp.withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_WORK)
+                        else ->
+                            aOp.withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_CUSTOM)
+                                .withValue(ContactsContract.CommonDataKinds.StructuredPostal.LABEL, lbl)
+                    }
+                    ops.add(aOp.build())
                 }
                 if (!person.birthdayIso.isNullOrBlank()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, targetRawId)
                             .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE)
                             .withValue(ContactsContract.CommonDataKinds.Event.START_DATE, person.birthdayIso)
                             .withValue(ContactsContract.CommonDataKinds.Event.TYPE, ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY)
@@ -1011,34 +1361,97 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                 if (combinedNotes.isNotBlank()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, rawContactId)
+                            .withValue(ContactsContract.Data.RAW_CONTACT_ID, targetRawId)
                             .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Note.CONTENT_ITEM_TYPE)
                             .withValue(ContactsContract.CommonDataKinds.Note.NOTE, combinedNotes)
                             .build()
                     )
                 }
-                contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
-                return existingContactId
+                return ops
+            }
+
+            fun cleanupStaleMessengerRaws() {
+                if (messengerOrSimRaws.isEmpty()) return
+                for (mRaw in messengerOrSimRaws) {
+                    runCatching {
+                        val mPhones = mutableListOf<String>()
+                        contentResolver.query(
+                            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                            arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                            "${ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID} = ?",
+                            arrayOf(mRaw.id.toString()),
+                            null
+                        )?.use { pc ->
+                            val idx = pc.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                            while (pc.moveToNext()) {
+                                pc.getString(idx)?.let { mPhones.add(it) }
+                            }
+                        }
+                        val hasStalePhone = mPhones.isNotEmpty() && mPhones.none { num ->
+                            seenPhoneKeys.contains(ContactDeduplicator.canonicalPhoneKey(num))
+                        }
+                        if (hasStalePhone) {
+                            contentResolver.delete(
+                                ContactsContract.RawContacts.CONTENT_URI,
+                                "${ContactsContract.RawContacts._ID} = ?",
+                                arrayOf(mRaw.id.toString())
+                            )
+                        }
+                    }
+                }
+            }
+
+            fun queryCurrentContactIdForRaw(rawId: Long): String? {
+                var resolvedCid: String? = null
+                runCatching {
+                    contentResolver.query(
+                        ContactsContract.RawContacts.CONTENT_URI,
+                        arrayOf(ContactsContract.RawContacts.CONTACT_ID),
+                        "${ContactsContract.RawContacts._ID} = ?",
+                        arrayOf(rawId.toString()),
+                        null
+                    )?.use { c ->
+                        if (c.moveToFirst()) {
+                            resolvedCid = c.getLong(0).toString()
+                        }
+                    }
+                }
+                return resolvedCid
+            }
+
+            if (primaryRaw != null) {
+                contentResolver.applyBatch(
+                    ContactsContract.AUTHORITY,
+                    buildUpdateOpsForRaw(primaryRaw.id)
+                )
+                secondaryEditableRaws.forEach { secRaw ->
+                    runCatching {
+                        contentResolver.applyBatch(
+                            ContactsContract.AUTHORITY,
+                            buildUpdateOpsForRaw(secRaw.id)
+                        )
+                    }
+                }
+                cleanupStaleMessengerRaws()
+                queryCurrentContactIdForRaw(primaryRaw.id) ?: existingContactId
             } else {
-                // Neuen Kontakt in Android Handykontakten anlegen
+                // Neuen Kontakt im primären beschreibbaren Konto (z. B. Google oder Samsung-Telefon) anlegen
+                val (preferredType, preferredName) = resolvePreferredWritableAccount(contentResolver)
+                val ops = ArrayList<ContentProviderOperation>()
                 ops.add(
                     ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
-                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
-                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, preferredType)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, preferredName)
                         .build()
                 )
                 val newNameOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                     .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
                     .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
                     .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, androidDisplayName)
-                if (hasComma && parsedFamily.isNotBlank()) {
-                    newNameOp.withValue(ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME, parsedFamily)
-                }
-                if (hasComma && parsedGiven.isNotBlank()) {
-                    newNameOp.withValue(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, parsedGiven)
-                }
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.GIVEN_NAME, parsedGiven.ifBlank { null })
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.FAMILY_NAME, parsedFamily.ifBlank { null })
                 ops.add(newNameOp.build())
-                if (photoBytes != null && photoBytes.isNotEmpty()) {
+                if (photoSyncMode == PhotoSyncMode.UPDATE_OR_CLEAR && photoBytes != null && photoBytes.isNotEmpty()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                             .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
@@ -1052,10 +1465,13 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                         .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
                         .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
                         .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, number)
-                    if (lbl == null) {
-                        pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
-                    } else {
-                        pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
+                    val lLower = lbl?.lowercase().orEmpty()
+                    when {
+                        lbl == null -> pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                        lLower == "festnetz" || lLower == "privat" -> pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_HOME)
+                        lLower.contains("arbeit") || lLower.contains("büro") || lLower.contains("geschäft") ->
+                            pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_WORK)
+                        else -> pOp.withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_CUSTOM)
                             .withValue(ContactsContract.CommonDataKinds.Phone.LABEL, lbl)
                     }
                     ops.add(pOp.build())
@@ -1065,24 +1481,33 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                         .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
                         .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
                         .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, mail)
-                    if (lbl == null) {
-                        eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
-                    } else {
-                        eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_CUSTOM)
+                    val lLower = lbl?.lowercase().orEmpty()
+                    when {
+                        lbl == null -> eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                        lLower.contains("arbeit") || lLower.contains("büro") ->
+                            eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_WORK)
+                        else -> eOp.withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_CUSTOM)
                             .withValue(ContactsContract.CommonDataKinds.Email.LABEL, lbl)
                     }
                     ops.add(eOp.build())
                 }
                 uniqueAddresses.forEach { (lbl, addr) ->
-                    ops.add(
-                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
-                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
-                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS, addr)
-                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_CUSTOM)
-                            .withValue(ContactsContract.CommonDataKinds.StructuredPostal.LABEL, lbl)
-                            .build()
-                    )
+                    val aOp = ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                        .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                        .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredPostal.CONTENT_ITEM_TYPE)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredPostal.FORMATTED_ADDRESS, addr)
+                        .withValue(ContactsContract.CommonDataKinds.StructuredPostal.STREET, addr)
+                    val lLower = lbl.lowercase()
+                    when {
+                        lLower == "adresse" || lLower == "privat" ->
+                            aOp.withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_HOME)
+                        lLower.contains("arbeit") || lLower.contains("büro") ->
+                            aOp.withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_WORK)
+                        else ->
+                            aOp.withValue(ContactsContract.CommonDataKinds.StructuredPostal.TYPE, ContactsContract.CommonDataKinds.StructuredPostal.TYPE_CUSTOM)
+                                .withValue(ContactsContract.CommonDataKinds.StructuredPostal.LABEL, lbl)
+                    }
+                    ops.add(aOp.build())
                 }
                 if (!person.birthdayIso.isNullOrBlank()) {
                     ops.add(
@@ -1105,21 +1530,10 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                 }
 
                 val results = contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+                cleanupStaleMessengerRaws()
                 val rawUri = results.firstOrNull()?.uri ?: return null
                 val newRawId = ContentUris.parseId(rawUri)
-                var createdContactId: String? = null
-                contentResolver.query(
-                    ContactsContract.RawContacts.CONTENT_URI,
-                    arrayOf(ContactsContract.RawContacts.CONTACT_ID),
-                    "${ContactsContract.RawContacts._ID} = ?",
-                    arrayOf(newRawId.toString()),
-                    null
-                )?.use { c ->
-                    if (c.moveToFirst()) {
-                        createdContactId = c.getLong(0).toString()
-                    }
-                }
-                createdContactId
+                queryCurrentContactIdForRaw(newRawId)
             }
         } catch (e: Exception) {
             null
