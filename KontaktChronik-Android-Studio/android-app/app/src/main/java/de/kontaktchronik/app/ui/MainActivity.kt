@@ -2573,106 +2573,114 @@ fun serializeWichtelHistoryJson(history: List<WichtelHistoryEntry>): String {
 }
 
 val DEFAULT_BIRTHDAY_GREETINGS = listOf(
-    "Alles Liebe und Gute zum Geburtstag, {Name}! 🎂🎉 Hab einen wunderschönen Tag!",
-    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🥳 Ich wünsche dir Gesundheit, Glück und ganz viel Freude!",
-    "Happy Birthday, {Name}! 🎈 Lass dich heute ordentlich feiern und reich beschenken!",
-    "Liebe/r {Name}, zu deinem Geburtstag wünsche ich dir von Herzen nur das Allerbeste! 🍀🎂",
-    "Hoch sollst du leben, {Name}! 🥂 Alles Gute für dein neues Lebensjahr!",
-    "Zum Geburtstag viel Glück, {Name}! 🎶🎂 Genieße deinen Ehrentag in vollen Zügen!",
-    "Alles Gute zum Geburtstag, {Name}! ☀️ Mögen all deine Wünsche im neuen Lebensjahr in Erfüllung gehen!",
-    "Hallo {Name}, ich wünsche dir einen fantastischen Geburtstag voller schöner Momente! 🎉🎁",
-    "Herzlichen Glückwunsch, {Name}! 🎂 Bleib so wunderbar, wie du bist, und hab einen tollen Tag!",
-    "Ein Prosit auf dein neues Lebensjahr, {Name}! 🥂✨ Alles Liebe zum Geburtstag!",
-    "Liebe/r {Name}, ich schicke dir sonnige Geburtstagsgrüße und wünsche dir 365 glückliche Tage! ☀️🍀",
-    "Alles, alles Gute zum Geburtstag, {Name}! 🎊 Lass heute mal fünfe gerade sein und feier schön!",
-    "Happy Birthday, {Name}! 🎂 Viel Gesundheit, Erfolg und unzählige schöne Augenblicke für dich!",
-    "Zu deinem Ehrentag wünsche ich dir beste Gesundheit, viel Lachen und tolle Menschen um dich herum, {Name}! 🥳",
-    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🎁 Möge dein neues Lebensjahr noch schöner werden als das letzte!",
-    "Hallo {Name}! 🎈 Heute ist dein Tag – lass dich feiern, verwöhnen und hochleben!",
-    "Für dein neues Lebensjahr wünsche ich dir eine Extraportion Glück, Gesundheit und Lebensfreude, {Name}! 🍀🎂",
-    "Alles Liebe zum Geburtstag, {Name}! 🌸 Schön, dass es dich gibt!",
-    "Herzlichen Glückwunsch, {Name}! 🎉 Ich hoffe, du hast heute einen richtig schönen Tag mit deinen Liebsten!",
-    "Happy Birthday, {Name}! 🍰 Iss heute ein großes Stück Kuchen für mich mit!",
-    "Liebe/r {Name}, alles erdenklich Gute zum Geburtstag! 🥂 Auf viele weitere glückliche und gesunde Jahre!",
-    "Ich wünsche dir zum Geburtstag viel Sonnenschein im Herzen und immer einen Grund zum Lächeln, {Name}! ☀️😊",
-    "Alles Gute zum Geburtstag, {Name}! 🎯 Möge dir im neuen Lebensjahr alles gelingen, was du dir vornimmst!",
-    "Herzlichen Glückwunsch, {Name}! 🎂 Gesundheit, Glück und Zufriedenheit sollen dich das ganze Jahr begleiten!",
-    "Ein neues Lebensjahr, ein neues Kapitel: Alles Liebe und Gute zum Geburtstag, {Name}! 📖✨",
-    "Hallo {Name}, von Herzen alles Gute zum Geburtstag! 🥳 Lass die Korken knallen!",
-    "Zu deinem Geburtstag wünsche ich dir Zeit für die schönen Dinge im Leben, {Name}! 🎂🌿",
-    "Happy Birthday, {Name}! 🎉 Bleib gesund, munter und genauso herzlich wie bisher!",
-    "Alles Liebe zum Geburtstag, {Name}! 🎁 Ich wünsche dir einen Tag voller Überraschungen und Freude!",
-    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍀 Möge das Glück heute und an jedem Tag an deiner Seite sein!",
-    "Auf dich, {Name}! 🥂 Hab einen grandiosen Geburtstag und ein wundervolles neues Lebensjahr!",
-    "Liebe/r {Name}, zu deinem Wiegenfest wünsche ich dir von Herzen alles Gute und beste Gesundheit! 🎂💐",
-    "Alles Gute zum Geburtstag, {Name}! 🌟 Strahle heute mit der Sonne um die Wette!",
-    "Happy Birthday, {Name}! 🎈 Genieße jede Sekunde deines heutigen Ehrentages!",
-    "Herzlichen Glückwunsch, {Name}! 🎊 Ich wünsche dir wunderbare Stunden im Kreis deiner Familie und Freunde!",
-    "Hallo {Name}, alles Liebe zum Geburtstag! 🎂 Möge dein neues Lebensjahr voller unvergesslicher Momente sein!",
-    "Für dich zum Geburtstag nur die besten Wünsche: Gesundheit, Frohsinn und ganz viel Glück, {Name}! 🍀🥳",
-    "Alles Gute zum Geburtstag, {Name}! 🎁 Heute dreht sich alles nur um dich – genieße es!",
-    "Liebe/r {Name}, herzlichen Glückwunsch! 🥂 Bleib so lebensfroh und positiv wie du bist!",
-    "Happy Birthday, {Name}! 🎂 Ein Jahr älter, ein Jahr weiser und noch genauso sympathisch!",
-    "Zu deinem Geburtstag schicke ich dir die herzlichsten Glückwünsche, {Name}! 🎉🌸",
-    "Alles Liebe und Gute, {Name}! 🎈 Ich wünsche dir für das kommende Lebensjahr Rückenwind bei all deinen Plänen!",
-    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍰 Lass es dir heute richtig gutgehen!",
-    "Hallo {Name}! 🥳 Wieder ein Jahr geschafft – feier deinen Geburtstag heute gebührend!",
-    "Ich wünsche dir zu deinem Geburtstag von Herzen Gesundheit, Ruhe, Freude und viele glückliche Tage, {Name}! 🍀🎂",
-    "Happy Birthday, {Name}! ✨ Möge das neue Lebensjahr dir jeden Tag ein Lächeln ins Gesicht zaubern!",
-    "Alles Gute zum Geburtstag, {Name}! 🎊 Lass dich heute von deinen Liebsten auf Händen tragen!",
-    "Liebe/r {Name}, die allerbesten Glückwünsche zu deinem Geburtstag! 🥂🎁 Hab einen traumhaften Tag!",
-    "Herzlichen Glückwunsch, {Name}! 🎂 Viel Kraft, Gesundheit und tolle Erlebnisse im neuen Lebensjahr!",
-    "Zum Geburtstag wünsche ich dir so viel Glück, wie der Regen Tropfen hat, {Name}! 🍀☀️",
-    "Hallo {Name}, alles Liebe zum Geburtstag! 🎈 Mach dir heute einen unvergesslich schönen Tag!",
-    "Happy Birthday, {Name}! 🥳 Auf dass deine kleinen und großen Träume im neuen Lebensjahr wahr werden!",
-    "Alles Gute zum Geburtstag, {Name}! 🎂 Gesundheit ist das größte Geschenk – davon wünsche ich dir reichlich!",
-    "Herzlichen Glückwunsch, {Name}! 🎉 Genieße deinen Tag mit gutem Essen, lieben Menschen und bester Laune!",
-    "Liebe/r {Name}, zum Geburtstag wünsche ich dir 12 Monate Gesundheit, 52 Wochen Glück und 365 Tage Freude! 🍀🥂",
-    "Ein herzliches Happy Birthday an dich, {Name}! 🎂🎁 Lass dich heute schön feiern!",
-    "Alles Liebe zum Geburtstag, {Name}! ☀️ Behalte deinen Humor und deine Lebensfreude!",
-    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🎊 Auf ein spannendes, gesundes und glückliches neues Lebensjahr!",
-    "Hallo {Name}, ich denke heute an dich und wünsche dir einen wundervollen Geburtstag! 🌸🎂",
-    "Happy Birthday, {Name}! 🎈 Möge dein Kaffeebecher immer voll und dein Stresspegel immer niedrig sein!",
-    "Alles Gute zum Geburtstag, {Name}! 🥂 Feier heute schön und hab eine grandiose Zeit!",
-    "Liebe/r {Name}, zu deinem Geburtstag wünsche ich dir von Herzen Zufriedenheit, Glück und beste Gesundheit! 🍀🎁",
-    "Herzlichen Glückwunsch, {Name}! 🥳 Lass heute die Arbeit ruhen und das Leben hochleben!",
-    "Zum Geburtstag alles Liebe, {Name}! 🎂 Ich wünsche dir viele kleine Glücksmomente an jedem einzelnen Tag!",
-    "Happy Birthday, {Name}! 🎉 Bleib gesund, fröhlich und immer auf der Sonnenseite des Lebens!",
-    "Alles Gute zum Geburtstag, {Name}! 🌟 Ich hoffe, dein Tag wird genauso toll wie du!",
-    "Hallo {Name}! 🍰 Zu deinem Geburtstag wünsche ich dir alles Glück dieser Erde!",
-    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🎈 Möge dir das neue Lebensjahr viele schöne Überraschungen bringen!",
-    "Liebe/r {Name}, alles Liebe und Gute zu deinem Ehrentag! 🥂🍀 Lass es dir heute rundum gutgehen!",
-    "Happy Birthday, {Name}! 🎂 Wieder ein Jahr mehr voller schöner Erinnerungen – auf viele weitere!",
-    "Alles Gute zum Geburtstag, {Name}! 🎁 Ich wünsche dir Gesundheit, Mut und immer gute Laune!",
-    "Herzlichen Glückwunsch, {Name}! 🥳 Hab einen sonnigen, entspannten und fröhlichen Geburtstag!",
-    "Zu deinem Geburtstag wünsche ich dir von Herzen alles erdenklich Gute, {Name}! 🌸🎊",
-    "Hallo {Name}, lass dich heute feiern! 🎉 Alles Liebe, viel Glück und Gesundheit zum Geburtstag!",
-    "Happy Birthday, {Name}! 🥂 Möge dein neues Lebensjahr unter einem besonders guten Stern stehen! ⭐",
-    "Alles Liebe zum Geburtstag, {Name}! 🎂 Genieße das Kuchenessen, das Auspacken und das Feiern!",
-    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍀 Auf dass du gesund, glücklich und zufrieden bleibst!",
-    "Liebe/r {Name}, ich wünsche dir einen zauberhaften Geburtstag und ein tolles neues Lebensjahr! ✨🎈",
-    "Alles Gute zum Geburtstag, {Name}! 🥳 Nimm dir heute Zeit für alles, was dir Freude macht!",
-    "Happy Birthday, {Name}! 🎁 Ich schicke dir eine große Portion Glück und beste Wünsche für dein neues Lebensjahr!",
-    "Herzlichen Glückwunsch, {Name}! 🎂 Möge jeder Tag deines neuen Lebensjahres ein kleines Fest sein!",
-    "Hallo {Name}, zum Geburtstag wünsche ich dir feste Gesundheit, gute Nerven und ganz viel Sonnenschein! ☀️🍀",
-    "Alles Liebe und Gute zum Geburtstag, {Name}! 🥂 Lass dich heute ordentlich hochleben!",
-    "Zu deinem Geburtstag nur das Beste für dich, {Name}: Glück, Liebe, Gesundheit und Erfolg! 🎉🎂",
-    "Happy Birthday, {Name}! 🎈 Bleib im Herzen jung und genieße jeden Moment!",
-    "Herzlichen Glückwunsch zum Geburtstag, {Name}! 🍰 Ich hoffe, du wirst heute nach Strich und Faden verwöhnt!",
-    "Liebe/r {Name}, alles Gute zum Geburtstag! 🍀 Möge das kommende Jahr dir viele schöne Reisen und Erlebnisse schenken!",
-    "Alles Liebe zum Geburtstag, {Name}! 🥳 Feier schön im Kreis deiner Lieblingsmenschen!",
-    "Happy Birthday, {Name}! 🎊 Ein Hoch auf dich und dein neues Lebensjahr!",
-    "Herzlichen Glückwunsch, {Name}! 🎂 Ich wünsche dir Gesundheit, Gelassenheit und jeden Tag ein Lächeln!",
-    "Hallo {Name}! 🎁 Zu deinem Ehrentag wünsche ich dir von Herzen alles Liebe und Gute!",
-    "Alles Gute zum Geburtstag, {Name}! ☀️ Mögen dir Glück und Gesundheit niemals ausgehen!",
-    "Liebe/r {Name}, herzlichen Glückwunsch zum Geburtstag! 🥂 Genieße deinen besonderen Tag in vollen Zügen!",
-    "Happy Birthday, {Name}! 🎉 Ich wünsche dir ein wunderbares neues Lebensjahr voller Freude und Harmonie!",
-    "Zum Geburtstag die allerherzlichsten Glückwünsche, {Name}! 🎂🍀 Lass es heute krachen!",
-    "Alles Liebe zum Geburtstag, {Name}! 🌸 Möge dir das neue Lebensjahr ganz viel Grund zum Feiern geben!",
-    "Herzlichen Glückwunsch, {Name}! 🎈 Gesundheit, Glück und viele schöne gemeinsame Stunden wünsche ich dir!",
-    "Hallo {Name}, alles Gute zum Geburtstag! 🥳 Bleib gesund, glücklich und genau so, wie du bist!",
-    "Happy Birthday, {Name}! 🍰✨ Ich wünsche dir einen unvergesslichen Tag und ein glückliches neues Lebensjahr!",
-    "Von Herzen alles Liebe und Gute zum Geburtstag, {Name}! 🎂🥂🍀 Lass dich heute wunderbar feiern!"
+    "Alles Gute zum Geburtstag, {Name}! Möge heute nicht nur der Sektkorken ordentlich knallen. 🥂😉",
+    "Herzlichen Glückwunsch, {Name}! Du bist jetzt in einem Alter, in dem ‚eine heiße Nacht‘ meistens eine Heizdecke beinhaltet. 🔥😏",
+    "Happy Birthday, {Name}! Pustest du heute nur Kerzen aus oder wird’s später noch spannender? 🎂😉",
+    "Alles Gute, {Name}! Keine Sorge wegen des Alters – im Dunkeln siehst du immer noch verdammt knackig aus. 😏✨",
+    "Glückwunsch zum Geburtstag, {Name}! Möge deine Ausdauer im Bett immer länger halten als dein Handyakku. 🔋😉",
+    "Happy Birthday, {Name}! Offiziell wieder ein Jahr reifer – inoffiziell immer noch genauso verdorben. 😈🥂",
+    "Alles Gute, {Name}! Ab heute knacken morgens zwar die Gelenke, aber hoffentlich abends noch das Lattenrost. 😉🛏️",
+    "Herzlichen Glückwunsch, {Name}! Du bist wie guter Wein: schwer zu kriegen, leicht berauschend und am besten flach gelagert. 🍷😏",
+    "Happy Birthday, {Name}! Ich wünsche dir heute Geschenke zum Auspacken – und jemanden, der dich danach auspackt. 🎁😉",
+    "Alles Gute zum Geburtstag, {Name}! Denk dran: Wer rastet, der rostet – also bleib schön gelenkig. 😏🤸",
+    "Glückwunsch, {Name}! Schön, dass wenigstens die Kerzen auf deiner Torte heute zuverlässig stehen. 🕯️😉",
+    "Happy Birthday, {Name}! Möge dein Tag kurz im Büro und verdammt lang unter der Bettdecke sein. 🛌😏",
+    "Alles Gute, {Name}! Ein Jahr näher an der Rente, aber zum Glück noch weit weg von brav. 😈🎉",
+    "Herzlichen Glückwunsch, {Name}! Ab einem gewissen Alter nennt man es nicht mehr ‚wild‘, sondern ‚kreislaufanregend‘. 💓😉",
+    "Happy Birthday, {Name}! Lass dich heute ordentlich vernaschen – zur Not tut’s erstmal auch die Torte. 🍰😏",
+    "Alles Gute zum Geburtstag, {Name}! Du wirst nicht älter, du steigst nur im Sammlerwert – leichte Gebrauchsspuren inklusive. 😉🏷️",
+    "Glückwunsch, {Name}! Ich wünsche dir heute so viel Action, dass morgen der Muskelkater gratuliert. 💪😏",
+    "Happy Birthday, {Name}! Möge heute Abend mehr brennen als nur die Deko auf dem Kuchen. 🔥😉",
+    "Alles Gute, {Name}! Statistisch gesehen hast du heute Geburtstag. Praktisch gesehen einen Grund zum Eskalieren. 🥂😈",
+    "Herzlichen Glückwunsch, {Name}! Bleib sauber – oder noch besser: lass dich heute mal nicht erwischen. 😏🎉",
+    "Happy Birthday, {Name}! In deinem Alter sollte man es ruhig angehen lassen… sagte absolut niemand. Gib Gas! 😉🚀",
+    "Alles Gute, {Name}! Schön, dass du trotz fortgeschrittenem Baujahr noch ohne Starthilfe auf Touren kommst. 🚗😏",
+    "Glückwunsch zum Geburtstag, {Name}! Mögen deine Falten nur vom Lachen kommen – oder von unanständig guten Nächten. 😉✨",
+    "Happy Birthday, {Name}! Heute darfst du dir alles wünschen – außer Jugend, der Zug ist abgefahren. 🚂😏",
+    "Alles Gute, {Name}! Lass heute die Sau raus, aber denk dran: Ab dreißig dauert die Reha drei Tage. 🐷😉",
+    "Herzlichen Glückwunsch, {Name}! Ich hoffe, du wirst heute nach allen Regeln der Kunst verwöhnt – Jugendfreigabe optional. 😏🥂",
+    "Happy Birthday, {Name}! Du siehst keinen Tag älter aus als jemand, der dringend einen Schnaps und Zärtlichkeit braucht. 🥃😉",
+    "Alles Gute zum Geburtstag, {Name}! Vergiss die Weisheit des Alters – ein bisschen Unvernunft steht dir deutlich besser. 😈🎂",
+    "Glückwunsch, {Name}! Wenn dir heute heiß wird, liegt’s hoffentlich nicht nur an den vielen Kerzen im Raum. 🔥😏",
+    "Happy Birthday, {Name}! Möge dein Rücken heute alles mitmachen, was dein Kopf sich schmutziges ausdenkt. 😉🛏️",
+    "Alles Gute, {Name}! Wieder ein Jahr rum, und du siehst immer noch gefährlich gut aus – zumindest bei gedimmtem Licht. 🕯️😏",
+    "Herzlichen Glückwunsch, {Name}! Feier heute so, dass die Nachbarn morgen höflich wegschauen. 😉🍾",
+    "Happy Birthday, {Name}! Kuchen macht glücklich, guter Sex verbrennt die Kalorien wieder – ich sag’s ja nur. 🍰😏",
+    "Alles Gute zum Geburtstag, {Name}! Du bist nicht alt, du bist einfach schon länger scharf als andere. 🌶️😉",
+    "Glückwunsch, {Name}! Heute ist dein Ehrentag – tu nichts, was ich nicht auch genießen würde. 😈🥂",
+    "Happy Birthday, {Name}! Ich wünsche dir für das neue Lebensjahr feste Nerven, gute Laune und noch bessere Matratzenfedern. 🛏️😏",
+    "Alles Gute, {Name}! Mit jedem Jahr sinkt das Schamgefühl – beste Voraussetzungen für heute Abend! 😉🎉",
+    "Herzlichen Glückwunsch, {Name}! Mögest du heute öfter flachgelegt werden als dein Geschenkpapier. 🎁😏",
+    "Happy Birthday, {Name}! Keine Panik vor dem Alter – Antiquitäten werden schließlich auch mit Samthandschuhen angefasst. 🧤😉",
+    "Alles Gute zum Geburtstag, {Name}! Trink nicht mehr, als mit aller Gewalt reingeht, und bleib unanständig charmant. 🍻😏",
+    "Glückwunsch, {Name}! Du hast jetzt das perfekte Alter: erfahren genug für gute Tricks, jung genug zum Wiederholen. 😉✨",
+    "Happy Birthday, {Name}! Ich wollte dir erst Vernunft schenken, aber wir wissen beide, dass du damit nichts anfängst. 😈🎁",
+    "Alles Gute, {Name}! Möge heute nicht nur die Sahne auf deinem Kuchen steif geschlagen sein. 🍰😉",
+    "Herzlichen Glückwunsch, {Name}! Ein weiteres Jahr erfolgreich überlebt – zur Belohnung gibt’s heute hoffentlich Hautkontakt. 😏🥂",
+    "Happy Birthday, {Name}! Denk beim Auspusten dran: Tief Luft holen kann heute Abend auch noch nützlich werden. 🎂😉",
+    "Alles Gute zum Geburtstag, {Name}! Du hältst dich erstaunlich frisch – liegt bestimmt an den unmoralischen Gedanken. 😈✨",
+    "Glückwunsch, {Name}! Ab jetzt zählt jede schlaflose Nacht doppelt – sorg wenigstens dafür, dass sie sich lohnt. 😉🌙",
+    "Happy Birthday, {Name}! Möge dein Glas heute immer voll und deine Kleidung heute Abend schnell im Weg sein. 🥂😏",
+    "Alles Gute, {Name}! Du bist der lebende Beweis, dass man auch mit Reifeprüfung noch ordentlich Flausen im Kopf hat. 😉🎈",
+    "Herzlichen Glückwunsch, {Name}! Lass es heute ordentlich krachen – Ibuprofen legen wir vorsorglich schon mal bereit. 💊😏",
+    "Happy Birthday, {Name}! Ich wünsche dir jemanden, der dich heute genauso hungrig anschaut wie du das Buffet. 🍽️😉",
+    "Alles Gute zum Geburtstag, {Name}! Schön, dass dein Humor genauso trocken und dein Blick genauso schmutzig geblieben ist. 😏🥃",
+    "Glückwunsch, {Name}! Wer braucht schon ewige Jugend, wenn man stattdessen besseren Geschmack und weniger Hemmungen hat? 😈🥂",
+    "Happy Birthday, {Name}! Heute wird nicht nach dem Alter gefragt, sondern nur nach ‚oben oder unten?‘ 😉🔥",
+    "Alles Gute, {Name}! Möge dein neues Lebensjahr weniger Drama und deutlich mehr horizontale Highlights bieten. 🛏️😏",
+    "Herzlichen Glückwunsch, {Name}! Du bist wie ein Klassiker mit ordentlich Hubraum: laut, durstig und schwer zu bändigen. 🏎️😉",
+    "Happy Birthday, {Name}! Lass dir heute alle Wünsche von den Lippen ablesen – oder wo auch immer. 😏💋",
+    "Alles Gute zum Geburtstag, {Name}! Wieder ein Jahr älter, aber im Kopf immer noch dauerhaft auf Klassenfahrt. 🚌😈",
+    "Glückwunsch, {Name}! Die Feuerwehr weiß wegen deiner Kerzen Bescheid – für alles danach bist du selbst verantwortlich. 🚒😉",
+    "Happy Birthday, {Name}! Ich wünsche dir ein Jahr voller kleiner Sünden, die du garantiert nicht bereust. 😈🥂",
+    "Alles Gute, {Name}! Falls heute jemand sagt ‚Sei vernünftig‘, schick ihn einfach wieder nach Hause. 😉🚪",
+    "Herzlichen Glückwunsch, {Name}! Dein Geburtsdatum sagt ‚erwachsen‘, dein Grinsen sagt ‚keine Chance‘. 😏🎂",
+    "Happy Birthday, {Name}! Auf dass heute die Hüllen leichter fallen als das Aufstehen morgen früh. 😉🍾",
+    "Alles Gute zum Geburtstag, {Name}! Bleib gesund, munter und für jedes unmoralische Angebot offen. 😈✨",
+    "Glückwunsch, {Name}! Du hast dich verdammt gut gehalten – irgendwas Verbotenes machst du definitiv richtig. 😏🍀",
+    "Happy Birthday, {Name}! Heute darfst du ruhig übertreiben: beim Essen, beim Trinken und erst recht beim Nachtisch. 🍓😉",
+    "Alles Gute, {Name}! Möge dein Puls heute nur aus den allerbesten Gründen in die Höhe schießen. 💓😏",
+    "Herzlichen Glückwunsch, {Name}! Ein Hoch auf dich – und auf alles, was heute Abend sonst noch hochgeht. 🥂😉",
+    "Happy Birthday, {Name}! Alt genug, um es besser zu wissen, und entspannt genug, es trotzdem zu tun. 😈🎉",
+    "Alles Gute zum Geburtstag, {Name}! Vergiss Anti-Aging – gute Gesellschaft im Bett sorgt für den besseren Glow. ✨😏",
+    "Glückwunsch, {Name}! Ich wünsche dir heute viele zärtliche Hände und null nervige Anrufe. 📵😉",
+    "Happy Birthday, {Name}! Wenn das Leben dir ein weiteres Jahr gibt, bestell Salz und Tequila dazu. 🍋😏",
+    "Alles Gute, {Name}! Möge deine Kondition heute Abend genauso beeindruckend sein wie dein Durst. 🍻😉",
+    "Herzlichen Glückwunsch, {Name}! Noch ein Jahr mehr auf dem Tacho, aber das Fahrwerk sieht immer noch top aus. 😏🛞",
+    "Happy Birthday, {Name}! Genieße deinen Ehrentag – brav sein kannst du wieder im nächsten Leben. 😈🎂",
+    "Alles Gute zum Geburtstag, {Name}! Hoffentlich bekommst du heute genau das, was man nicht in Geschenkpapier wickeln kann. 😉🔥",
+    "Glückwunsch, {Name}! Im Ausweis steht eine neue Zahl, im Herzen bleibt der alte Spieltrieb. 😏🎲",
+    "Happy Birthday, {Name}! Lass dich heute feiern, verführen und erst morgen Nachmittag wieder ansprechen. 🛌😉",
+    "Alles Gute, {Name}! Du wirst nicht grau, das sind nur Glitzerstreifen vom nächtlichen Übertreiben. ✨😏",
+    "Herzlichen Glückwunsch, {Name}! Möge deine Torte süß, dein Sekt kalt und deine Begleitung heute heiß sein. 🥂🔥",
+    "Happy Birthday, {Name}! Schon wieder Geburtstag? Gefühlt haben wir doch erst letzte Woche deinen Kater auskuriert. 😉🍺",
+    "Alles Gute zum Geburtstag, {Name}! Bleib genau so trocken im Spruch und beweglich in der Hüfte. 😏💃",
+    "Glückwunsch, {Name}! Ich wünsche dir heute null Stress, zwei Promille Lebensfreude und jemanden zum Warmhalten. 😉🥂",
+    "Happy Birthday, {Name}! Keine Sorge, ab jetzt nennt man deine Macken einfach ‚besondere Ausstattung‘. 😏🎁",
+    "Alles Gute, {Name}! Mach dir heute einen unvergesslichen Abend – oder einen, an den du dich kaum noch erinnerst. 😈🍾",
+    "Herzlichen Glückwunsch, {Name}! Möge dir im neuen Lebensjahr nichts wehtun – außer vielleicht die Lachmuskeln und die Knie. 😉🔥",
+    "Happy Birthday, {Name}! Schön, dass du noch immer weißt, wie man Feste feiert und Betten zum Quietschen bringt. 🛏️😏",
+    "Alles Gute zum Geburtstag, {Name}! Ein Jahr weiser? Vielleicht. Ein Jahr braver? Sicher nicht. 😈🎂",
+    "Glückwunsch, {Name}! Heute gilt: Kalorien zählen nicht, Uhrzeiten zählen nicht und Ausreden erst recht nicht. 😉🥂",
+    "Happy Birthday, {Name}! Du bist im besten Alter – man braucht keinen Ausweis mehr, hat aber noch Puls für Unsinn. 😏💓",
+    "Alles Gute, {Name}! Lass dich heute mal ordentlich auf Händen tragen – oder direkt ins Schlafzimmer. 😉✨",
+    "Herzlichen Glückwunsch, {Name}! Ich wünsche dir ein pralles Konto, einen flachen Bauch und unverschämt gute Nächte. 😏🍀",
+    "Happy Birthday, {Name}! Wer so gut altert wie du, hat entweder gute Gene oder ein sehr aktives Liebesleben. 😉🔥",
+    "Alles Gute zum Geburtstag, {Name}! Stoßen wir heute auf dich an – in jeder erdenklichen Bedeutung des Wortes. 🥂😏",
+    "Glückwunsch, {Name}! Wieder 365 Tage erfolgreich hinter dich gebracht, ohne seriös zu werden. Respekt! 😈🎉",
+    "Happy Birthday, {Name}! Möge dein Kaffee morgens stark und dein Besuch abends ausdauernd sein. ☕😉",
+    "Alles Gute, {Name}! Feier heute schön wild – für den Mittagsschlaf morgen hast du jetzt offiziell das richtige Alter. 😴😏",
+    "Herzlichen Glückwunsch, {Name}! Du bist wie scharfer Senf: nicht für jeden mild genug, aber verdammt gut. 🌶️😉",
+    "Happy Birthday, {Name}! Mach heute genau das, worüber andere morgen nur tuscheln können. 😈🥂",
+    "Alles Gute zum Geburtstag, {Name}! Bleib knackig, bleib versaut genug für gute Geschichten und lass es krachen! 🎉😏"
+)
+
+val DEFAULT_BELATED_BIRTHDAY_GREETINGS = listOf(
+    "Alles Gute nachträglich, {Name}! Ich bin nicht zu spät – ich verlängere nur deinen Höhepunkt. 😉🥂",
+    "Herzlichen Glückwunsch nachträglich, {Name}! Die Besten kommen eben immer ein bisschen später. 😏🎂",
+    "Happy Birthday nachträglich, {Name}! Ich wollte warten, bis dein Kater weg ist und du wieder aufnahmefähig bist. 🤕😉",
+    "Nachträglich alles Gute, {Name}! In unserem Alter dauert eben alles einen Moment länger – auch das Gratulieren. 😏🥂",
+    "Alles Gute nachträglich zum Geburtstag, {Name}! Hoffe, es hat ordentlich geknallt – und die Torte war auch gut. 😉🎉"
 )
 
 fun parseBirthdayGreetingsJson(raw: String?): List<String> {
@@ -3188,20 +3196,35 @@ fun KontaktChronikApp(
     var hasNotificationPerm by remember { mutableStateOf(BirthdayNotificationHelper.hasNotificationPermission(context)) }
     var wichtelGroups by remember { mutableStateOf(parseWichtelGroupsJson(appPrefs.getString("wichtel_groups_json", null))) }
     var wichtelHistory by remember { mutableStateOf(parseWichtelHistoryJson(appPrefs.getString("wichtel_history_json", null))) }
-    var birthdayGreetings by remember { mutableStateOf(parseBirthdayGreetingsJson(appPrefs.getString("birthday_greetings_json", null))) }
+    var birthdayGreetings by remember {
+        val initialGreetings = if (appPrefs.getInt("birthday_greetings_schema_ver", 1) < 2) {
+            appPrefs.edit()
+                .putString("birthday_greetings_json", serializeBirthdayGreetingsJson(DEFAULT_BIRTHDAY_GREETINGS))
+                .putInt("birthday_greetings_schema_ver", 2)
+                .apply()
+            DEFAULT_BIRTHDAY_GREETINGS
+        } else {
+            parseBirthdayGreetingsJson(appPrefs.getString("birthday_greetings_json", null))
+        }
+        mutableStateOf(initialGreetings)
+    }
     var showOptionsDialog by remember { mutableStateOf(false) }
     var showGreetingsEditorDialog by remember { mutableStateOf(false) }
 
     fun saveBirthdayGreetings(updated: List<String>) {
         val finalList = updated.ifEmpty { DEFAULT_BIRTHDAY_GREETINGS }
         birthdayGreetings = finalList
-        appPrefs.edit().putString("birthday_greetings_json", serializeBirthdayGreetingsJson(finalList)).apply()
+        appPrefs.edit()
+            .putString("birthday_greetings_json", serializeBirthdayGreetingsJson(finalList))
+            .putInt("birthday_greetings_schema_ver", 2)
+            .apply()
     }
 
     fun pickRandomBirthdayGreeting(firstName: String, isPastMode: Boolean = false): String {
         val cleanFirst = firstName.trim().ifBlank { "dir" }
         if (isPastMode) {
-            return "Alles Gute nachträglich zum Geburtstag, $cleanFirst! 🎂🎉 Ich hoffe, du hattest einen wunderschönen Tag!"
+            val pastTemplate = DEFAULT_BELATED_BIRTHDAY_GREETINGS.random()
+            return pastTemplate.replace(Regex("\\{Name\\}", RegexOption.IGNORE_CASE), cleanFirst)
         }
         val pool = birthdayGreetings.ifEmpty { DEFAULT_BIRTHDAY_GREETINGS }
         val template = pool.random()
@@ -3527,7 +3550,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.46",
+                "Remember Me v1.0.47",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4545,7 +4568,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.46")
+                put("version", "1.0.47")
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
                 put("birthdayPopupEnabled", birthdayPopupEnabled)
@@ -5227,7 +5250,7 @@ fun KontaktChronikApp(
                     }
                     CompactButton("+ Neu") {
                         saveBirthdayGreetings(
-                            listOf("Alles Liebe und Gute zum Geburtstag, {Name}! 🎂🎉") + birthdayGreetings
+                            listOf("Alles Gute zum Geburtstag, {Name}! Möge heute nicht nur der Sektkorken ordentlich knallen. 🥂😉") + birthdayGreetings
                         )
                         searchQuery = ""
                         selectedLetter = ""
