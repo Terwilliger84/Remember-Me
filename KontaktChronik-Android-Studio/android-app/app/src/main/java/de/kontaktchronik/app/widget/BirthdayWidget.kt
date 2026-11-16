@@ -371,6 +371,7 @@ object RememberMeWidgetHelper {
         val intent = Intent(context, MainActivity::class.java).apply {
             data = Uri.parse("rememberme://widget/open_home/$requestCode")
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("OPEN_HOME_MAIN", true)
         }
         return PendingIntent.getActivity(
             context,
@@ -380,25 +381,11 @@ object RememberMeWidgetHelper {
         )
     }
 
-    fun buildPersonPopupPendingIntent(context: Context, item: WidgetRowItem, appWidgetId: Int): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            data = Uri.parse("rememberme://widget/$appWidgetId/person/${item.key}")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("POPUP_PERSON_ID", item.personId)
-            putExtra("POPUP_REASON", item.popupReason)
-        }
-        val reqCode = (appWidgetId * 31) xor item.key.hashCode()
-        return PendingIntent.getActivity(
-            context,
-            reqCode,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-    }
-
     fun buildListTemplatePendingIntent(context: Context, appWidgetId: Int): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
+            data = Uri.parse("rememberme://widget/open_home_list/$appWidgetId")
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("OPEN_HOME_MAIN", true)
         }
         val mutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
         return PendingIntent.getActivity(
@@ -559,6 +546,7 @@ private object NativeWidgetRenderer {
         rv.tintRounded(R.id.w_inner_box, palette.bg)
 
         val openAppPi = RememberMeWidgetHelper.buildOpenAppPendingIntent(context, 100_000 + appWidgetId)
+        rv.setOnClickPendingIntent(R.id.w_outer_frame, openAppPi)
         rv.setOnClickPendingIntent(R.id.w_inner_box, openAppPi)
 
         if (shownRows.isEmpty()) {
@@ -637,9 +625,8 @@ private object NativeWidgetRenderer {
             rv.setTextColor(badgeId, cols[5])
             rv.tintRounded(badgeId, cols[4])
 
-            val personPi = RememberMeWidgetHelper.buildPersonPopupPendingIntent(context, item, appWidgetId)
-            rv.setOnClickPendingIntent(frameId, personPi)
-            rv.setOnClickPendingIntent(innerId, personPi)
+            rv.setOnClickPendingIntent(frameId, openAppPi)
+            rv.setOnClickPendingIntent(innerId, openAppPi)
         }
 
         return rv
@@ -661,6 +648,7 @@ private object NativeWidgetRenderer {
         rv.tintRounded(R.id.w_inner_box, palette.bg)
 
         val openAppPi = RememberMeWidgetHelper.buildOpenAppPendingIntent(context, 200_000 + appWidgetId)
+        rv.setOnClickPendingIntent(R.id.w_outer_frame, openAppPi)
         rv.setOnClickPendingIntent(R.id.w_inner_box, openAppPi)
 
         if (shown.isEmpty()) {
@@ -699,9 +687,8 @@ private object NativeWidgetRenderer {
             rv.setTextViewText(TILE_NAME_IDS[idx], item.name)
             rv.setTextColor(TILE_NAME_IDS[idx], cols[2])
 
-            val personPi = RememberMeWidgetHelper.buildPersonPopupPendingIntent(context, item, appWidgetId)
-            rv.setOnClickPendingIntent(frameId, personPi)
-            rv.setOnClickPendingIntent(innerId, personPi)
+            rv.setOnClickPendingIntent(frameId, openAppPi)
+            rv.setOnClickPendingIntent(innerId, openAppPi)
         }
         return rv
     }
@@ -739,6 +726,8 @@ private object NativeWidgetRenderer {
         }
 
         val openAppPi = RememberMeWidgetHelper.buildOpenAppPendingIntent(context, 300_000 + appWidgetId)
+        rv.setOnClickPendingIntent(R.id.w_outer_frame, openAppPi)
+        rv.setOnClickPendingIntent(R.id.w_inner_box, openAppPi)
         rv.setTextViewText(R.id.w_header_title, effectiveHeader)
         rv.setTextColor(R.id.w_header_title, effectiveHeaderColor)
         rv.setTextColor(R.id.w_header_open, palette.textSecondary)
@@ -789,9 +778,8 @@ private object NativeWidgetRenderer {
                 itemRv.tintRounded(R.id.li_badge, cols[4])
 
                 val fillIn = Intent().apply {
-                    data = Uri.parse("rememberme://widget/$appWidgetId/list/${item.key}")
-                    putExtra("POPUP_PERSON_ID", item.personId)
-                    putExtra("POPUP_REASON", item.popupReason)
+                    data = Uri.parse("rememberme://widget/$appWidgetId/open_home_item/$index")
+                    putExtra("OPEN_HOME_MAIN", true)
                 }
                 itemRv.setOnClickFillInIntent(R.id.li_frame, fillIn)
                 itemRv.setOnClickFillInIntent(R.id.li_inner, fillIn)

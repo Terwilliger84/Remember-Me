@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <title>Remember Me v1.0.54 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.55 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
@@ -2566,7 +2566,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.54</div>
+          <div class="app-title">Remember Me v1.0.55</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -6618,7 +6618,7 @@
                   <div style="font-size:11.5px; font-weight:700; color:var(--accent-steel); margin-bottom:4px;">1. 🎂 Mini (2×1) – Nächster Termin</div>
                   <div style="width:185px; background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:12px; padding:6px;">
                     ${first ? `
-                      <div style="background:var(--card-slate); border-radius:8px; padding:5px 7px; cursor:pointer;" onclick="showWidgetPreviewModal=false; openPopupForPerson(${first.personId}, '${escapeHtml(first.reason)}')">
+                      <div style="background:var(--card-slate); border-radius:8px; padding:5px 7px; cursor:pointer;" onclick="showWidgetPreviewModal=false; activeTab='Übersicht'; detailPersonId=null; popupPersonId=null; renderAll();">
                         <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; font-weight:700; color:var(--accent-steel);">
                           <span>${escapeHtml(first.icon)} ${escapeHtml(first.meta)}</span>
                           <span class="badge">${escapeHtml(first.badge)}</span>
@@ -6633,7 +6633,7 @@
                   <div style="font-size:11.5px; font-weight:700; color:var(--accent-steel); margin-bottom:4px;">2. 🎂 Kompakt-Leiste (4×1)</div>
                   <div style="background:var(--bg-slate); border:1px solid var(--border-slate); border-radius:12px; padding:6px; display:grid; grid-template-columns:1fr 1fr; gap:5px;">
                     ${wRows.slice(0, 2).map(it => `
-                      <div style="background:var(--card-slate); border-radius:8px; padding:4px 6px; cursor:pointer;" onclick="showWidgetPreviewModal=false; openPopupForPerson(${it.personId}, '${escapeHtml(it.reason)}')">
+                      <div style="background:var(--card-slate); border-radius:8px; padding:4px 6px; cursor:pointer;" onclick="showWidgetPreviewModal=false; activeTab='Übersicht'; detailPersonId=null; popupPersonId=null; renderAll();">
                         <div style="display:flex; justify-content:space-between; align-items:center; font-size:9.5px; color:var(--text-secondary);">
                           <span>${escapeHtml(it.icon)} ${escapeHtml(it.meta)}</span>
                           <span class="badge">${escapeHtml(it.badge)}</span>
@@ -6651,7 +6651,7 @@
                       <span>🎂 Termine</span><span style="font-size:10px; color:var(--text-secondary);">Öffnen ↗</span>
                     </div>
                     ${wRows.slice(0, 4).map(it => `
-                      <div style="background:var(--card-slate); border-radius:7px; padding:3px 6px; display:flex; justify-content:space-between; align-items:center; gap:6px; cursor:pointer;" onclick="showWidgetPreviewModal=false; openPopupForPerson(${it.personId}, '${escapeHtml(it.reason)}')">
+                      <div style="background:var(--card-slate); border-radius:7px; padding:3px 6px; display:flex; justify-content:space-between; align-items:center; gap:6px; cursor:pointer;" onclick="showWidgetPreviewModal=false; activeTab='Übersicht'; detailPersonId=null; popupPersonId=null; renderAll();">
                         <span style="font-size:11.5px; font-weight:600; color:var(--text-primary);">${escapeHtml(it.icon)} ${escapeHtml(it.name)}</span>
                         <span style="font-size:10px; color:var(--text-secondary); white-space:nowrap;">${escapeHtml(it.meta)} • <b>${escapeHtml(it.badge)}</b></span>
                       </div>
@@ -6666,7 +6666,7 @@
                       <span>🎂 Geburtstage & Termine (${wRows.length})</span><span style="font-size:10px; color:var(--text-secondary);">Öffnen ↗</span>
                     </div>
                     ${wRows.map(it => `
-                      <div style="background:var(--card-slate); border-radius:7px; padding:3px 6px; display:flex; justify-content:space-between; align-items:center; gap:6px; cursor:pointer;" onclick="showWidgetPreviewModal=false; openPopupForPerson(${it.personId}, '${escapeHtml(it.reason)}')">
+                      <div style="background:var(--card-slate); border-radius:7px; padding:3px 6px; display:flex; justify-content:space-between; align-items:center; gap:6px; cursor:pointer;" onclick="showWidgetPreviewModal=false; activeTab='Übersicht'; detailPersonId=null; popupPersonId=null; renderAll();">
                         <span style="font-size:11.5px; font-weight:600; color:var(--text-primary);">${escapeHtml(it.icon)} ${escapeHtml(it.name)}</span>
                         <span style="font-size:10px; color:var(--text-secondary); white-space:nowrap;">${escapeHtml(it.meta)} • <b>${escapeHtml(it.badge)}</b></span>
                       </div>
@@ -10057,7 +10057,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.54",
+        version: "1.0.55",
         createdAt: dateStr,
         state
       };
@@ -10075,7 +10075,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.54",
+        version: "1.0.55",
         createdAt: dateStr,
         state
       };
@@ -10150,7 +10150,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.54 gestartet.");
+    addLog("Remember Me v1.0.55 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

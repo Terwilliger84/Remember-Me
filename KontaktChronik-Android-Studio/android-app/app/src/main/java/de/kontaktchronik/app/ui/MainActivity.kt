@@ -3078,8 +3078,19 @@ fun buildMergedContactPreview(
 
 class MainActivity : ComponentActivity() {
     private val pendingPopupRequest = mutableStateOf<Triple<Long, String, Long>?>(null)
+    private val pendingOpenHomeSignal = mutableStateOf(0L)
 
     private fun consumePopupIntent(incoming: Intent?) {
+        val isWidgetHome = incoming?.getBooleanExtra("OPEN_HOME_MAIN", false) == true ||
+            incoming?.data?.host.equals("widget", ignoreCase = true)
+        if (isWidgetHome) {
+            incoming?.removeExtra("OPEN_HOME_MAIN")
+            incoming?.removeExtra("POPUP_PERSON_ID")
+            incoming?.removeExtra("POPUP_REASON")
+            pendingPopupRequest.value = null
+            pendingOpenHomeSignal.value = System.currentTimeMillis()
+            return
+        }
         val pid = incoming?.getLongExtra("POPUP_PERSON_ID", -1L) ?: -1L
         if (pid > 0L) {
             val reason = incoming?.getStringExtra("POPUP_REASON") ?: "Erinnerung"
@@ -3134,7 +3145,9 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = scheme) {
                 KontaktChronikApp(
                     popupRequest = pendingPopupRequest.value,
-                    onConsumePopupRequest = { pendingPopupRequest.value = null }
+                    onConsumePopupRequest = { pendingPopupRequest.value = null },
+                    openHomeSignal = pendingOpenHomeSignal.value,
+                    onConsumeOpenHomeSignal = { pendingOpenHomeSignal.value = 0L }
                 )
             }
         }
@@ -3155,7 +3168,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun KontaktChronikApp(
     popupRequest: Triple<Long, String, Long>?,
-    onConsumePopupRequest: () -> Unit
+    onConsumePopupRequest: () -> Unit,
+    openHomeSignal: Long = 0L,
+    onConsumeOpenHomeSignal: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -3244,6 +3259,21 @@ fun KontaktChronikApp(
     var detailPerson by remember { mutableStateOf<PersonEntity?>(null) }
     var showMergeContactsDialog by remember { mutableStateOf(false) }
     var mergeInitialPersonIds by remember { mutableStateOf<List<Long>>(emptyList()) }
+
+    LaunchedEffect(openHomeSignal) {
+        if (openHomeSignal > 0L) {
+            onConsumeOpenHomeSignal()
+            activeTab = "Übersicht"
+            detailPerson = null
+            popupPerson = null
+            showCreateDialog = false
+            showTimerEntryDialog = false
+            editingTimerPerson = null
+            showMergeContactsDialog = false
+            showOptionsDialog = false
+            showGreetingsEditorDialog = false
+        }
+    }
     var mergedAwayDeviceCids by remember {
         mutableStateOf(appPrefs.getStringSet("merged_away_device_cids", emptySet()).orEmpty())
     }
@@ -3658,7 +3688,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.54",
+                "Remember Me v1.0.55",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4741,7 +4771,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.54")
+                put("version", "1.0.55")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
