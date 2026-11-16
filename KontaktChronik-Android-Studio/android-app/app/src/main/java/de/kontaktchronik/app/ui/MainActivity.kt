@@ -1857,11 +1857,12 @@ fun formatIsoToDdMmYyyy(iso: String?): String {
         val wd = getWeeklyDayNumber(clean) ?: 1
         return "🔁 Jeden ${WEEKDAY_NAMES_DE[wd] ?: "Wochentag"}"
     }
-    if (clean.startsWith("--")) {
-        val parts = clean.removePrefix("--").split("-")
+    val norm = ContactResolver.normalizeBirthdayIso(clean) ?: clean
+    if (norm.startsWith("--")) {
+        val parts = norm.removePrefix("--").split("-")
         if (parts.size == 2) return "${parts[1].padStart(2, '0')}.${parts[0].padStart(2, '0')}."
     }
-    val parts = clean.split("-")
+    val parts = norm.split("-")
     return if (parts.size == 3) {
         "${parts[2].padStart(2, '0')}.${parts[1].padStart(2, '0')}.${parts[0]}"
     } else clean
@@ -1869,9 +1870,11 @@ fun formatIsoToDdMmYyyy(iso: String?): String {
 
 fun normalizeDateInputToIso(input: String): String {
     val clean = input.trim()
+    if (clean.isBlank()) return ""
     if (isWeeklyDateSpec(clean) || isRepeatDateSpec(clean)) return clean
+    ContactResolver.normalizeBirthdayIso(clean, preferDayFirstForTwoPartDash = true)?.let { return it }
     if (clean.contains(".")) {
-        val parts = clean.trimEnd('.').split(".")
+        val parts = clean.trimEnd('.').split(".").map { it.trim() }.filter { it.isNotEmpty() }
         if (parts.size == 3) {
             return "${parts[2].padStart(4, '0')}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}"
         }
@@ -2112,7 +2115,11 @@ fun buildOverviewTimelineItems(
                         baseBdayLine +
                         (if (congRec != null) " • ✅ ${congRec.channel}" else ""),
                     secondaryLine = if (relationSummary.isNotBlank() && person.hasNoOwnPhone) "🔗 $relationSummary" else "",
-                    popupReason = "🎂 Geburtstag ($ageInfo)"
+                    popupReason = if (ageInfo.isBlank() || ageInfo.equals("Geburtstag", ignoreCase = true)) {
+                        "🎂 Geburtstag"
+                    } else {
+                        "🎂 Geburtstag ($ageInfo)"
+                    }
                 )
             }
         }
@@ -3651,7 +3658,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.52",
+                "Remember Me v1.0.53",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4734,7 +4741,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.52")
+                put("version", "1.0.53")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -5923,7 +5930,7 @@ fun KontaktChronikApp(
         var firstName by remember { mutableStateOf("") }
         var lastName by remember { mutableStateOf("") }
         val name = combineFirstAndLastName(firstName, lastName)
-        var bday by remember { mutableStateOf(formatIsoToDdMmYyyy(LocalDate.now().toString())) }
+        var bday by remember { mutableStateOf("") }
         var noPhone by remember { mutableStateOf(false) }
         var saveInDeviceContacts by remember { mutableStateOf(true) }
         var phone by remember { mutableStateOf("") }
@@ -5953,7 +5960,7 @@ fun KontaktChronikApp(
                     val userPickedPhoto = photoVal.isNotBlank()
                     val basePerson = PersonEntity(
                         name = name.trim(),
-                        birthdayIso = normalizeDateInputToIso(bday),
+                        birthdayIso = normalizeDateInputToIso(bday).ifBlank { null },
                         hasNoOwnPhone = noPhone,
                         phone = phone.trim(),
                         email = email.trim(),
@@ -6090,7 +6097,7 @@ fun KontaktChronikApp(
                     ContactHeroBanner(
                         displayName = name,
                         placeholderTitle = "Neuer Kontakt",
-                        birthdayText = bday.trim(),
+                        birthdayText = formatIsoToDdMmYyyy(normalizeDateInputToIso(bday)).ifBlank { bday.trim() },
                         photoBase64 = photoVal,
                         onPickPhoto = { createPhotoPickerLauncher.launch("image/*") },
                         onRemovePhoto = { photoVal = "" }
@@ -6109,7 +6116,9 @@ fun KontaktChronikApp(
                         DateInputWithCalendar(
                             value = bday,
                             onValueChange = { bday = it },
-                            label = "Geburtsdatum (TT.MM.JJJJ)"
+                            label = "Geburtsdatum (TT.MM. / TT.MM.JJJJ)",
+                            placeholder = "z. B. 14.05. oder 14.05.1985",
+                            allowWithoutYear = true
                         )
                     }
 
@@ -6437,7 +6446,7 @@ fun KontaktChronikApp(
                 }
                 var updated = dp.copy(
                     name = nameVal.trim().ifBlank { dp.name },
-                    birthdayIso = normalizeDateInputToIso(bdayVal),
+                    birthdayIso = normalizeDateInputToIso(bdayVal).ifBlank { null },
                     phone = phoneVal.trim(),
                     hasNoOwnPhone = noPhoneVal,
                     email = emailVal.trim(),
@@ -6599,7 +6608,7 @@ fun KontaktChronikApp(
                     ContactHeroBanner(
                         displayName = nameVal.ifBlank { dp.name },
                         placeholderTitle = dp.name,
-                        birthdayText = bdayVal.trim(),
+                        birthdayText = formatIsoToDdMmYyyy(normalizeDateInputToIso(bdayVal)).ifBlank { bdayVal.trim() },
                         photoBase64 = photoVal,
                         onPickPhoto = { detailPhotoPickerLauncher.launch("image/*") },
                         onRemovePhoto = {
@@ -6669,7 +6678,9 @@ fun KontaktChronikApp(
                         DateInputWithCalendar(
                             value = bdayVal,
                             onValueChange = { bdayVal = it },
-                            label = "Geburtsdatum (TT.MM.JJJJ)"
+                            label = "Geburtsdatum (TT.MM. / TT.MM.JJJJ)",
+                            placeholder = "z. B. 14.05. oder 14.05.1985",
+                            allowWithoutYear = true
                         )
                     }
 
@@ -10442,83 +10453,516 @@ fun ChannelSymbolIcon(channel: String) {
     }
 }
 
+private val BIRTHDAY_MONTH_NAMES_DE = listOf(
+    "Januar", "Februar", "März", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember"
+)
+
+@Composable
+fun BirthdayCalendarPickerDialog(
+    initialValue: String,
+    initialIncludeYear: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    val today = remember { LocalDate.now() }
+    val normIso = remember(initialValue) {
+        ContactResolver.normalizeBirthdayIso(initialValue, preferDayFirstForTwoPartDash = true)
+    }
+    val initParts = remember(normIso) {
+        when {
+            normIso != null && normIso.startsWith("--") -> {
+                val p = normIso.removePrefix("--").split("-")
+                Triple(1990, p.getOrNull(0)?.toIntOrNull() ?: today.monthValue, p.getOrNull(1)?.toIntOrNull() ?: today.dayOfMonth)
+            }
+            normIso != null -> {
+                val p = normIso.split("-")
+                Triple(
+                    p.getOrNull(0)?.toIntOrNull() ?: 1990,
+                    p.getOrNull(1)?.toIntOrNull() ?: today.monthValue,
+                    p.getOrNull(2)?.toIntOrNull() ?: today.dayOfMonth
+                )
+            }
+            else -> Triple(1990, today.monthValue, today.dayOfMonth)
+        }
+    }
+
+    var includeYear by remember { mutableStateOf(initialIncludeYear) }
+    var selectedYear by remember { mutableStateOf(initParts.first.coerceIn(1900, today.year)) }
+    var selectedMonth by remember { mutableStateOf(initParts.second.coerceIn(1, 12)) }
+    var selectedDay by remember { mutableStateOf(initParts.third.coerceIn(1, 31)) }
+    var monthMenuExpanded by remember { mutableStateOf(false) }
+    var yearMenuExpanded by remember { mutableStateOf(false) }
+
+    val maxDaysInMonth = remember(selectedMonth, selectedYear, includeYear) {
+        val isLeap = !includeYear || java.time.Year.isLeap(selectedYear.toLong())
+        java.time.Month.of(selectedMonth).length(isLeap)
+    }
+    val clampedDay = selectedDay.coerceIn(1, maxDaysInMonth)
+    if (selectedDay != clampedDay) {
+        selectedDay = clampedDay
+    }
+
+    val previewFormatted = remember(clampedDay, selectedMonth, selectedYear, includeYear) {
+        val dStr = clampedDay.toString().padStart(2, '0')
+        val mStr = selectedMonth.toString().padStart(2, '0')
+        if (includeYear) "$dStr.$mStr.$selectedYear" else "$dStr.$mStr."
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 370.dp)
+                .background(CardSlate, RoundedCornerShape(16.dp))
+                .border(1.5.dp, BorderSlate, RoundedCornerShape(16.dp))
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "🎂 Geburtstag",
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CompactButton(if (!includeYear) "✓ Ohne Jahr" else "Ohne Jahr") {
+                        includeYear = false
+                    }
+                    CompactButton(if (includeYear) "✓ Mit Jahr" else "Mit Jahr") {
+                        includeYear = true
+                    }
+                }
+            }
+
+            HorizontalDivider(color = BorderSlate)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CompactButton("◀") {
+                    if (selectedMonth == 1) {
+                        selectedMonth = 12
+                        if (includeYear && selectedYear > 1900) selectedYear -= 1
+                    } else {
+                        selectedMonth -= 1
+                    }
+                }
+                Box(modifier = Modifier.weight(1.2f)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BgSlate, RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { monthMenuExpanded = true }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            BIRTHDAY_MONTH_NAMES_DE[selectedMonth - 1],
+                            color = TextPrimary,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text("▼", color = AccentSteel, fontSize = 10.sp, maxLines = 1, softWrap = false)
+                    }
+                    DropdownMenu(
+                        expanded = monthMenuExpanded,
+                        onDismissRequest = { monthMenuExpanded = false },
+                        modifier = Modifier
+                            .heightIn(max = 280.dp)
+                            .background(CardSlate)
+                    ) {
+                        BIRTHDAY_MONTH_NAMES_DE.forEachIndexed { idx, mName ->
+                            val mNum = idx + 1
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        mName,
+                                        color = if (mNum == selectedMonth) AccentSteel else TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (mNum == selectedMonth) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                },
+                                onClick = {
+                                    selectedMonth = mNum
+                                    monthMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                if (includeYear) {
+                    Box(modifier = Modifier.weight(0.85f)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BgSlate, RoundedCornerShape(8.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { yearMenuExpanded = true }
+                                .padding(horizontal = 9.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                selectedYear.toString(),
+                                color = TextPrimary,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Text("▼", color = AccentSteel, fontSize = 10.sp, maxLines = 1, softWrap = false)
+                        }
+                        DropdownMenu(
+                            expanded = yearMenuExpanded,
+                            onDismissRequest = { yearMenuExpanded = false },
+                            modifier = Modifier
+                                .heightIn(max = 280.dp)
+                                .background(CardSlate)
+                        ) {
+                            for (yr in today.year downTo 1900) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            yr.toString(),
+                                            color = if (yr == selectedYear) AccentSteel else TextPrimary,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (yr == selectedYear) FontWeight.Bold else FontWeight.Normal,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    },
+                                    onClick = {
+                                        selectedYear = yr
+                                        yearMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                CompactButton("▶") {
+                    if (selectedMonth == 12) {
+                        selectedMonth = 1
+                        if (includeYear && selectedYear < today.year) selectedYear += 1
+                    } else {
+                        selectedMonth += 1
+                    }
+                }
+            }
+
+            if (includeYear) {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So").forEach { wd ->
+                        Text(
+                            text = wd,
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            val startOffset = if (includeYear) {
+                LocalDate.of(selectedYear, selectedMonth, 1).dayOfWeek.value - 1
+            } else {
+                0
+            }
+            val totalSlots = startOffset + maxDaysInMonth
+            val rowCount = (totalSlots + 6) / 7
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (r in 0 until rowCount) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        for (c in 0 until 7) {
+                            val cellIndex = r * 7 + c
+                            val dayNum = cellIndex - startOffset + 1
+                            if (dayNum in 1..maxDaysInMonth) {
+                                val isSel = dayNum == clampedDay
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(34.dp)
+                                        .background(
+                                            if (isSel) AccentSteel else BgSlate,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (isSel) AccentSteel else BorderSlate,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { selectedDay = dayNum },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = dayNum.toString(),
+                                        color = if (isSel) Color.White else TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                        style = CenteredPillTextStyle,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f).height(34.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = BorderSlate)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "🎂 $previewFormatted",
+                    color = AccentSteel,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (initialValue.isNotBlank()) {
+                        DangerActionButton("🗑️") {
+                            onConfirm("")
+                        }
+                    }
+                    CompactButton("Abbrechen") { onDismiss() }
+                    PrimaryActionButton("✓ OK") {
+                        onConfirm(previewFormatted)
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun DateInputWithCalendar(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String
+    label: String,
+    placeholder: String? = null,
+    allowWithoutYear: Boolean = false
 ) {
     val context = LocalContext.current
-    val interactionSource = remember { MutableInteractionSource() }
+    var showBirthdayPicker by remember { mutableStateOf(false) }
+    var pickerInitialIncludeYear by remember { mutableStateOf(true) }
 
-    fun showCalendar() {
-        val iso = normalizeDateInputToIso(value)
-        val parsed = runCatching {
-            val clean = if (iso.startsWith("--")) "${LocalDate.now().year}-${iso.removePrefix("--")}" else iso
-            LocalDate.parse(clean)
-        }.getOrElse { LocalDate.now() }
-
-        DatePickerDialog(
-            context,
-            { _, y, m, d ->
-                val dayStr = d.toString().padStart(2, '0')
-                val monthStr = (m + 1).toString().padStart(2, '0')
-                onValueChange("$dayStr.$monthStr.$y")
-            },
-            parsed.year,
-            parsed.monthValue - 1,
-            parsed.dayOfMonth
-        ).show()
+    val normalizedBday = remember(value, allowWithoutYear) {
+        if (allowWithoutYear) {
+            ContactResolver.normalizeBirthdayIso(value, preferDayFirstForTwoPartDash = true)
+        } else null
     }
 
-    LaunchedEffect(interactionSource) {
-        interactionSource.interactions.collect { interaction ->
-            if (interaction is PressInteraction.Release) {
-                showCalendar()
+    fun openCalendar(forceYearMode: Boolean? = null) {
+        if (allowWithoutYear) {
+            pickerInitialIncludeYear = forceYearMode ?: when {
+                normalizedBday != null && normalizedBday.startsWith("--") -> false
+                normalizedBday != null -> true
+                else -> false
             }
+            showBirthdayPicker = true
+        } else {
+            val iso = normalizeDateInputToIso(value)
+            val parsed = runCatching {
+                val clean = if (iso.startsWith("--")) "${LocalDate.now().year}-${iso.removePrefix("--")}" else iso
+                LocalDate.parse(clean)
+            }.getOrElse { LocalDate.now() }
+
+            DatePickerDialog(
+                context,
+                { _, y, m, d ->
+                    val dayStr = d.toString().padStart(2, '0')
+                    val monthStr = (m + 1).toString().padStart(2, '0')
+                    onValueChange("$dayStr.$monthStr.$y")
+                },
+                parsed.year,
+                parsed.monthValue - 1,
+                parsed.dayOfMonth
+            ).show()
         }
     }
 
-    OutlinedTextField(
-        value = value.replace("\n", " ").replace("\r", " "),
-        onValueChange = { onValueChange(it.replace("\n", " ").replace("\r", " ")) },
-        label = { Text(label, maxLines = 1, softWrap = false, fontSize = 11.5.sp) },
-        leadingIcon = {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(BgSlate, RoundedCornerShape(7.dp))
-                    .border(1.dp, BorderSlate, RoundedCornerShape(7.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("🎂", fontSize = 13.sp, style = CenteredPillTextStyle)
+    if (showBirthdayPicker && allowWithoutYear) {
+        BirthdayCalendarPickerDialog(
+            initialValue = value,
+            initialIncludeYear = pickerInitialIncludeYear,
+            onDismiss = { showBirthdayPicker = false },
+            onConfirm = { chosen ->
+                onValueChange(chosen)
+                showBirthdayPicker = false
             }
-        },
-        interactionSource = interactionSource,
-        trailingIcon = {
-            Box(
-                modifier = Modifier
-                    .padding(end = 6.dp)
-                    .background(BtnBg, RoundedCornerShape(8.dp))
-                    .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { showCalendar() }
-                    .padding(horizontal = 8.dp, vertical = 5.dp),
-                contentAlignment = Alignment.Center
+        )
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        OutlinedTextField(
+            value = value.replace("\n", " ").replace("\r", " "),
+            onValueChange = { onValueChange(it.replace("\n", " ").replace("\r", " ")) },
+            label = { Text(label, maxLines = 1, softWrap = false, fontSize = 11.5.sp) },
+            placeholder = placeholder?.let { ph ->
+                { Text(ph, maxLines = 1, softWrap = false, fontSize = 12.sp) }
+            },
+            leadingIcon = {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(BgSlate, RoundedCornerShape(7.dp))
+                        .border(1.dp, BorderSlate, RoundedCornerShape(7.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("🎂", fontSize = 13.sp, style = CenteredPillTextStyle)
+                }
+            },
+            trailingIcon = {
+                Row(
+                    modifier = Modifier.padding(end = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (value.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .background(CardSlate, RoundedCornerShape(8.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onValueChange("") }
+                                .padding(horizontal = 7.dp, vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "✕",
+                                color = TextMuted,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                style = CenteredPillTextStyle
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .background(BtnBg, RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { openCalendar() }
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "📅",
+                            fontSize = 13.sp,
+                            style = CenteredPillTextStyle
+                        )
+                    }
+                }
+            },
+            shape = RoundedCornerShape(10.dp),
+            colors = contactFieldColors(),
+            singleLine = true,
+            maxLines = 1,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        if (allowWithoutYear) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "📅",
-                    fontSize = 13.sp,
-                    style = CenteredPillTextStyle
+                when {
+                    normalizedBday != null && !normalizedBday.startsWith("--") -> {
+                        CompactButton("Ohne Jahr") {
+                            val parts = normalizedBday.split("-")
+                            if (parts.size == 3) {
+                                onValueChange("${parts[2]}.${parts[1]}.")
+                            }
+                        }
+                        CompactButton("📅 Ändern") {
+                            openCalendar(forceYearMode = true)
+                        }
+                    }
+                    normalizedBday != null && normalizedBday.startsWith("--") -> {
+                        Box(
+                            modifier = Modifier
+                                .background(TreeGreen.copy(alpha = 0.14f), RoundedCornerShape(7.dp))
+                                .border(1.dp, TreeGreen.copy(alpha = 0.6f), RoundedCornerShape(7.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "✓ Ohne Jahr",
+                                color = TreeGreen,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                style = CenteredPillTextStyle,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                        CompactButton("+ Jahr") {
+                            openCalendar(forceYearMode = true)
+                        }
+                    }
+                    else -> {
+                        CompactButton("📅 Ohne Jahr") {
+                            openCalendar(forceYearMode = false)
+                        }
+                        CompactButton("📅 Mit Jahr") {
+                            openCalendar(forceYearMode = true)
+                        }
+                    }
+                }
+                InfoHintIcon(
+                    title = "Geburtstag mit oder ohne Jahr",
+                    text = "Du kannst Geburtstage auch ohne Jahreszahl eintragen – einfach z. B. „14.05.“ eintippen oder über „📅 Ohne Jahr“ im Kalender wählen. Auch im Telefonbuch am Handy wird das Datum ohne Jahr gespeichert."
                 )
             }
-        },
-        shape = RoundedCornerShape(10.dp),
-        colors = contactFieldColors(),
-        singleLine = true,
-        maxLines = 1,
-        modifier = Modifier.fillMaxWidth()
-    )
+        }
+    }
 }
 
 @Composable

@@ -138,9 +138,17 @@ object RememberMeWidgetHelper {
     }
 
     private fun shortDateDdMm(isoDate: String?): String {
-        if (isoDate.isNullOrBlank()) return ""
-        val clean = isoDate.trim()
-        val parts = clean.split("-")
+        val norm = ContactResolver.normalizeBirthdayIso(isoDate) ?: isoDate?.trim().orEmpty()
+        if (norm.isBlank()) return ""
+        if (norm.startsWith("--")) {
+            val md = norm.removePrefix("--").split("-")
+            if (md.size >= 2) {
+                val m = md[0].padStart(2, '0')
+                val d = md[1].take(2).padStart(2, '0')
+                return "$d.$m."
+            }
+        }
+        val parts = norm.split("-")
         if (parts.size >= 3) {
             val m = parts[1].padStart(2, '0')
             val d = parts[2].take(2).padStart(2, '0')

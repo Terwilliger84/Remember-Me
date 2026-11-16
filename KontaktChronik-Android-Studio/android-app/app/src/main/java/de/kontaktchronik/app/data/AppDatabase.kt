@@ -28,6 +28,7 @@ import androidx.room.RoomDatabase
 import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import de.kontaktchronik.app.model.ContactResolver
 import de.kontaktchronik.app.model.DirectMessageEntity
 import de.kontaktchronik.app.model.PersonEntity
 import de.kontaktchronik.app.model.RelationEntity
@@ -571,7 +572,7 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                     if (name.isNotBlank() && !rawDisplayByCid.containsKey(cid)) {
                         rawDisplayByCid[cid] = name
                     }
-                    birthdaysByContactId[cid] = rawDate
+                    birthdaysByContactId[cid] = ContactResolver.normalizeBirthdayIso(rawDate) ?: rawDate
                 }
             }
         }
@@ -1348,12 +1349,14 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                     }
                     ops.add(aOp.build())
                 }
-                if (!person.birthdayIso.isNullOrBlank()) {
+                val canonicalBday = ContactResolver.normalizeBirthdayIso(person.birthdayIso)
+                    ?: person.birthdayIso?.trim()?.takeIf { it.isNotBlank() }
+                if (!canonicalBday.isNullOrBlank()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                             .withValue(ContactsContract.Data.RAW_CONTACT_ID, targetRawId)
                             .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.Event.START_DATE, person.birthdayIso)
+                            .withValue(ContactsContract.CommonDataKinds.Event.START_DATE, canonicalBday)
                             .withValue(ContactsContract.CommonDataKinds.Event.TYPE, ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY)
                             .build()
                     )
@@ -1509,12 +1512,14 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
                     }
                     ops.add(aOp.build())
                 }
-                if (!person.birthdayIso.isNullOrBlank()) {
+                val canonicalNewBday = ContactResolver.normalizeBirthdayIso(person.birthdayIso)
+                    ?: person.birthdayIso?.trim()?.takeIf { it.isNotBlank() }
+                if (!canonicalNewBday.isNullOrBlank()) {
                     ops.add(
                         ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
                             .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
                             .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Event.CONTENT_ITEM_TYPE)
-                            .withValue(ContactsContract.CommonDataKinds.Event.START_DATE, person.birthdayIso)
+                            .withValue(ContactsContract.CommonDataKinds.Event.START_DATE, canonicalNewBday)
                             .withValue(ContactsContract.CommonDataKinds.Event.TYPE, ContactsContract.CommonDataKinds.Event.TYPE_BIRTHDAY)
                             .build()
                     )

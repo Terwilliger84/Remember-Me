@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <title>Remember Me v1.0.52 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.53 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
@@ -2566,7 +2566,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.52</div>
+          <div class="app-title">Remember Me v1.0.53</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -2714,16 +2714,33 @@
       const clean = (input || "").trim();
       if (!clean) return "";
       if (isWeeklyDateSpec(clean) || isRepeatDateSpec(clean)) return clean;
-      const dotParts = clean.split(".");
-      if (dotParts.length === 3 && dotParts[2].length === 4) {
-        return `${dotParts[2]}-${dotParts[1].padStart(2, "0")}-${dotParts[0].padStart(2, "0")}`;
+      if (clean.startsWith("--")) {
+        const p = clean.slice(2).split("-").map(s => s.trim()).filter(Boolean);
+        if (p.length === 2) return `--${p[0].padStart(2, "0")}-${p[1].padStart(2, "0")}`;
       }
-      if (dotParts.length >= 2 && (!dotParts[2] || dotParts[2] === "")) {
-        return `--${dotParts[1].padStart(2, "0")}-${dotParts[0].padStart(2, "0")}`;
+      if (clean.includes(".") || clean.includes("/")) {
+        const sep = clean.includes(".") ? "." : "/";
+        const parts = clean.split(sep).map(s => s.trim()).filter(s => /\d/.test(s));
+        if (parts.length === 3) {
+          let yr = parts[2].replace(/\D/g, "");
+          if (yr.length === 2) {
+            const yy = parseInt(yr, 10);
+            const curYY = new Date().getFullYear() % 100;
+            yr = String(yy <= curYY ? 2000 + yy : 1900 + yy);
+          }
+          if (yr.length === 4) {
+            return `${yr}-${parts[1].replace(/\D/g, "").padStart(2, "0")}-${parts[0].replace(/\D/g, "").padStart(2, "0")}`;
+          }
+        }
+        if (parts.length === 2) {
+          return `--${parts[1].replace(/\D/g, "").padStart(2, "0")}-${parts[0].replace(/\D/g, "").padStart(2, "0")}`;
+        }
       }
-      const slashParts = clean.split("/");
-      if (slashParts.length === 3 && slashParts[2].length === 4) {
-        return `${slashParts[2]}-${slashParts[1].padStart(2, "0")}-${slashParts[0].padStart(2, "0")}`;
+      if (/^\d{4}$/.test(clean)) {
+        return `--${clean.slice(2, 4)}-${clean.slice(0, 2)}`;
+      }
+      if (/^\d{8}$/.test(clean)) {
+        return `${clean.slice(4, 8)}-${clean.slice(2, 4)}-${clean.slice(0, 2)}`;
       }
       return clean;
     }
@@ -6861,10 +6878,10 @@
                   </div>
                 </div>
                 <div class="field-group">
-                  <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
+                  <label class="field-label">Geburtsdatum (TT.MM. / TT.MM.JJJJ)</label>
                   <div class="input-icon-wrap">
                     <span class="input-icon-chip">🎂</span>
-                    <input id="c-bday" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(createDraft.bday)}" onclick="openCalendarPicker('c-bday')" onfocus="openCalendarPicker('c-bday')" oninput="createDraft.bday=this.value; updateContactHeroLive('create');" />
+                    <input id="c-bday" placeholder="z. B. 14.05. oder 14.05.1985" value="${escapeHtml(createDraft.bday)}" oninput="createDraft.bday=this.value; updateContactHeroLive('create');" />
                     <button class="compact-btn" style="padding:4px 8px; border-radius:7px;" onclick="openCalendarPicker('c-bday')" title="Kalender öffnen">📅</button>
                   </div>
                 </div>
@@ -7059,10 +7076,10 @@
                   </div>
                 </div>
                 <div class="field-group">
-                  <label class="field-label">Geburtsdatum (TT.MM.JJJJ)</label>
+                  <label class="field-label">Geburtsdatum (TT.MM. / TT.MM.JJJJ)</label>
                   <div class="input-icon-wrap">
                     <span class="input-icon-chip">🎂</span>
-                    <input id="d-bday" style="cursor:pointer;" placeholder="TT.MM.JJJJ" value="${escapeHtml(formattedDpBday)}" onclick="openCalendarPicker('d-bday')" onfocus="openCalendarPicker('d-bday')" oninput="updateContactHeroLive('detail')" />
+                    <input id="d-bday" placeholder="z. B. 14.05. oder 14.05.1985" value="${escapeHtml(formattedDpBday)}" oninput="updateContactHeroLive('detail')" />
                     <button class="compact-btn" style="padding:4px 8px; border-radius:7px;" onclick="openCalendarPicker('d-bday')" title="Kalender öffnen">📅</button>
                   </div>
                 </div>
@@ -9472,7 +9489,7 @@
         firstName: "",
         lastName: "",
         name: "",
-        bday: formatIsoToDdMmYyyy(todayIso()),
+        bday: "",
         noPhone: false,
         saveInDevice: true,
         phone: "",
@@ -9879,13 +9896,22 @@
     function openCalendarPicker(inputId) {
       const el = document.getElementById(inputId);
       const rawVal = el ? el.value : "";
-      const iso = normalizeDateInputToIso(rawVal) || todayIso();
+      const allowYearless = (inputId === "c-bday" || inputId === "d-bday");
+      const norm = normalizeDateInputToIso(rawVal);
+      const includeYear = allowYearless ? Boolean(norm && !norm.startsWith("--")) : true;
+      const iso = norm || todayIso();
       const parts = iso.replace(/^--/, "2000-").split("-").map(Number);
       const tParts = todayIso().split("-").map(Number);
-      const year = (parts.length === 3 && parts[0] >= 1900 && parts[0] <= 2100) ? parts[0] : tParts[0];
+      const year = (parts.length === 3 && parts[0] >= 1900 && parts[0] <= 2100 && !iso.startsWith("--")) ? parts[0] : (allowYearless ? 1990 : tParts[0]);
       const month = (parts.length === 3 && parts[1] >= 1 && parts[1] <= 12) ? (parts[1] - 1) : (tParts[1] - 1);
       const day = (parts.length === 3 && parts[2] >= 1 && parts[2] <= 31) ? parts[2] : tParts[2];
-      calendarPickerState = { inputId, year, month, selectedDay: day };
+      calendarPickerState = { inputId, year, month, selectedDay: day, allowYearless, includeYear };
+      renderCalendarPopup();
+    }
+
+    function toggleCalendarIncludeYear(withYear) {
+      if (!calendarPickerState) return;
+      calendarPickerState.includeYear = Boolean(withYear);
       renderCalendarPopup();
     }
 
@@ -9899,8 +9925,8 @@
       if (!calendarPickerState) return;
       let m = calendarPickerState.month + delta;
       let y = calendarPickerState.year;
-      if (m < 0) { m = 11; y -= 1; }
-      if (m > 11) { m = 0; y += 1; }
+      if (m < 0) { m = 11; if (calendarPickerState.includeYear) y -= 1; }
+      if (m > 11) { m = 0; if (calendarPickerState.includeYear) y += 1; }
       calendarPickerState.month = m;
       calendarPickerState.year = y;
       renderCalendarPopup();
@@ -9921,7 +9947,9 @@
     function selectCalendarDay(day) {
       if (!calendarPickerState) return;
       const pad = n => String(n).padStart(2, "0");
-      const formatted = `${pad(day)}.${pad(calendarPickerState.month + 1)}.${calendarPickerState.year}`;
+      const formatted = calendarPickerState.includeYear
+        ? `${pad(day)}.${pad(calendarPickerState.month + 1)}.${calendarPickerState.year}`
+        : `${pad(day)}.${pad(calendarPickerState.month + 1)}.`;
       const el = document.getElementById(calendarPickerState.inputId);
       if (el) {
         el.value = formatted;
@@ -9958,13 +9986,14 @@
         calRoot.innerHTML = "";
         return;
       }
-      const { year, month, selectedDay } = calendarPickerState;
-      const firstDayJs = new Date(year, month, 1).getDay(); // 0=Sun..6=Sat
-      const startOffset = (firstDayJs + 6) % 7; // Monday=0..Sunday=6
-      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const { year, month, selectedDay, allowYearless, includeYear } = calendarPickerState;
+      const effectiveYear = includeYear ? year : 2000;
+      const firstDayJs = new Date(effectiveYear, month, 1).getDay();
+      const startOffset = includeYear ? ((firstDayJs + 6) % 7) : 0;
+      const daysInMonth = new Date(effectiveYear, month + 1, 0).getDate();
 
       const yearOptions = [];
-      for (let y = 2035; y >= 1920; y--) {
+      for (let y = 2035; y >= 1900; y--) {
         yearOptions.push(`<option value="${y}" ${y === year ? "selected" : ""}>${y}</option>`);
       }
       const monthOptions = MONTH_NAMES_DE.map((name, idx) =>
@@ -9984,19 +10013,32 @@
         `);
       }
 
+      const yearModeRow = allowYearless ? `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:6px;">
+          <span style="font-size:12.5px; font-weight:700;">🎂 Geburtstag</span>
+          <div style="display:flex; gap:4px;">
+            <button class="compact-btn ${!includeYear ? 'primary' : ''}" onclick="toggleCalendarIncludeYear(false)">${!includeYear ? '✓ Ohne Jahr' : 'Ohne Jahr'}</button>
+            <button class="compact-btn ${includeYear ? 'primary' : ''}" onclick="toggleCalendarIncludeYear(true)">${includeYear ? '✓ Mit Jahr' : 'Mit Jahr'}</button>
+          </div>
+        </div>
+      ` : "";
+
       calRoot.innerHTML = `
         <div class="modal-backdrop" style="z-index:200;" onclick="if(event.target===this) closeCalendarPicker()">
-          <div class="modal" style="max-width:310px;" onclick="event.stopPropagation()">
+          <div class="modal" style="max-width:325px;" onclick="event.stopPropagation()">
+            ${yearModeRow}
             <div style="display:flex; justify-content:space-between; align-items:center; gap:4px;">
               <button class="compact-btn" style="padding:4px 8px;" onclick="changeCalendarMonth(-1)">◀</button>
               <select class="field-select" style="flex:1.1;" onchange="setCalendarMonth(this.value)">${monthOptions}</select>
-              <select class="field-select" style="flex:0.9;" onchange="setCalendarYear(this.value)">${yearOptions.join("")}</select>
+              ${includeYear ? `<select class="field-select" style="flex:0.9;" onchange="setCalendarYear(this.value)">${yearOptions.join("")}</select>` : ""}
               <button class="compact-btn" style="padding:4px 8px;" onclick="changeCalendarMonth(1)">▶</button>
             </div>
-            <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; text-align:center; font-size:11px; color:var(--text-muted); font-weight:600; margin-top:4px;">
-              <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
-            </div>
-            <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px;">
+            ${includeYear ? `
+              <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; text-align:center; font-size:11px; color:var(--text-muted); font-weight:600; margin-top:4px;">
+                <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+              </div>
+            ` : ""}
+            <div style="display:grid; grid-template-columns:repeat(7, 1fr); gap:4px; margin-top:4px;">
               ${cells.join("")}
             </div>
             <div class="modal-footer" style="justify-content:space-between;">
@@ -10012,7 +10054,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.52",
+        version: "1.0.53",
         createdAt: dateStr,
         state
       };
@@ -10030,7 +10072,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.52",
+        version: "1.0.53",
         createdAt: dateStr,
         state
       };
@@ -10105,7 +10147,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.52 gestartet.");
+    addLog("Remember Me v1.0.53 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

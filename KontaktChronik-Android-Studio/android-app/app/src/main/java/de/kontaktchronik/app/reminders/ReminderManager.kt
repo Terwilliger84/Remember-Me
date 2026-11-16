@@ -408,7 +408,9 @@ object BirthdayNotificationHelper {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         val cleanAge = ageInfo.trim()
-        val hasAgeNumber = cleanAge.isNotBlank() && !cleanAge.equals("Alter unbekannt", ignoreCase = true)
+        val hasAgeNumber = cleanAge.isNotBlank() &&
+            !cleanAge.equals("Alter unbekannt", ignoreCase = true) &&
+            !cleanAge.equals("Geburtstag", ignoreCase = true)
         val reasonText = if (hasAgeNumber) {
             "🎂 Heute Geburtstag ($cleanAge)"
         } else {

@@ -152,13 +152,120 @@ object ContactResolver {
         return LocalDate.of(year, month, day.coerceIn(1, maxDay))
     }
 
+    /**
+     * Normalisiert Geburtsdaten mit oder ohne Jahreszahl in das kanonische Format
+     * `YYYY-MM-DD` (mit Jahr) bzw. `--MM-DD` (ohne Jahr, z. B. aus `14.05.`, `14.05`, `14/05`, `--05-14`).
+     */
+    fun normalizeBirthdayIso(raw: String?, preferDayFirstForTwoPartDash: Boolean = false): String? {
+        val trimmed = raw?.trim().orEmpty()
+        if (trimmed.isBlank()) return null
+        val clean = trimmed.substringBefore('T').trim()
+
+        fun buildValid(year: Int?, month: Int, day: Int): String? {
+            if (month !in 1..12) return null
+            val checkLeap = year == null || Year.isLeap(year.toLong())
+            val maxD = Month.of(month).length(checkLeap)
+            if (day !in 1..maxD) return null
+            return if (year == null || year <= 0 || year == 1604) {
+                "--%02d-%02d".format(month, day)
+            } else {
+                "%04d-%02d-%02d".format(year, month, day)
+            }
+        }
+
+        fun resolveTwoDigitYear(yy: Int): Int {
+            val curYY = LocalDate.now().year % 100
+            return if (yy <= curYY) 2000 + yy else 1900 + yy
+        }
+
+        if (clean.startsWith("--")) {
+            val rest = clean.removePrefix("--").trim()
+            if (rest.contains("-")) {
+                val p = rest.split("-").map { it.trim() }.filter { it.isNotEmpty() }
+                if (p.size == 2) {
+                    val m = p[0].toIntOrNull()
+                    val d = p[1].toIntOrNull()
+                    if (m != null && d != null) return buildValid(null, m, d)
+                }
+            } else if (rest.length == 4 && rest.all { it.isDigit() }) {
+                val m = rest.substring(0, 2).toIntOrNull()
+                val d = rest.substring(2, 4).toIntOrNull()
+                if (m != null && d != null) return buildValid(null, m, d)
+            }
+        }
+
+        if (clean.contains(".") || clean.contains("/")) {
+            val sep = if (clean.contains(".")) '.' else '/'
+            val rawParts = clean.split(sep).map { it.trim() }
+            val nonEmpty = rawParts.filter { it.isNotEmpty() && it.any(Char::isDigit) }
+            if (nonEmpty.size == 2) {
+                val d = nonEmpty[0].filter(Char::isDigit).toIntOrNull()
+                val m = nonEmpty[1].filter(Char::isDigit).toIntOrNull()
+                if (d != null && m != null) return buildValid(null, m, d)
+            } else if (nonEmpty.size == 3) {
+                val d = nonEmpty[0].filter(Char::isDigit).toIntOrNull()
+                val m = nonEmpty[1].filter(Char::isDigit).toIntOrNull()
+                val yDigits = nonEmpty[2].filter(Char::isDigit)
+                val y = when (yDigits.length) {
+                    2 -> yDigits.toIntOrNull()?.let { resolveTwoDigitYear(it) }
+                    4 -> yDigits.toIntOrNull()
+                    else -> null
+                }
+                if (d != null && m != null && y != null) return buildValid(y, m, d)
+            }
+        }
+
+        if (clean.contains("-")) {
+            val dParts = clean.split("-").map { it.trim() }.filter { it.isNotEmpty() }
+            if (dParts.size == 3) {
+                val p0 = dParts[0].toIntOrNull()
+                val p1 = dParts[1].toIntOrNull()
+                val p2 = dParts[2].toIntOrNull()
+                if (p0 != null && p1 != null && p2 != null) {
+                    if (dParts[0].length == 4) {
+                        return buildValid(p0, p1, p2)
+                    } else if (dParts[2].length == 4) {
+                        return buildValid(p2, p1, p0)
+                    } else if (dParts[2].length == 2) {
+                        return buildValid(resolveTwoDigitYear(p2), p1, p0)
+                    }
+                }
+            } else if (dParts.size == 2) {
+                val a = dParts[0].toIntOrNull()
+                val b = dParts[1].toIntOrNull()
+                if (a != null && b != null) {
+                    return if (preferDayFirstForTwoPartDash || a > 12) {
+                        buildValid(null, b, a)
+                    } else {
+                        buildValid(null, a, b)
+                    }
+                }
+            }
+        }
+
+        if (clean.all { it.isDigit() }) {
+            if (clean.length == 4) {
+                val d = clean.substring(0, 2).toIntOrNull()
+                val m = clean.substring(2, 4).toIntOrNull()
+                if (d != null && m != null) return buildValid(null, m, d)
+            } else if (clean.length == 8) {
+                val d = clean.substring(0, 2).toIntOrNull()
+                val m = clean.substring(2, 4).toIntOrNull()
+                val y = clean.substring(4, 8).toIntOrNull()
+                if (d != null && m != null && y != null) return buildValid(y, m, d)
+            }
+        }
+
+        return null
+    }
+
     fun isBirthdayToday(birthdayIso: String?, today: LocalDate = LocalDate.now()): Boolean =
         daysUntilNextBirthday(birthdayIso, today) == 0L
 
     fun daysUntilNextBirthday(birthdayIso: String?, today: LocalDate = LocalDate.now()): Long? {
-        if (birthdayIso.isNullOrBlank()) return null
+        val norm = normalizeBirthdayIso(birthdayIso) ?: birthdayIso?.trim()?.takeIf { it.isNotBlank() } ?: return null
         return try {
-            val parts = birthdayIso.removePrefix("--").split("-")
+            val parts = norm.removePrefix("--").split("-")
             val month = if (parts.size == 3) parts[1].toInt() else parts[0].toInt()
             val day = if (parts.size == 3) parts[2].toInt() else parts[1].toInt()
             var nextBday = safeBirthdayInYear(today.year, month, day)
@@ -175,9 +282,9 @@ object ContactResolver {
      * Gibt die vergangenen Tage seit dem letzten Geburtstag als negativen Wert zurück (z. B. -5 für vor 5 Tagen).
      */
     fun negativeDaysSinceLastBirthday(birthdayIso: String?, today: LocalDate = LocalDate.now()): Long? {
-        if (birthdayIso.isNullOrBlank()) return null
+        val norm = normalizeBirthdayIso(birthdayIso) ?: birthdayIso?.trim()?.takeIf { it.isNotBlank() } ?: return null
         return try {
-            val parts = birthdayIso.removePrefix("--").split("-")
+            val parts = norm.removePrefix("--").split("-")
             val month = if (parts.size == 3) parts[1].toInt() else parts[0].toInt()
             val day = if (parts.size == 3) parts[2].toInt() else parts[1].toInt()
             var lastBday = safeBirthdayInYear(today.year, month, day)
@@ -191,9 +298,10 @@ object ContactResolver {
     }
 
     fun formatUpcomingAge(birthdayIso: String?, today: LocalDate = LocalDate.now()): String {
-        if (birthdayIso.isNullOrBlank() || birthdayIso.startsWith("--")) return "Geburtstag"
+        val norm = normalizeBirthdayIso(birthdayIso) ?: birthdayIso?.trim().orEmpty()
+        if (norm.isBlank() || norm.startsWith("--")) return "Geburtstag"
         return try {
-            val birthDate = LocalDate.parse(birthdayIso)
+            val birthDate = LocalDate.parse(norm)
             val totalMonths = ChronoUnit.MONTHS.between(birthDate, today)
             val bdayThisYear = safeBirthdayInYear(today.year, birthDate.monthValue, birthDate.dayOfMonth)
             val nextYearAge = today.year - birthDate.year +
@@ -211,9 +319,10 @@ object ContactResolver {
     }
 
     fun formatPassedAge(birthdayIso: String?, today: LocalDate = LocalDate.now()): String {
-        if (birthdayIso.isNullOrBlank() || birthdayIso.startsWith("--")) return "hatte Geburtstag"
+        val norm = normalizeBirthdayIso(birthdayIso) ?: birthdayIso?.trim().orEmpty()
+        if (norm.isBlank() || norm.startsWith("--")) return "hatte Geburtstag"
         return try {
-            val birthDate = LocalDate.parse(birthdayIso)
+            val birthDate = LocalDate.parse(norm)
             var lastBday = safeBirthdayInYear(today.year, birthDate.monthValue, birthDate.dayOfMonth)
             if (lastBday.isAfter(today)) {
                 lastBday = safeBirthdayInYear(today.year - 1, birthDate.monthValue, birthDate.dayOfMonth)
