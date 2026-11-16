@@ -635,6 +635,7 @@ class ReminderBootReceiver : BroadcastReceiver() {
             action == Intent.ACTION_TIMEZONE_CHANGED
         ) {
             DailyReminderWorker.schedule(context)
+            RememberMeWidgetUpdater.updateAllAsync(context)
             if (BirthdayNotificationHelper.isBirthdayPopupEnabled(context)) {
                 BirthdayNotificationHelper.scheduleDailyBirthdayAlarm(context)
                 BirthdayNotificationHelper.checkAndNotifyTodaysBirthdaysAsync(context)

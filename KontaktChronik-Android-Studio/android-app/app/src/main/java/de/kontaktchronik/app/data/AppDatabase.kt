@@ -395,11 +395,16 @@ class ContactsSyncRepository(private val dao: KontaktChronikDao) {
     suspend fun ensureDefaultPhotosForAllPersons() {
         val all = dao.getAllPersonsOnce()
         for (p in all) {
-            if (p.photoBase64.isBlank()) {
-                val generated = generateDefaultPortraitBase64(p.name)
-                if (generated.isNotBlank()) {
-                    dao.updatePerson(p.copy(photoBase64 = generated))
-                }
+            val normBday = p.birthdayIso?.trim()?.takeIf { it.isNotBlank() }?.let { raw ->
+                ContactResolver.normalizeBirthdayIso(raw, preferDayFirstForTwoPartDash = false) ?: raw
+            }
+            val nextPhoto = if (p.photoBase64.isBlank()) {
+                generateDefaultPortraitBase64(p.name).ifBlank { p.photoBase64 }
+            } else {
+                p.photoBase64
+            }
+            if (normBday != p.birthdayIso || nextPhoto != p.photoBase64) {
+                dao.updatePerson(p.copy(birthdayIso = normBday, photoBase64 = nextPhoto))
             }
         }
     }
