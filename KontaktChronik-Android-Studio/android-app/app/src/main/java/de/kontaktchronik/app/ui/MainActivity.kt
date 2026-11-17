@@ -293,8 +293,9 @@ fun BirthdayCountdownPill(
         return
     }
     val days = ContactResolver.daysUntilNextBirthday(birthdayIso, today) ?: return
+    if (days > 7L) return
     val isToday = days == 0L
-    val isSoon = days in 1L..14L
+    val isSoon = days in 1L..7L
     val label = when {
         isToday && isCongratulatedToday -> "✅ Gratuliert"
         isToday -> "🎉 Heute!"
@@ -2096,7 +2097,8 @@ fun buildOverviewTimelineItems(
                     isBdayToday && congRec != null -> "✅ Gratuliert"
                     isBdayToday -> "🎉 Heute!"
                     bdayDays == 1L -> "🎂 Morgen!"
-                    else -> "🎂 in ${bdayDays}T"
+                    bdayDays in 2L..7L -> "🎂 in ${bdayDays}T"
+                    else -> ""
                 }
                 val ageInfo = ContactResolver.formatUpcomingAge(person.birthdayIso, today)
                 val baseBdayLine = formatCompactBirthdayLine(person.birthdayIso, today).orEmpty()
@@ -2107,7 +2109,7 @@ fun buildOverviewTimelineItems(
                     typePriority = 0,
                     pillText = pill,
                     isUrgent = isBdayToday && congRec == null,
-                    isSoon = bdayDays in 1L..14L,
+                    isSoon = bdayDays in 1L..7L,
                     isRecurring = false,
                     isBirthdayToday = isBdayToday,
                     isCongratulatedToday = congRec != null,
@@ -3688,7 +3690,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.55",
+                "Remember Me v1.0.56",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4771,7 +4773,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.55")
+                put("version", "1.0.56")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -12250,9 +12252,20 @@ fun WichtelScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            PersonAvatar(name = part.name, photoBase64 = contactPhoto, sizeDp = 30)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        editingParticipantGroup = activeGroup
+                                        editingParticipant = part
+                                    }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                PersonAvatar(name = part.name, photoBase64 = contactPhoto, sizeDp = 30)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -12354,6 +12367,7 @@ fun WichtelScreen(
                                             }
                                         )
                                     }
+                                }
                                 }
                             }
                             Spacer(modifier = Modifier.width(6.dp))

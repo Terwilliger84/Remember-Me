@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <title>Remember Me v1.0.55 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.56 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
@@ -2309,7 +2309,7 @@
       }
       if (days === 1) return `<span class="countdown-pill soon">🎂 Morgen!</span>`;
       if (days <= 7) return `<span class="countdown-pill soon">🎂 in ${days}T</span>`;
-      return `<span class="countdown-pill">🎂 in ${days}T</span>`;
+      return "";
     }
 
     const APP_THEME_SPECS = [
@@ -2566,7 +2566,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.55</div>
+          <div class="app-title">Remember Me v1.0.56</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -3918,6 +3918,9 @@
       }
       if (d === 1) {
         return `<span class="countdown-pill" style="background:rgba(46, 125, 91, 0.16); color:var(--tree-green);">Morgen</span>`;
+      }
+      if (item.kind === "BIRTHDAY" && d > 7) {
+        return "";
       }
       if (d <= 14) {
         return `<span class="countdown-pill" style="background:rgba(46, 125, 91, 0.14); color:var(--tree-green);">in ${d} Tagen</span>`;
@@ -5804,8 +5807,9 @@
         return `
           <div class="card" style="padding:8px 10px; ${partnerInGroup && group.excludeCouples ? 'border-left: 3px solid var(--partner-rose);' : ''}">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-              ${renderPersonAvatarHtml(part.name)}
-              <div style="flex:1; min-width:0;">
+              <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:0; cursor:pointer;" onclick="openWichtelParticipantModal('edit', ${group.id}, ${part.id})" title="Antippen zum Bearbeiten">
+                ${renderPersonAvatarHtml(part.name)}
+                <div style="flex:1; min-width:0;">
                 <div style="display:flex; align-items:center; gap:5px; white-space:nowrap; overflow:hidden;">
                   <span style="font-size:13.5px; font-weight:600; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis;">${escapeHtml(part.name)}</span>
                   ${isAdminSelf ? `<span>👑</span>` : ""}
@@ -5822,6 +5826,7 @@
                     <a href="https://www.amazon.de/s?k=${encodeURIComponent(part.wishText)}" target="_blank" rel="noopener" style="font-size:11px; color:var(--accent-steel); text-decoration:none; flex-shrink:0;">🔎</a>
                   </div>
                 ` : ""}
+                </div>
               </div>
               <div style="display:flex; gap:4px; align-items:center; flex-shrink:0;">
                 <button class="compact-btn" style="padding:4px 7px; font-size:11px;" onclick="openWichtelParticipantModal('edit', ${group.id}, ${part.id})" title="Wunschliste bearbeiten">🎁</button>
@@ -10057,7 +10062,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.55",
+        version: "1.0.56",
         createdAt: dateStr,
         state
       };
@@ -10075,7 +10080,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.55",
+        version: "1.0.56",
         createdAt: dateStr,
         state
       };
@@ -10150,7 +10155,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.55 gestartet.");
+    addLog("Remember Me v1.0.56 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>
