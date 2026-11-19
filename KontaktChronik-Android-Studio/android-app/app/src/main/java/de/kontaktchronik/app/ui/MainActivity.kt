@@ -3690,7 +3690,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.56",
+                "Remember Me v1.0.57",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4773,7 +4773,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.56")
+                put("version", "1.0.57")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -9667,7 +9667,7 @@ fun FamilyTreeScreen(
 
                         val laneShift = ((groupIdx % 3) - 1) * (5f * z)
 
-                        if (pNodes.size == 2 && pNodes[0].genLevel == pNodes[1].genLevel) {
+                        if (pNodes.size == 2 && pNodes[0].genLevel == pNodes[1].genLevel && cNodes.all { it.genLevel > pNodes[0].genLevel }) {
                             val pLeft = pNodes[0]
                             val pRight = pNodes[1]
                             val areAdjacentPartners = explicitPartners(pLeft.person.id, pRight.person.id) &&
@@ -9727,30 +9727,46 @@ fun FamilyTreeScreen(
                             }
                         } else {
                             for (pn in pNodes) {
-                                val targetMinTop = cNodes.minOf { it.top }
-                                val channelY = ((pn.bottom + targetMinTop) / 2f + laneShift)
-                                    .coerceIn(pn.bottom + 8f * z, (targetMinTop - 8f * z).coerceAtLeast(pn.bottom + 8f * z))
-
-                                drawCircle(
-                                    color = AccentSteel,
-                                    radius = dotRadius,
-                                    center = Offset(pn.centerX.dp.toPx(), pn.bottom.dp.toPx())
-                                )
                                 for (cn in cNodes) {
-                                    drawRoundedOrthogonalDrop(
-                                        startX = pn.centerX,
-                                        startY = pn.bottom,
-                                        endX = cn.centerX,
-                                        endY = cn.top,
-                                        midY = channelY,
-                                        lineColor = AccentSteel,
-                                        strokePx = strokeMain
-                                    )
-                                    drawCircle(
-                                        color = AccentSteel,
-                                        radius = dotRadius,
-                                        center = Offset(cn.centerX.dp.toPx(), cn.top.dp.toPx())
-                                    )
+                                    if (pn.genLevel == cn.genLevel) {
+                                        val topArchY = (minOf(pn.top, cn.top) - 10f * z)
+                                        drawRoundedOrthogonalDrop(
+                                            startX = pn.centerX,
+                                            startY = pn.top,
+                                            endX = cn.centerX,
+                                            endY = cn.top,
+                                            midY = topArchY,
+                                            lineColor = AccentSteel,
+                                            strokePx = strokeMain
+                                        )
+                                        drawCircle(AccentSteel, radius = dotRadius, center = Offset(pn.centerX.dp.toPx(), pn.top.dp.toPx()))
+                                        drawCircle(AccentSteel, radius = dotRadius, center = Offset(cn.centerX.dp.toPx(), cn.top.dp.toPx()))
+                                    } else {
+                                        val upper = if (pn.centerY <= cn.centerY) pn else cn
+                                        val lower = if (upper.person.id == pn.person.id) cn else pn
+                                        val channelY = ((upper.bottom + lower.top) / 2f + laneShift)
+                                            .coerceIn(upper.bottom + 8f * z, (lower.top - 8f * z).coerceAtLeast(upper.bottom + 8f * z))
+
+                                        drawCircle(
+                                            color = AccentSteel,
+                                            radius = dotRadius,
+                                            center = Offset(upper.centerX.dp.toPx(), upper.bottom.dp.toPx())
+                                        )
+                                        drawRoundedOrthogonalDrop(
+                                            startX = upper.centerX,
+                                            startY = upper.bottom,
+                                            endX = lower.centerX,
+                                            endY = lower.top,
+                                            midY = channelY,
+                                            lineColor = AccentSteel,
+                                            strokePx = strokeMain
+                                        )
+                                        drawCircle(
+                                            color = AccentSteel,
+                                            radius = dotRadius,
+                                            center = Offset(lower.centerX.dp.toPx(), lower.top.dp.toPx())
+                                        )
+                                    }
                                 }
                             }
                         }

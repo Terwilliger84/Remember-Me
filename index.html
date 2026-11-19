@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <title>Remember Me v1.0.56 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.57 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
@@ -2566,7 +2566,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.56</div>
+          <div class="app-title">Remember Me v1.0.57</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -4914,7 +4914,7 @@
         const laneShift = ((groupIdx % 3) - 1) * (5 * z);
         groupIdx++;
 
-        if (pNodes.length === 2 && pNodes[0].genLevel === pNodes[1].genLevel) {
+        if (pNodes.length === 2 && pNodes[0].genLevel === pNodes[1].genLevel && cNodes.every(c => c.genLevel > pNodes[0].genLevel)) {
           const [pLeft, pRight] = pNodes;
           const areAdjPartners = explicitPartners(pLeft.person.id, pRight.person.id) &&
             !positionedNodes.some(n => n.genLevel === pLeft.genLevel && n.person.id !== pLeft.person.id && n.person.id !== pRight.person.id && n.centerX > pLeft.centerX && n.centerX < pRight.centerX);
@@ -4939,12 +4939,20 @@
           }
         } else {
           for (const pn of pNodes) {
-            const minTop = Math.min(...cNodes.map(c => c.top));
-            const channelY = Math.min(Math.max((pn.bottom + minTop) / 2 + laneShift, pn.bottom + 8 * z), Math.max(pn.bottom + 8 * z, minTop - 8 * z));
-            svgParts.push(`<circle cx="${pn.centerX.toFixed(1)}" cy="${pn.bottom.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
             for (const cn of cNodes) {
-              svgParts.push(`<path d="${buildRoundedDropPath(pn.centerX, pn.bottom, cn.centerX, cn.top, channelY)}" fill="none" stroke="var(--accent-steel)" stroke-width="${strokeMain}" stroke-linecap="round" stroke-linejoin="round" />`);
-              svgParts.push(`<circle cx="${cn.centerX.toFixed(1)}" cy="${cn.top.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+              if (pn.genLevel === cn.genLevel) {
+                const topArchY = Math.min(pn.top, cn.top) - 10 * z;
+                svgParts.push(`<path d="${buildRoundedDropPath(pn.centerX, pn.top, cn.centerX, cn.top, topArchY)}" fill="none" stroke="var(--accent-steel)" stroke-width="${strokeMain}" stroke-linecap="round" stroke-linejoin="round" />`);
+                svgParts.push(`<circle cx="${pn.centerX.toFixed(1)}" cy="${pn.top.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+                svgParts.push(`<circle cx="${cn.centerX.toFixed(1)}" cy="${cn.top.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+              } else {
+                const upper = pn.centerY <= cn.centerY ? pn : cn;
+                const lower = upper === pn ? cn : pn;
+                const channelY = Math.min(Math.max((upper.bottom + lower.top) / 2 + laneShift, upper.bottom + 8 * z), Math.max(upper.bottom + 8 * z, lower.top - 8 * z));
+                svgParts.push(`<circle cx="${upper.centerX.toFixed(1)}" cy="${upper.bottom.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+                svgParts.push(`<path d="${buildRoundedDropPath(upper.centerX, upper.bottom, lower.centerX, lower.top, channelY)}" fill="none" stroke="var(--accent-steel)" stroke-width="${strokeMain}" stroke-linecap="round" stroke-linejoin="round" />`);
+                svgParts.push(`<circle cx="${lower.centerX.toFixed(1)}" cy="${lower.top.toFixed(1)}" r="${dotR}" fill="var(--accent-steel)" />`);
+              }
             }
           }
         }
@@ -10062,7 +10070,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.56",
+        version: "1.0.57",
         createdAt: dateStr,
         state
       };
@@ -10080,7 +10088,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.56",
+        version: "1.0.57",
         createdAt: dateStr,
         state
       };
@@ -10155,7 +10163,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.56 gestartet.");
+    addLog("Remember Me v1.0.57 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>
