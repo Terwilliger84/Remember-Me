@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <title>Remember Me v1.0.57 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.58 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
@@ -2566,7 +2566,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.57</div>
+          <div class="app-title">Remember Me v1.0.58</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -4458,6 +4458,27 @@
           edges.push({ personAId: idA, personBId: idB, fromId: chosen.fromPersonId, toId: chosen.toPersonId, label: chosen.relationLabel, kind: "EXTENDED" });
         }
       }
+      // Konsistenz-Normalisierung für Partner-Eltern-Dreiecke:
+      // Wenn A und B Partner sind und beide eine Eltern-Kind-Kante zu derselben Person C haben,
+      // müssen A und B gemeinsam die Eltern von C sein (auch wenn eine Kante versehentlich invertiert ist).
+      const partnerPairs = edges.filter(e => e.kind === "PARTNER").map(e => [e.personAId, e.personBId]);
+      for (const [pA, pB] of partnerPairs) {
+        const edgesA = edges.filter(e => e.kind === "PARENT_CHILD" && (e.personAId === pA || e.personBId === pA) && e.personAId !== pB && e.personBId !== pB);
+        for (const eA of edgesA) {
+          const thirdId = eA.personAId === pA ? eA.personBId : eA.personAId;
+          const eB = edges.find(e => e.kind === "PARENT_CHILD" && ((e.personAId === pB && e.personBId === thirdId) || (e.personAId === thirdId && e.personBId === pB)));
+          if (!eB) continue;
+          const aIsParent = eA.parentId === pA && eA.childId === thirdId;
+          const bIsParent = eB.parentId === pB && eB.childId === thirdId;
+          if (aIsParent && !bIsParent) {
+            eB.parentId = pB;
+            eB.childId = thirdId;
+          } else if (bIsParent && !aIsParent) {
+            eA.parentId = pA;
+            eA.childId = thirdId;
+          }
+        }
+      }
       return edges;
     }
 
@@ -4489,8 +4510,8 @@
       const personMap = new Map(visiblePersons.map(p => [p.id, p]));
       const allCanonicalEdges = extractCanonicalTreeEdges(new Set(personMap.keys()));
 
-      // Priorisierte Breitensuche ab Fokus-Person
-      const kindPrio = { PARENT_CHILD: 0, PARTNER: 1, SIBLING: 2, EXTENDED: 3 };
+      // 0-1-Breitensuche ab Fokus-Person (Partner & Geschwister zuerst mit Priorität 0 auf derselben Ebene)
+      const kindPrio = { PARTNER: 0, SIBLING: 1, PARENT_CHILD: 2, EXTENDED: 3 };
       const prioritizedEdges = [...allCanonicalEdges].sort((a, b) => (kindPrio[a.kind] ?? 9) - (kindPrio[b.kind] ?? 9));
       const genMap = new Map();
       const queue = [rootPerson.id];
@@ -4500,18 +4521,21 @@
         const currId = queue.shift();
         const currGen = genMap.get(currId) || 0;
         for (const edge of prioritizedEdges) {
-          if (edge.fromId === currId && !genMap.has(edge.toId)) {
-            const step = edge.kind === "PARENT_CHILD"
+          let neighborId = null;
+          if (edge.fromId === currId && !genMap.has(edge.toId)) neighborId = edge.toId;
+          else if (edge.toId === currId && !genMap.has(edge.fromId)) neighborId = edge.fromId;
+          if (neighborId == null) continue;
+
+          const step = edge.kind === "PARTNER" || edge.kind === "SIBLING"
+            ? 0
+            : (edge.kind === "PARENT_CHILD"
               ? (edge.parentId === currId ? 1 : -1)
-              : (edge.kind === "PARTNER" || edge.kind === "SIBLING" ? 0 : relationGenerationStep(edge.label));
-            genMap.set(edge.toId, currGen + step);
-            queue.push(edge.toId);
-          } else if (edge.toId === currId && !genMap.has(edge.fromId)) {
-            const step = edge.kind === "PARENT_CHILD"
-              ? (edge.parentId === currId ? 1 : -1)
-              : (edge.kind === "PARTNER" || edge.kind === "SIBLING" ? 0 : -relationGenerationStep(edge.label));
-            genMap.set(edge.fromId, currGen + step);
-            queue.push(edge.fromId);
+              : (edge.fromId === currId ? relationGenerationStep(edge.label) : -relationGenerationStep(edge.label)));
+          genMap.set(neighborId, currGen + step);
+          if (edge.kind === "PARTNER" || edge.kind === "SIBLING") {
+            queue.unshift(neighborId);
+          } else {
+            queue.push(neighborId);
           }
         }
       }
@@ -4533,10 +4557,23 @@
 
       function roleRelativeToRoot(p) {
         if (p.id === rootPerson.id) return "Fokus";
+        const directEdge = treeEdges.find(e =>
+          (e.personAId === p.id && e.personBId === rootPerson.id) ||
+          (e.personAId === rootPerson.id && e.personBId === p.id)
+        );
         const directPairRels = state.relations.filter(r =>
           (r.fromPersonId === p.id && r.toPersonId === rootPerson.id) ||
           (r.fromPersonId === rootPerson.id && r.toPersonId === p.id)
         );
+        if (directEdge && directEdge.kind === "PARENT_CHILD") {
+          if (directEdge.parentId === p.id && directEdge.childId === rootPerson.id) {
+            const spec = directPairRels.find(r => r.fromPersonId === p.id && (/^mutter/i.test(r.relationLabel) || /^vater/i.test(r.relationLabel)));
+            return spec ? shortTreeRelationName(spec.relationLabel) : "Elternteil";
+          }
+          if (directEdge.parentId === rootPerson.id && directEdge.childId === p.id) {
+            return "Kind";
+          }
+        }
         if (directPairRels.length > 0) {
           const outRel = directPairRels.find(r => r.fromPersonId === p.id && !/^elternteil/i.test(r.relationLabel) && !/^geschwister/i.test(r.relationLabel))
             || directPairRels.find(r => r.fromPersonId === p.id);
@@ -4733,9 +4770,17 @@
       // C) Abwärts-Pass (Kinder strikt unter ihren eigenen Eltern)
       const lowerGens = [...rawMembersByGen.keys()].filter(g => g > 0).sort((a, b) => a - b);
       for (const g of lowerGens) {
-        const rowMembers = [...(rawMembersByGen.get(g) || [])].sort((a, b) => {
-          const pa = directParentsOf(a.id).filter(pid => genMap.get(pid) === g - 1).length;
-          const pb = directParentsOf(b.id).filter(pid => genMap.get(pid) === g - 1).length;
+        const baseRow = rawMembersByGen.get(g) || [];
+        const rawParentsById = new Map(baseRow.map(m => [m.id, directParentsOf(m.id).filter(pid => xCenter.has(pid)).sort((a, b) => a - b)]));
+        function effectiveParentsOf(memberId) {
+          const direct = rawParentsById.get(memberId) || [];
+          if (direct.length > 0) return direct;
+          const sib = baseRow.find(other => other.id !== memberId && explicitSiblings(memberId, other.id) && (rawParentsById.get(other.id) || []).length > 0);
+          return sib ? (rawParentsById.get(sib.id) || []) : [];
+        }
+        const rowMembers = [...baseRow].sort((a, b) => {
+          const pa = effectiveParentsOf(a.id).filter(pid => genMap.get(pid) === g - 1).length;
+          const pb = effectiveParentsOf(b.id).filter(pid => genMap.get(pid) === g - 1).length;
           if (pb !== pa) return pb - pa;
           return comparePersonsByLastName(a, b);
         });
@@ -4744,11 +4789,11 @@
         for (const m of rowMembers) {
           if (used.has(m.id)) continue;
           used.add(m.id);
-          const mParents = directParentsOf(m.id).filter(pid => xCenter.has(pid)).sort((a, b) => a - b);
+          const mParents = effectiveParentsOf(m.id);
           const partner = rowMembers.find(c => !used.has(c.id) && explicitPartners(m.id, c.id));
           if (partner) {
             used.add(partner.id);
-            const combined = [...new Set([...mParents, ...directParentsOf(partner.id).filter(pid => xCenter.has(pid))])].sort((a, b) => a - b);
+            const combined = [...new Set([...mParents, ...effectiveParentsOf(partner.id)])].sort((a, b) => a - b);
             childUnits.push({ members: [m, partner], parentIds: combined });
           } else {
             childUnits.push({ members: [m], parentIds: mParents });
@@ -10070,7 +10115,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.57",
+        version: "1.0.58",
         createdAt: dateStr,
         state
       };
@@ -10088,7 +10133,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.57",
+        version: "1.0.58",
         createdAt: dateStr,
         state
       };
@@ -10163,7 +10208,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.57 gestartet.");
+    addLog("Remember Me v1.0.58 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

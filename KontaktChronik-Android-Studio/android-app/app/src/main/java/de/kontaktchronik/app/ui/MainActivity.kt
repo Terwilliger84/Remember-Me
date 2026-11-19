@@ -3690,7 +3690,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.57",
+                "Remember Me v1.0.58",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4773,7 +4773,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.57")
+                put("version", "1.0.58")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -8579,7 +8579,7 @@ fun FamilyTreeScreen(
             .filter { it.fromPersonId in validIds && it.toPersonId in validIds && it.fromPersonId != it.toPersonId }
             .groupBy { r -> minOf(r.fromPersonId, r.toPersonId) to maxOf(r.fromPersonId, r.toPersonId) }
 
-        byPair.map { (pair, pairRels) ->
+        val initialEdges = byPair.map { (pair, pairRels) ->
             val (idA, idB) = pair
             val parentRel = pairRels.firstOrNull { isDirectParentLabel(it.relationLabel) }
             val childRel = pairRels.firstOrNull { isDirectChildLabel(it.relationLabel) }
@@ -8654,21 +8654,55 @@ fun FamilyTreeScreen(
                     )
                 }
             }
+        }.toMutableList()
+
+        // Konsistenz-Normalisierung für Partner-Eltern-Dreiecke:
+        // Wenn A und B als Partner verknüpft sind und BEIDE eine Eltern-Kind-Kante zu derselben
+        // dritten Person C haben, müssen A und B gemeinsam die Eltern von C sein (auch wenn eine
+        // der beiden Kanten versehentlich andersherum gespeichert wurde).
+        val partnerPairs = initialEdges
+            .filter { it.kind == TreeEdgeKind.PARTNER }
+            .map { it.personAId to it.personBId }
+
+        for ((pA, pB) in partnerPairs) {
+            val edgesA = initialEdges.withIndex().filter { (_, e) ->
+                e.kind == TreeEdgeKind.PARENT_CHILD &&
+                    (e.personAId == pA || e.personBId == pA) &&
+                    e.personAId != pB && e.personBId != pB
+            }
+            for ((idxA, eA) in edgesA) {
+                val thirdId = if (eA.personAId == pA) eA.personBId else eA.personAId
+                val matchB = initialEdges.withIndex().firstOrNull { (_, e) ->
+                    e.kind == TreeEdgeKind.PARENT_CHILD &&
+                        ((e.personAId == pB && e.personBId == thirdId) || (e.personAId == thirdId && e.personBId == pB))
+                } ?: continue
+                val (idxB, eB) = matchB
+                val aIsParent = eA.parentId == pA && eA.childId == thirdId
+                val bIsParent = eB.parentId == pB && eB.childId == thirdId
+                if (aIsParent && !bIsParent) {
+                    initialEdges[idxB] = eB.copy(parentId = pB, childId = thirdId)
+                } else if (bIsParent && !aIsParent) {
+                    initialEdges[idxA] = eA.copy(parentId = pA, childId = thirdId)
+                }
+            }
         }
+        initialEdges.toList()
     }
 
-    // 2. Relative Generationen-Ebenen per Breitensuche (priorisiere direkte Eltern/Partner/Geschwister vor Sprung-Kanten)
+    // 2. Relative Generationen-Ebenen per 0-1-Breitensuche:
+    //    Partner und Geschwister erhalten Priorität 0 (addFirst), damit Paare & Geschwister IMMER
+    //    auf derselben Generationsebene nebeneinander bleiben, Eltern darüber und Kinder darunter!
     val generationByPersonId = remember(persons, allCanonicalEdges, rootPerson.id) {
         val genMap = mutableMapOf<Long, Int>()
         val queue = ArrayDeque<Long>()
         genMap[rootPerson.id] = 0
-        queue.add(rootPerson.id)
+        queue.addLast(rootPerson.id)
 
         val prioritizedEdges = allCanonicalEdges.sortedBy {
             when (it.kind) {
-                TreeEdgeKind.PARENT_CHILD -> 0
-                TreeEdgeKind.PARTNER -> 1
-                TreeEdgeKind.SIBLING -> 2
+                TreeEdgeKind.PARTNER -> 0
+                TreeEdgeKind.SIBLING -> 1
+                TreeEdgeKind.PARENT_CHILD -> 2
                 TreeEdgeKind.EXTENDED -> 3
             }
         }
@@ -8677,22 +8711,26 @@ fun FamilyTreeScreen(
             val currentId = queue.removeFirst()
             val currentGen = genMap[currentId] ?: 0
             for (edge in prioritizedEdges) {
-                if (edge.fromId == currentId && !genMap.containsKey(edge.toId)) {
-                    val step = when (edge.kind) {
-                        TreeEdgeKind.PARENT_CHILD -> if (edge.parentId == currentId) 1 else -1
-                        TreeEdgeKind.PARTNER, TreeEdgeKind.SIBLING -> 0
-                        TreeEdgeKind.EXTENDED -> relationGenerationStep(edge.label)
+                val neighborId = when {
+                    edge.fromId == currentId && !genMap.containsKey(edge.toId) -> edge.toId
+                    edge.toId == currentId && !genMap.containsKey(edge.fromId) -> edge.fromId
+                    else -> null
+                } ?: continue
+
+                val step = when (edge.kind) {
+                    TreeEdgeKind.PARTNER, TreeEdgeKind.SIBLING -> 0
+                    TreeEdgeKind.PARENT_CHILD -> if (edge.parentId == currentId) 1 else -1
+                    TreeEdgeKind.EXTENDED -> if (edge.fromId == currentId) {
+                        relationGenerationStep(edge.label)
+                    } else {
+                        -relationGenerationStep(edge.label)
                     }
-                    genMap[edge.toId] = currentGen + step
-                    queue.add(edge.toId)
-                } else if (edge.toId == currentId && !genMap.containsKey(edge.fromId)) {
-                    val step = when (edge.kind) {
-                        TreeEdgeKind.PARENT_CHILD -> if (edge.parentId == currentId) 1 else -1
-                        TreeEdgeKind.PARTNER, TreeEdgeKind.SIBLING -> 0
-                        TreeEdgeKind.EXTENDED -> -relationGenerationStep(edge.label)
-                    }
-                    genMap[edge.fromId] = currentGen + step
-                    queue.add(edge.fromId)
+                }
+                genMap[neighborId] = currentGen + step
+                if (edge.kind == TreeEdgeKind.PARTNER || edge.kind == TreeEdgeKind.SIBLING) {
+                    queue.addFirst(neighborId)
+                } else {
+                    queue.addLast(neighborId)
                 }
             }
         }
@@ -8749,9 +8787,25 @@ fun FamilyTreeScreen(
     // Präzise Rollen-Bezeichnung relativ zur Fokus-Person (unterscheidet echte Eltern vs. Schwiegereltern, Kinder vs. Neffen usw.)
     fun roleRelativeToRoot(p: PersonEntity): String {
         if (p.id == rootPerson.id) return "Fokus"
+        val directEdge = treeEdges.firstOrNull {
+            (it.personAId == p.id && it.personBId == rootPerson.id) ||
+                (it.personAId == rootPerson.id && it.personBId == p.id)
+        }
         val directPairRels = relations.filter {
             (it.fromPersonId == p.id && it.toPersonId == rootPerson.id) ||
                 (it.fromPersonId == rootPerson.id && it.toPersonId == p.id)
+        }
+        if (directEdge != null && directEdge.kind == TreeEdgeKind.PARENT_CHILD) {
+            if (directEdge.parentId == p.id && directEdge.childId == rootPerson.id) {
+                val spec = directPairRels.firstOrNull {
+                    it.fromPersonId == p.id &&
+                        (it.relationLabel.startsWith("Mutter", true) || it.relationLabel.startsWith("Vater", true))
+                }
+                return if (spec != null) shortRelationName(spec.relationLabel) else "Elternteil"
+            }
+            if (directEdge.parentId == rootPerson.id && directEdge.childId == p.id) {
+                return "Kind"
+            }
         }
         if (directPairRels.isNotEmpty()) {
             val outRel = directPairRels.firstOrNull {
@@ -9063,18 +9117,29 @@ fun FamilyTreeScreen(
             val childUnits = mutableListOf<Pair<List<PersonEntity>, List<Long>>>()
 
             val sortedCandidates = rowMembers.sortedWith(LastNamePersonComparator)
+            val rawParentsById = rowMembers.associate { member ->
+                member.id to directParentsOf(member.id).filter { xCenter.containsKey(it) }.sorted()
+            }
+            fun effectiveParentsOf(memberId: Long): List<Long> {
+                val direct = rawParentsById[memberId].orEmpty()
+                if (direct.isNotEmpty()) return direct
+                val sibWithParents = rowMembers.firstOrNull { other ->
+                    other.id != memberId && explicitSiblings(memberId, other.id) && rawParentsById[other.id].orEmpty().isNotEmpty()
+                }
+                return sibWithParents?.let { rawParentsById[it.id].orEmpty() }.orEmpty()
+            }
             val withParentsFirst = sortedCandidates.sortedByDescending { c ->
-                directParentsOf(c.id).count { generationByPersonId[it] == g - 1 }
+                effectiveParentsOf(c.id).count { generationByPersonId[it] == g - 1 }
             }
             for (m in withParentsFirst) {
                 if (!used.add(m.id)) continue
-                val mParents = directParentsOf(m.id).filter { xCenter.containsKey(it) }.sorted()
+                val mParents = effectiveParentsOf(m.id)
                 val partner = withParentsFirst.firstOrNull { cand ->
                     !used.contains(cand.id) && explicitPartners(m.id, cand.id)
                 }
                 if (partner != null) {
                     used.add(partner.id)
-                    val combinedParents = (mParents + directParentsOf(partner.id).filter { xCenter.containsKey(it) }).distinct().sorted()
+                    val combinedParents = (mParents + effectiveParentsOf(partner.id)).distinct().sorted()
                     childUnits.add(listOf(m, partner) to combinedParents)
                 } else {
                     childUnits.add(listOf(m) to mParents)
