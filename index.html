@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <title>Remember Me v1.0.58 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.59 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
@@ -1313,7 +1313,7 @@
       if (l.startsWith("kind") || l.startsWith("sohn") || l.startsWith("tochter")) return -1;
       if (l.startsWith("enkel")) return -2;
       if (l.startsWith("neffe") || l.startsWith("nichte")) return -1;
-      if (l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil")) return 1;
+      if (l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil") || l.startsWith("eltern")) return 1;
       if (l.startsWith("oma") || l.startsWith("opa") || l.startsWith("großelter")) return 2;
       if (l.startsWith("onkel") || l.startsWith("tante")) return 1;
       return 0;
@@ -2566,7 +2566,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.58</div>
+          <div class="app-title">Remember Me v1.0.59</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -4471,9 +4471,15 @@
           const aIsParent = eA.parentId === pA && eA.childId === thirdId;
           const bIsParent = eB.parentId === pB && eB.childId === thirdId;
           if (aIsParent && !bIsParent) {
+            eB.fromId = pB;
+            eB.toId = thirdId;
+            eB.label = "Elternteil von";
             eB.parentId = pB;
             eB.childId = thirdId;
           } else if (bIsParent && !aIsParent) {
+            eA.fromId = pA;
+            eA.toId = thirdId;
+            eA.label = "Elternteil von";
             eA.parentId = pA;
             eA.childId = thirdId;
           }
@@ -4736,7 +4742,7 @@
 
         rawUnits.forEach((uMembers, idx) => {
           if (!unitAnchors.has(idx)) {
-            const sibUnitIdx = rawUnits.findIndex((otherM, oIdx) => oIdx !== idx && unitAnchors.has(oIdx) && uMembers.some(um => otherM.some(om => explicitSiblings(um.id, om.id))));
+            const sibUnitIdx = rawUnits.findIndex((otherM, oIdx) => oIdx !== idx && unitAnchors.has(oIdx) && uMembers.some(um => otherM.some(om => explicitSiblings(um.id, om.id) || directParentsOf(um.id).some(pid => directParentsOf(om.id).includes(pid)))));
             if (sibUnitIdx >= 0) {
               const refX = unitAnchors.get(sibUnitIdx).x;
               unitAnchors.set(idx, { x: refX + (refX <= 0 ? -(nodeW + siblingGap) : (nodeW + siblingGap)), anchored: false });
@@ -10115,7 +10121,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.58",
+        version: "1.0.59",
         createdAt: dateStr,
         state
       };
@@ -10133,7 +10139,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.58",
+        version: "1.0.59",
         createdAt: dateStr,
         state
       };
@@ -10208,7 +10214,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.58 gestartet.");
+    addLog("Remember Me v1.0.59 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

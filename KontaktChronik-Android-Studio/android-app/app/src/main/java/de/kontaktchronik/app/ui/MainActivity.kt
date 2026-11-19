@@ -396,7 +396,7 @@ fun relationGenerationStep(label: String): Int {
         l.startsWith("kind") || l.startsWith("sohn") || l.startsWith("tochter") -> -1
         l.startsWith("enkel") -> -2
         l.startsWith("neffe") || l.startsWith("nichte") -> -1
-        l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil") -> 1
+        l.startsWith("mutter") || l.startsWith("vater") || l.startsWith("elternteil") || l.startsWith("eltern") -> 1
         l.startsWith("oma") || l.startsWith("opa") || l.startsWith("großelter") -> 2
         l.startsWith("onkel") || l.startsWith("tante") -> 1
         else -> 0
@@ -3690,7 +3690,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.58",
+                "Remember Me v1.0.59",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4066,7 +4066,7 @@ fun KontaktChronikApp(
                     },
                     onUpsertRelation = { fromId, toId, label ->
                         scope.launch {
-                            addBidirectionalRelation(fromId, toId, label)
+                            replaceBidirectionalRelation(0L, 0L, fromId, toId, label)
                         }
                     },
                     onReplaceRelation = { oldA, oldB, newFrom, newTo, newLabel ->
@@ -4773,7 +4773,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.58")
+                put("version", "1.0.59")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -8573,7 +8573,7 @@ fun FamilyTreeScreen(
     val personMap = remember(sortedPersons) { sortedPersons.associateBy { it.id } }
 
     // 1. Kanonische Kanten zwischen sichtbaren Personen extrahieren (exakt wie hinterlegt!)
-    val allCanonicalEdges = remember(persons, relations) {
+    val canonicalEdgesResult = remember(persons, relations) {
         val validIds = personMap.keys
         val byPair = relations
             .filter { it.fromPersonId in validIds && it.toPersonId in validIds && it.fromPersonId != it.toPersonId }
@@ -8663,6 +8663,7 @@ fun FamilyTreeScreen(
         val partnerPairs = initialEdges
             .filter { it.kind == TreeEdgeKind.PARTNER }
             .map { it.personAId to it.personBId }
+        val correctedEdges = mutableListOf<CanonicalTreeEdge>()
 
         for ((pA, pB) in partnerPairs) {
             val edgesA = initialEdges.withIndex().filter { (_, e) ->
@@ -8680,14 +8681,31 @@ fun FamilyTreeScreen(
                 val aIsParent = eA.parentId == pA && eA.childId == thirdId
                 val bIsParent = eB.parentId == pB && eB.childId == thirdId
                 if (aIsParent && !bIsParent) {
-                    initialEdges[idxB] = eB.copy(parentId = pB, childId = thirdId)
+                    val fixed = eB.copy(
+                        fromId = pB,
+                        toId = thirdId,
+                        label = "Elternteil von",
+                        parentId = pB,
+                        childId = thirdId
+                    )
+                    initialEdges[idxB] = fixed
+                    correctedEdges.add(fixed)
                 } else if (bIsParent && !aIsParent) {
-                    initialEdges[idxA] = eA.copy(parentId = pA, childId = thirdId)
+                    val fixed = eA.copy(
+                        fromId = pA,
+                        toId = thirdId,
+                        label = "Elternteil von",
+                        parentId = pA,
+                        childId = thirdId
+                    )
+                    initialEdges[idxA] = fixed
+                    correctedEdges.add(fixed)
                 }
             }
         }
-        initialEdges.toList()
+        initialEdges.toList() to correctedEdges.distinctBy { it.personAId to it.personBId }
     }
+    val (allCanonicalEdges, autoCorrectedEdges) = canonicalEdgesResult
 
     // 2. Relative Generationen-Ebenen per 0-1-Breitensuche:
     //    Partner und Geschwister erhalten Priorität 0 (addFirst), damit Paare & Geschwister IMMER
@@ -9071,7 +9089,12 @@ fun FamilyTreeScreen(
                 if (!unitAnchorMap.containsKey(idx)) {
                     val linkedSiblingUnitIdx = rawUnits.indices.firstOrNull { otherIdx ->
                         otherIdx != idx && unitAnchorMap.containsKey(otherIdx) &&
-                            uMembers.any { um -> rawUnits[otherIdx].any { om -> explicitSiblings(um.id, om.id) } }
+                            uMembers.any { um ->
+                                rawUnits[otherIdx].any { om ->
+                                    explicitSiblings(um.id, om.id) ||
+                                        directParentsOf(um.id).any { pId -> pId in directParentsOf(om.id) }
+                                }
+                            }
                     }
                     if (linkedSiblingUnitIdx != null) {
                         val refX = unitAnchorMap[linkedSiblingUnitIdx]!!.first
@@ -9353,6 +9376,18 @@ fun FamilyTreeScreen(
     val levelCount = remember(positionedNodes) { positionedNodes.map { it.genLevel }.distinct().size.coerceAtLeast(1) }
     val maxRowCount = remember(positionedNodes) {
         positionedNodes.groupBy { it.genLevel }.values.maxOfOrNull { it.size } ?: 1
+    }
+
+    LaunchedEffect(rootPerson.id) {
+        treePanX = 0f
+        treePanY = 0f
+        treeZoom = if (maxRowCount > 2 || levelCount > 3) {
+            val widthScale = if (maxRowCount > 2) 2.35f / maxRowCount else 1.0f
+            val heightScale = if (levelCount > 3) 3.2f / levelCount else 1.0f
+            minOf(1.0f, widthScale, heightScale).coerceIn(0.45f, 1.0f)
+        } else {
+            1.0f
+        }
     }
 
     Column(
@@ -10208,8 +10243,45 @@ fun FamilyTreeScreen(
         var selFromId by remember(modal) { mutableStateOf(modal.fromId) }
         var selToId by remember(modal) { mutableStateOf(modal.toId) }
         var selLabel by remember(modal) { mutableStateOf(modal.label) }
+        var alsoLinkCoParent by remember(modal) { mutableStateOf(!modal.isExisting) }
         val fromPerson = personMap[selFromId]
         val toPerson = personMap[selToId]
+
+        fun extractBirthYear(birthdayIso: String?): Int? {
+            val b = birthdayIso?.trim().orEmpty()
+            if (b.length < 4 || b.startsWith("--") || b.startsWith("WEEKLY:") || b.startsWith("REPEAT:")) return null
+            return b.substring(0, 4).toIntOrNull()?.takeIf { it in 1850..2100 }
+        }
+
+        val isParentRel = isDirectParentLabel(selLabel)
+        val isChildRel = isDirectChildLabel(selLabel)
+        val parentPerson = when {
+            isParentRel -> fromPerson
+            isChildRel -> toPerson
+            else -> null
+        }
+        val childPerson = when {
+            isParentRel -> toPerson
+            isChildRel -> fromPerson
+            else -> null
+        }
+        val coParentCandidate = remember(parentPerson?.id, childPerson?.id, allCanonicalEdges) {
+            val pId = parentPerson?.id ?: return@remember null
+            val cId = childPerson?.id ?: return@remember null
+            val partnerId = allCanonicalEdges
+                .firstOrNull { it.kind == TreeEdgeKind.PARTNER && (it.personAId == pId || it.personBId == pId) }
+                ?.let { if (it.personAId == pId) it.personBId else it.personAId }
+                ?: return@remember null
+            if (partnerId == cId) return@remember null
+            val alreadyLinked = allCanonicalEdges.any {
+                it.kind == TreeEdgeKind.PARENT_CHILD && it.parentId == partnerId && it.childId == cId
+            }
+            if (alreadyLinked) null else personMap[partnerId]
+        }
+        val parentYear = extractBirthYear(parentPerson?.birthdayIso)
+        val childYear = extractBirthYear(childPerson?.birthdayIso)
+        val ageWarning = parentPerson != null && childPerson != null &&
+            parentYear != null && childYear != null && childYear <= parentYear
 
         Dialog(
             onDismissRequest = { editModalState = null },
@@ -10288,19 +10360,99 @@ fun FamilyTreeScreen(
                     )
 
                     if (fromPerson != null && toPerson != null) {
-                        Box(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(AccentSteel.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
                                 .border(1.dp, AccentSteel.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(
-                                text = "Vorschau: ${fromPerson.name} ist „$selLabel“ ${toPerson.name}",
-                                color = TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            when {
+                                parentPerson != null && childPerson != null -> {
+                                    Text(
+                                        text = "⬆️ Oben (Eltern): ${parentPerson.name}",
+                                        color = AccentSteel,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "⬇️ Unten (Kind): ${childPerson.name}",
+                                        color = TreeGreen,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                isPartnerRelation(selLabel) -> {
+                                    Text(
+                                        text = "❤️ Paar (gleiche Ebene): ${fromPerson.name} ❤️ ${toPerson.name}",
+                                        color = PartnerRose,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                isSiblingRelation(selLabel) -> {
+                                    Text(
+                                        text = "🤝 Geschwister (nebeneinander): ${fromPerson.name} ↔ ${toPerson.name}",
+                                        color = TreeGreen,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                else -> {
+                                    Text(
+                                        text = "Vorschau: ${fromPerson.name} ist „$selLabel“ ${toPerson.name}",
+                                        color = TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (ageWarning && parentPerson != null && childPerson != null && parentYear != null && childYear != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(WarnAmber.copy(alpha = 0.14f), RoundedCornerShape(10.dp))
+                                    .border(1.dp, WarnAmber.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                    .padding(horizontal = 10.dp, vertical = 7.dp)
+                            ) {
+                                Text(
+                                    text = "⚠️ ${childPerson.name} ($childYear) ist älter als ${parentPerson.name} ($parentYear) – Richtung evtl. mit „⇄ Tauschen“ drehen!",
+                                    color = WarnAmber,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        if (coParentCandidate != null && childPerson != null) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(PartnerRose.copy(alpha = 0.10f), RoundedCornerShape(10.dp))
+                                    .border(1.dp, PartnerRose.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                    .clickable { alsoLinkCoParent = !alsoLinkCoParent }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (alsoLinkCoParent) "☑" else "☐",
+                                    color = PartnerRose,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Auch als Kind von Partner (${coParentCandidate.name}) verknüpfen",
+                                    color = TextPrimary,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
                 }
@@ -10328,6 +10480,9 @@ fun FamilyTreeScreen(
                                 onReplaceRelation(modal.originalAId, modal.originalBId, selFromId, selToId, selLabel)
                             } else {
                                 onUpsertRelation(selFromId, selToId, selLabel)
+                            }
+                            if (alsoLinkCoParent && coParentCandidate != null && childPerson != null) {
+                                onUpsertRelation(coParentCandidate.id, childPerson.id, "Elternteil von")
                             }
                             editModalState = null
                         }
@@ -10372,6 +10527,34 @@ fun FamilyTreeScreen(
                     CompactButton("✕") { showAllEdgesDialog = false }
                 }
                 HorizontalDivider(color = BorderSlate)
+
+                if (autoCorrectedEdges.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(WarnAmber.copy(alpha = 0.14f), RoundedCornerShape(9.dp))
+                            .border(1.dp, WarnAmber.copy(alpha = 0.55f), RoundedCornerShape(9.dp))
+                            .clickable {
+                                autoCorrectedEdges.forEach { edge ->
+                                    val pId = edge.parentId ?: return@forEach
+                                    val cId = edge.childId ?: return@forEach
+                                    onReplaceRelation(edge.personAId, edge.personBId, pId, cId, "Elternteil von")
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "🔧 ${autoCorrectedEdges.size} verdrehte Eltern-Kind-Linie(n) erkannt – hier tippen zum dauerhaften Korrigieren",
+                            color = WarnAmber,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
 
                 Column(
                     modifier = Modifier
