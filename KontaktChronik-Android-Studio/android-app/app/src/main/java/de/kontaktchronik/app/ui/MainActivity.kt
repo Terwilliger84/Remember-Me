@@ -3690,7 +3690,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.59",
+                "Remember Me v1.0.60",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4773,7 +4773,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.59")
+                put("version", "1.0.60")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -9591,11 +9591,15 @@ fun FamilyTreeScreen(
                     shape = RoundedCornerShape(14.dp)
                 )
                 .pointerInput(Unit) {
+                    val touchSlop = viewConfiguration.touchSlop
                     awaitEachGesture {
+                        var pastTouchSlop = false
+                        var panAccumulated = Offset.Zero
                         do {
                             val event = awaitPointerEvent()
                             val pressedCount = event.changes.count { it.pressed }
                             if (pressedCount >= 2) {
+                                pastTouchSlop = true
                                 val zoomChange = event.calculateZoom()
                                 val panChange = event.calculatePan()
                                 if (zoomChange != 1f || panChange != Offset.Zero) {
@@ -9607,8 +9611,19 @@ fun FamilyTreeScreen(
                             } else if (pressedCount == 1) {
                                 val panChange = event.calculatePan()
                                 if (panChange != Offset.Zero) {
-                                    treePanX += panChange.x
-                                    treePanY += panChange.y
+                                    if (!pastTouchSlop) {
+                                        panAccumulated += panChange
+                                        if (panAccumulated.getDistance() > touchSlop * 0.6f) {
+                                            pastTouchSlop = true
+                                            treePanX += panAccumulated.x
+                                            treePanY += panAccumulated.y
+                                            event.changes.forEach { it.consume() }
+                                        }
+                                    } else {
+                                        treePanX += panChange.x
+                                        treePanY += panChange.y
+                                        event.changes.forEach { it.consume() }
+                                    }
                                 }
                             }
                         } while (event.changes.any { it.pressed })
