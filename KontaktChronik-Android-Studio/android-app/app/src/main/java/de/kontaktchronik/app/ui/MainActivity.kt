@@ -3690,7 +3690,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.60",
+                "Remember Me v1.0.61",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4773,7 +4773,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.60")
+                put("version", "1.0.61")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -11319,6 +11319,7 @@ fun WichtelScreen(
     var showImportHistoryDialog by remember { mutableStateOf(false) }
     var showDecodeSecretDialog by remember { mutableStateOf(false) }
     var quickSendDialogGroupId by remember { mutableStateOf<Long?>(null) }
+    var expandedParticipantsGroupIds by remember { mutableStateOf(setOf<Long>()) }
 
     val activeGroup = groups.find { it.id == selectedGroupId } ?: groups.firstOrNull()
 
@@ -11388,18 +11389,34 @@ fun WichtelScreen(
                     else {
                         val mergedParts = grp.participants.map { p ->
                             val st = live.participantStatuses[p.cloudPid]
+                            val isAdminSelf = p.name.trim().equals(grp.adminName.trim(), ignoreCase = true)
                             if (st == null) p
-                            else p.copy(
-                                cloudOpened = st.isOpened,
-                                cloudHasPin = st.hasPin,
-                                cloudHasPush = st.hasPush,
-                                cloudHasWishlist = st.hasWishlist,
-                                wishText = st.wishText.ifBlank { p.wishText },
-                                noGos = st.noGos.ifBlank { p.noGos },
-                                address = st.address.ifBlank { p.address },
-                                wishlistUrl = st.wishlistUrl.ifBlank { p.wishlistUrl },
-                                extraWishUrls = if (st.extraWishUrls.isNotEmpty()) st.extraWishUrls else p.extraWishUrls
-                            )
+                            else if (isAdminSelf) {
+                                p.copy(
+                                    cloudOpened = st.isOpened,
+                                    cloudHasPin = st.hasPin,
+                                    cloudHasPush = st.hasPush,
+                                    cloudHasWishlist = st.hasWishlist,
+                                    wishText = st.wishText.ifBlank { p.wishText },
+                                    noGos = st.noGos.ifBlank { p.noGos },
+                                    address = st.address.ifBlank { p.address },
+                                    wishlistUrl = st.wishlistUrl.ifBlank { p.wishlistUrl },
+                                    extraWishUrls = if (st.extraWishUrls.isNotEmpty()) st.extraWishUrls else p.extraWishUrls
+                                )
+                            } else {
+                                // Admin-blind: Geschenkwünsche anderer Teilnehmer bleiben streng geheim!
+                                p.copy(
+                                    cloudOpened = st.isOpened,
+                                    cloudHasPin = st.hasPin,
+                                    cloudHasPush = st.hasPush,
+                                    cloudHasWishlist = st.hasWishlist,
+                                    wishText = "",
+                                    noGos = "",
+                                    address = "",
+                                    wishlistUrl = "",
+                                    extraWishUrls = emptyList()
+                                )
+                            }
                         }
                         grp.copy(
                             cloudSyncedAt = nowTime,
@@ -12500,6 +12517,61 @@ fun WichtelScreen(
                     }
                 }
 
+                val participantsExpanded = activeGroup.id in expandedParticipantsGroupIds
+                item(key = "participants_toggle_${activeGroup.id}") {
+                    val openedCount = activeGroup.participants.count { it.cloudOpened }
+                    val wishCount = activeGroup.participants.count {
+                        it.cloudHasWishlist || it.wishText.isNotBlank() || it.wishlistUrl.isNotBlank() || it.extraWishUrls.isNotEmpty()
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CardSlate, RoundedCornerShape(8.dp))
+                            .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                            .clickable {
+                                expandedParticipantsGroupIds = if (participantsExpanded) {
+                                    expandedParticipantsGroupIds - activeGroup.id
+                                } else {
+                                    expandedParticipantsGroupIds + activeGroup.id
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(
+                                text = "👥 Teilnehmer (${activeGroup.participants.size})",
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            if (activeGroup.isDrawn) {
+                                Text(
+                                    text = "✅ $openedCount/${activeGroup.participants.size} geöffnet · 📝 $wishCount mit Wunsch",
+                                    color = TextMuted,
+                                    fontSize = 10.5.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Text(
+                            text = if (participantsExpanded) "▲ Einklappen" else "▼ Aufklappen",
+                            color = AccentSteel,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+
+                if (participantsExpanded) {
                 items(activeGroup.participants) { part ->
                     val target = activeGroup.participants.find { it.id == part.drawnTargetId }
                     val partnerContact = getCouplePartnerForPerson(part.personId)
@@ -12603,24 +12675,26 @@ fun WichtelScreen(
                                             Text("📝 Wunsch", color = TreeGreen, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                                         }
                                     }
-                                    allUrls.forEachIndexed { idx, u ->
-                                        Text(
-                                            "🛒 Link ${idx + 1}",
-                                            color = AccentSteel,
-                                            fontSize = 10.5.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            modifier = Modifier.clickable {
-                                                runCatching {
-                                                    val url = if (u.startsWith("http")) u else "https://$u"
-                                                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                    if (isAdminSelf) {
+                                        allUrls.forEachIndexed { idx, u ->
+                                            Text(
+                                                "🛒 Link ${idx + 1}",
+                                                color = AccentSteel,
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                modifier = Modifier.clickable {
+                                                    runCatching {
+                                                        val url = if (u.startsWith("http")) u else "https://$u"
+                                                        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                                    }
                                                 }
-                                            }
-                                        )
+                                            )
+                                        }
                                     }
                                 }
-                                if (part.wishText.isNotBlank()) {
+                                if (isAdminSelf && part.wishText.isNotBlank()) {
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(5.dp),
                                         verticalAlignment = Alignment.CenterVertically
@@ -12651,7 +12725,7 @@ fun WichtelScreen(
                             }
                             Spacer(modifier = Modifier.width(6.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                CompactButton("🎁") {
+                                CompactButton(if (isAdminSelf) "🎁" else "✏️") {
                                     editingParticipantGroup = activeGroup
                                     editingParticipant = part
                                 }
@@ -12737,6 +12811,7 @@ fun WichtelScreen(
                             }
                         }
                     }
+                }
                 }
             }
 
@@ -13662,10 +13737,11 @@ fun WichtelScreen(
         }
     }
 
-    // Dialog: Wunschliste, No-Gos, Post-Adresse & Links für einzelnen Teilnehmer bearbeiten
+    // Dialog: Teilnehmerdaten (und für den Admin selbst auch eigene Wunschliste) bearbeiten
     val pGroup = editingParticipantGroup
     val pItem = editingParticipant
     if (pGroup != null && pItem != null) {
+        val isEditingAdminSelf = pItem.name.trim().equals(pGroup.adminName.trim(), ignoreCase = true)
         val initialPSplit = remember(pItem) { splitFullNameIntoFirstAndLast(pItem.name) }
         var pFirstName by remember(pItem) { mutableStateOf(initialPSplit.first) }
         var pLastName by remember(pItem) { mutableStateOf(initialPSplit.second) }
@@ -13681,22 +13757,30 @@ fun WichtelScreen(
         fun saveParticipantWishes() {
             if (pName.isNotBlank()) {
                 val cleanedExtras = pExtraUrls.map { it.trim() }.filter { it.isNotBlank() }
-                val updatedPart = pItem.copy(
-                    name = pName.trim(),
-                    phone = pPhone.trim(),
-                    email = pEmail.trim(),
-                    wishText = pWish.trim(),
-                    noGos = pNoGos.trim(),
-                    address = pAddress.trim(),
-                    wishlistUrl = pUrl.trim(),
-                    extraWishUrls = cleanedExtras,
-                    cloudHasWishlist = pWish.isNotBlank() || pUrl.isNotBlank() || cleanedExtras.isNotEmpty()
-                )
+                val updatedPart = if (isEditingAdminSelf) {
+                    pItem.copy(
+                        name = pName.trim(),
+                        phone = pPhone.trim(),
+                        email = pEmail.trim(),
+                        wishText = pWish.trim(),
+                        noGos = pNoGos.trim(),
+                        address = pAddress.trim(),
+                        wishlistUrl = pUrl.trim(),
+                        extraWishUrls = cleanedExtras,
+                        cloudHasWishlist = pWish.isNotBlank() || pUrl.isNotBlank() || cleanedExtras.isNotEmpty()
+                    )
+                } else {
+                    pItem.copy(
+                        name = pName.trim(),
+                        phone = pPhone.trim(),
+                        email = pEmail.trim()
+                    )
+                }
                 val updatedGroup = pGroup.copy(
                     participants = pGroup.participants.map { if (it.id == pItem.id) updatedPart else it }
                 )
                 onSaveGroups(latestGroups.map { if (it.id == pGroup.id) updatedGroup else it })
-                if (pGroup.isDrawn && pGroup.cloudRoundId.isNotBlank() && pItem.cloudPid > 0) {
+                if (isEditingAdminSelf && pGroup.isDrawn && pGroup.cloudRoundId.isNotBlank() && pItem.cloudPid > 0) {
                     scope.launch {
                         WichtelCloudSync.updateParticipantWishesInCloud(
                             cloudRoundId = pGroup.cloudRoundId,
@@ -13769,72 +13853,88 @@ fun WichtelScreen(
                     )
                     OutlinedTextField(value = pPhone, onValueChange = { pPhone = it }, label = { Text("Telefon", maxLines = 1, softWrap = false) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = pEmail, onValueChange = { pEmail = it }, label = { Text("E-Mail", maxLines = 1, softWrap = false) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = pWish,
-                            onValueChange = { pWish = it },
-                            label = { Text("🎁 Wünsche", maxLines = 1, softWrap = false) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        CompactButton("🔎") {
-                            runCatching {
-                                val q = pWish.trim()
-                                val url = if (q.isNotBlank()) "https://www.amazon.de/s?k=${android.net.Uri.encode(q)}" else "https://www.amazon.de"
-                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                            }
-                        }
-                    }
-                    OutlinedTextField(
-                        value = pNoGos,
-                        onValueChange = { pNoGos = it },
-                        label = { Text("🚫 Nicht schenken / Größen", maxLines = 1, softWrap = false) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = pAddress,
-                        onValueChange = { pAddress = it },
-                        label = { Text("📦 Post-Adresse", maxLines = 1, softWrap = false) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = pUrl,
-                        onValueChange = { pUrl = it },
-                        label = { Text("🛒 Wunsch-Link (z. B. Amazon)", maxLines = 1, softWrap = false) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    pExtraUrls.forEachIndexed { idx, extraUrl ->
+                    if (isEditingAdminSelf) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             OutlinedTextField(
-                                value = extraUrl.replace("\n", "").replace("\r", ""),
-                                onValueChange = { newVal ->
-                                    pExtraUrls = pExtraUrls.toMutableList().also { it[idx] = newVal.replace("\n", "").replace("\r", "") }
-                                },
-                                label = { Text("🔗 Link ${idx + 2}", maxLines = 1, softWrap = false, fontSize = 11.sp) },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true,
-                                maxLines = 1
+                                value = pWish,
+                                onValueChange = { pWish = it },
+                                label = { Text("🎁 Wünsche", maxLines = 1, softWrap = false) },
+                                modifier = Modifier.weight(1f)
                             )
-                            Text(
-                                "✕",
-                                color = WarnAmber,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable {
-                                    pExtraUrls = pExtraUrls.toMutableList().also { it.removeAt(idx) }
+                            CompactButton("🔎") {
+                                runCatching {
+                                    val q = pWish.trim()
+                                    val url = if (q.isNotBlank()) "https://www.amazon.de/s?k=${android.net.Uri.encode(q)}" else "https://www.amazon.de"
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                                 }
+                            }
+                        }
+                        OutlinedTextField(
+                            value = pNoGos,
+                            onValueChange = { pNoGos = it },
+                            label = { Text("🚫 Nicht schenken / Größen", maxLines = 1, softWrap = false) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = pAddress,
+                            onValueChange = { pAddress = it },
+                            label = { Text("📦 Post-Adresse", maxLines = 1, softWrap = false) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = pUrl,
+                            onValueChange = { pUrl = it },
+                            label = { Text("🛒 Wunsch-Link (z. B. Amazon)", maxLines = 1, softWrap = false) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        pExtraUrls.forEachIndexed { idx, extraUrl ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = extraUrl.replace("\n", "").replace("\r", ""),
+                                    onValueChange = { newVal ->
+                                        pExtraUrls = pExtraUrls.toMutableList().also { it[idx] = newVal.replace("\n", "").replace("\r", "") }
+                                    },
+                                    label = { Text("🔗 Link ${idx + 2}", maxLines = 1, softWrap = false, fontSize = 11.sp) },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    "✕",
+                                    color = WarnAmber,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.clickable {
+                                        pExtraUrls = pExtraUrls.toMutableList().also { it.removeAt(idx) }
+                                    }
+                                )
+                            }
+                        }
+                        CompactButton("+ Link") {
+                            pExtraUrls = pExtraUrls + ""
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(BgSlate, RoundedCornerShape(8.dp))
+                                .border(1.dp, BorderSlate, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "🔒 Die Geschenkwünsche von ${pItem.name} sind privat und nur für den jeweiligen geheimen Wichtel im Portal sichtbar.",
+                                color = TextSecondary,
+                                fontSize = 11.5.sp
                             )
                         }
-                    }
-                    CompactButton("+ Link") {
-                        pExtraUrls = pExtraUrls + ""
                     }
                 }
 

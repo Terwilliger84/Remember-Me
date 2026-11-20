@@ -12,8 +12,8 @@ android {
         applicationId = "de.kontaktchronik.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 160
-        versionName = "1.0.60"
+        versionCode = 161
+        versionName = "1.0.61"
 
         vectorDrawables {
             useSupportLibrary = true
