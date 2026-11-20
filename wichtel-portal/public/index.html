@@ -1230,14 +1230,13 @@
             const cls = mine
               ? "bubble me"
               : (isOutThread ? "bubble them them-target" : "bubble them");
-            const replyBtn = (!mine && !isOutThread)
-              ? `<div style="margin-top:6px;"><button type="button" class="btn small" style="padding:4px 9px; font-size:12px;" onclick="event.stopPropagation(); setChatDirection('toSanta')">↩️ Antworten</button></div>`
+            const tapAttr = !mine
+              ? ` onclick="setChatDirection('${isOutThread ? "toTarget" : "toSanta"}')"`
               : "";
             return `
-              <div class="${cls}">
+              <div class="${cls}"${tapAttr}>
                 <div>${esc(m.text).replace(/\n/g, "<br/>")}</div>
                 <div class="bubble-meta"><b>${metaWho}</b> • ${esc(timeStr)}</div>
-                ${replyBtn}
               </div>
             `;
           }).join("")}
