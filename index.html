@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <title>Remember Me v1.0.61 – Interaktiver Testserver</title>
+  <title>Remember Me v1.0.62 – Interaktiver Testserver</title>
   <style>
     /* Standard-Theme: ☀️ Eisblau (Hell) */
     :root,
@@ -2566,7 +2566,7 @@
 
       root.innerHTML = `
         <div class="app-header">
-          <div class="app-title">Remember Me v1.0.61</div>
+          <div class="app-title">Remember Me v1.0.62</div>
           <div class="btn-row">
             <button class="compact-btn" onclick="cycleThemeModeQuick()" title="Theme umschalten">${themeEmoji}</button>
             <button class="compact-btn" onclick="syncDeviceContacts()">📲 Sync</button>
@@ -10122,7 +10122,7 @@
       const dateStr = formatIsoToDdMmYyyy(todayIso());
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.61",
+        version: "1.0.62",
         createdAt: dateStr,
         state
       };
@@ -10140,7 +10140,7 @@
       const fileName = `Remember-Me-Sicherung-${dateStr}.json`;
       const backupPayload = {
         app: "Remember Me",
-        version: "1.0.61",
+        version: "1.0.62",
         createdAt: dateStr,
         state
       };
@@ -10215,7 +10215,7 @@
     if (state.persons.length > 0) {
       selectedTreeRootId = state.persons[0].id;
     }
-    addLog("Remember Me v1.0.61 gestartet.");
+    addLog("Remember Me v1.0.62 gestartet.");
     renderAll();
     checkTodaysBirthdaysPopup();
   </script>

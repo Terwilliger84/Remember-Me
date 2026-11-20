@@ -3690,7 +3690,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.61",
+                "Remember Me v1.0.62",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4773,7 +4773,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.61")
+                put("version", "1.0.62")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -11320,6 +11320,21 @@ fun WichtelScreen(
     var showDecodeSecretDialog by remember { mutableStateOf(false) }
     var quickSendDialogGroupId by remember { mutableStateOf<Long?>(null) }
     var expandedParticipantsGroupIds by remember { mutableStateOf(setOf<Long>()) }
+    val wichtelPrefs = remember { context.getSharedPreferences("remember_me_prefs", android.content.Context.MODE_PRIVATE) }
+
+    fun resolveDefaultAdminName(): String {
+        val saved = wichtelPrefs.getString("wichtel_last_admin_name", null)?.trim().orEmpty()
+        if (saved.isNotBlank()) return saved
+        val fromGroup = groups.lastOrNull {
+            it.adminName.isNotBlank() && !it.adminName.equals("Admin", true) && !it.adminName.equals("Ich (Admin)", true)
+        }?.adminName?.trim().orEmpty()
+        if (fromGroup.isNotBlank()) return fromGroup
+        val fromHistory = history.firstOrNull {
+            it.adminName.isNotBlank() && !it.adminName.equals("Admin", true) && !it.adminName.equals("Ich (Admin)", true)
+        }?.adminName?.trim().orEmpty()
+        if (fromHistory.isNotBlank()) return fromHistory
+        return persons.firstOrNull()?.name ?: "Ich (Admin)"
+    }
 
     val activeGroup = groups.find { it.id == selectedGroupId } ?: groups.firstOrNull()
 
@@ -11984,7 +11999,7 @@ fun WichtelScreen(
                 editingGroup = WichtelGroup(
                     id = System.currentTimeMillis(),
                     groupName = "Wichteln ${LocalDate.now().year}",
-                    adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
+                    adminName = resolveDefaultAdminName(),
                     motto = "🎁 Klassisches Wichteln",
                     budget = "25 €",
                     revealDateIso = "${LocalDate.now().year}-12-24",
@@ -12071,7 +12086,7 @@ fun WichtelScreen(
                             editingGroup = WichtelGroup(
                                 id = System.currentTimeMillis(),
                                 groupName = "Wichteln ${LocalDate.now().year}",
-                                adminName = persons.firstOrNull()?.name ?: "Ich (Admin)",
+                                adminName = resolveDefaultAdminName(),
                                 motto = "🎁 Klassisches Wichteln",
                                 budget = "25 €",
                                 revealDateIso = "${LocalDate.now().year}-12-24",
@@ -13334,6 +13349,9 @@ fun WichtelScreen(
                 } else eg.participants
             )
             val nextList = if (isCreatingGroup) latestGroups + finalGroup else latestGroups.map { if (it.id == eg.id) finalGroup else it }
+            if (finalGroup.adminName.isNotBlank() && !finalGroup.adminName.equals("Admin", true)) {
+                wichtelPrefs.edit().putString("wichtel_last_admin_name", finalGroup.adminName).apply()
+            }
             onSaveGroups(nextList)
             if (!isCreatingGroup && finalGroup.isDrawn && finalGroup.cloudRoundId.isNotBlank()) {
                 scope.launch {
@@ -13412,7 +13430,10 @@ fun WichtelScreen(
                         ContactSearchDropdown(
                             persons = persons,
                             selectedPersonId = persons.find { it.name.equals(gAdmin.trim(), ignoreCase = true) }?.id,
-                            onSelectPerson = { p -> gAdmin = p.name },
+                            onSelectPerson = { p ->
+                                gAdmin = p.name
+                                wichtelPrefs.edit().putString("wichtel_last_admin_name", p.name).apply()
+                            },
                             placeholderText = "🔎 Admin wählen"
                         )
                     }
