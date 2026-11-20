@@ -891,13 +891,7 @@
             .sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")));
 
           if (!state.chatDirectionTouched) {
-            const lastFromSanta = [...state.inMessages].reverse().find(m => m.fromRole === "SANTA");
-            const lastFromTarget = [...state.outMessages].reverse().find(m => m.fromRole === "TARGET");
-            if (lastFromSanta && (!lastFromTarget || String(lastFromSanta.ts || "") > String(lastFromTarget.ts || ""))) {
-              state.chatDirection = "toSanta";
-            } else {
-              state.chatDirection = "toTarget";
-            }
+            state.chatDirection = "toTarget";
           }
 
           markIncomingMessagesReadInBackground();
@@ -1071,6 +1065,10 @@
       });
 
       showToast("📨 Nachricht wurde anonym gesendet!");
+      if (!isToTarget) {
+        state.chatDirection = "toTarget";
+        state.chatDirectionTouched = false;
+      }
       await loadRoundData(true, true);
       scrollUnifiedChatToBottom();
 
@@ -1208,13 +1206,14 @@
     }
 
     function renderUnifiedChatBubbles(targetFirst) {
+      const hasIncomingFromSanta = (state.inMessages || []).some(m => m.fromRole === "SANTA");
       const merged = [
         ...(state.outMessages || []).map(m => ({ ...m, _dir: "out" })),
-        ...(state.inMessages || []).map(m => ({ ...m, _dir: "in" }))
+        ...(hasIncomingFromSanta ? (state.inMessages || []) : []).map(m => ({ ...m, _dir: "in" }))
       ].sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")));
 
       if (merged.length === 0) {
-        return `<div style="color:var(--muted); font-size:14px; text-align:center; padding:10px 6px;">Noch keine Nachrichten. Stelle ${esc(targetFirst)} oder deinem Wichtel hier eine anonyme Frage!</div>`;
+        return `<div style="color:var(--muted); font-size:14px; text-align:center; padding:10px 6px;">Noch keine Nachrichten. Schreibe ${esc(targetFirst)} hier anonym eine Frage!</div>`;
       }
 
       return `
@@ -1223,21 +1222,22 @@
             const isOutThread = m._dir === "out";
             const mine = isOutThread ? (m.fromRole === "SANTA") : (m.fromRole === "TARGET");
             const metaWho = mine
-              ? (isOutThread ? `Ich ➔ 🎁 ${esc(targetFirst)}` : "Ich ➔ 🎅 Mein Wichtel")
-              : (isOutThread ? `🎁 ${esc(targetFirst)}` : "🎅 Mein Wichtel");
+              ? (isOutThread ? "Ich" : "Ich (Antwort)")
+              : (isOutThread ? esc(targetFirst) : "🕵️ Anonyme Frage an dich");
             const timeStr = m.ts
               ? new Date(m.ts).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
               : "";
             const cls = mine
               ? "bubble me"
               : (isOutThread ? "bubble them them-target" : "bubble them");
-            const tapAttr = !mine
-              ? ` onclick="setChatDirection('${isOutThread ? "toTarget" : "toSanta"}')" title="Antippen zum Antworten"`
+            const replyBtn = (!mine && !isOutThread)
+              ? `<div style="margin-top:6px;"><button type="button" class="btn small" style="padding:4px 9px; font-size:12px;" onclick="event.stopPropagation(); setChatDirection('toSanta')">↩️ Antworten</button></div>`
               : "";
             return `
-              <div class="${cls}"${tapAttr}>
+              <div class="${cls}">
                 <div>${esc(m.text).replace(/\n/g, "<br/>")}</div>
                 <div class="bubble-meta"><b>${metaWho}</b> • ${esc(timeStr)}</div>
+                ${replyBtn}
               </div>
             `;
           }).join("")}
@@ -1389,28 +1389,27 @@
         </div>
       `;
 
-      // EIN gemeinsamer chronologischer Messenger-Chat für alle Fragen & Antworten
-      const hasAnyChatMsgs = (state.outMessages.length + state.inMessages.length) > 0;
-      const isToSanta = state.chatDirection === "toSanta";
+      // EIN gemeinsamer chronologischer Messenger-Chat (ohne verwirrende Doppel-Buttons!)
+      const hasIncomingFromSanta = (state.inMessages || []).some(m => m.fromRole === "SANTA");
+      const hasAnyChatMsgs = state.outMessages.length > 0 || hasIncomingFromSanta;
+      const isReplyingAnon = state.chatDirection === "toSanta" && hasIncomingFromSanta;
       const unifiedChatHtml = `
         <div class="card ${hasAnyChatMsgs ? "highlight-alert" : ""}" style="display:flex; flex-direction:column; gap:8px;">
           <div class="title-row">
             <div class="title-left">
               <div class="section-title">💬 Wichtel-Chat</div>
-              ${infoBtn("unified_chat", "Anonymer Wichtel-Chat", `Alle Fragen und Antworten erscheinen hier chronologisch in einem Verlauf. Wähle unten einfach aus, ob du an ${targetFirstName} oder an deinen geheimen Wichtel schreibst – dein Name bleibt dabei 100 % geheim!`)}
+              ${infoBtn("unified_chat", "Anonymer Wichtel-Chat", `Schreibe ${targetFirstName} hier anonym Fragen – deine Nachrichten stehen rechts, Antworten links. Falls die Person, die dich gezogen hat, dir eine Frage stellt, erscheint sie ebenfalls hier mit einem Antworten-Button.`)}
             </div>
           </div>
           ${renderUnifiedChatBubbles(targetFirstName)}
-          <div class="chat-target-bar">
-            <button type="button" class="chat-pill ${!isToSanta ? "active-target" : ""}" onclick="setChatDirection('toTarget')">
-              🎁 An ${esc(targetFirstName)}
-            </button>
-            <button type="button" class="chat-pill ${isToSanta ? "active-santa" : ""}" onclick="setChatDirection('toSanta')">
-              🎅 An meinen Wichtel
-            </button>
-          </div>
+          ${isReplyingAnon ? `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; background:rgba(245,158,11,0.14); border:1px solid var(--gold); border-radius:10px; padding:6px 10px; font-size:12.5px; color:#fef3c7; font-weight:700;">
+              <span>↩️ Antwort auf anonyme Frage</span>
+              <button type="button" style="background:transparent; border:none; color:#fef3c7; font-size:15px; font-weight:900; cursor:pointer; padding:0 4px;" onclick="setChatDirection('toTarget')" aria-label="Abbrechen">✕</button>
+            </div>
+          ` : ""}
           <div class="chat-compose-row">
-            <input id="chat-input" type="text" class="chat-input" placeholder="${isToSanta ? "Nachricht an deinen Wichtel…" : `Frage an ${esc(targetFirstName)}…`}" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}" />
+            <input id="chat-input" type="text" class="chat-input" placeholder="${isReplyingAnon ? "Antwort schreiben…" : `Nachricht an ${esc(targetFirstName)}…`}" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChatMessage();}" />
             <button type="button" class="chat-send-btn" onclick="sendChatMessage()" aria-label="Senden">➤</button>
           </div>
         </div>
