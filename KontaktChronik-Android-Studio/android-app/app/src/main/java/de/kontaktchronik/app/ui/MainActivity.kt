@@ -3690,7 +3690,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.63",
+                "Remember Me v1.0.64",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4773,7 +4773,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.63")
+                put("version", "1.0.64")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -12437,55 +12437,6 @@ fun WichtelScreen(
                                         val link = WichtelCloudSync.buildGroupPortalUrl(ready.cloudRoundId)
                                         clipboardManager.setText(AnnotatedString(link))
                                         cloudStatusBanner = "✓ Link kopiert: $link"
-                                    }
-                                }
-
-                                // Anonymer Fragen-Chat Status + neutraler Hinweis (1 Zeile)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(CardSlate, RoundedCornerShape(6.dp))
-                                        .border(
-                                            1.dp,
-                                            if (activeGroup.cloudUnreadMessages > 0) WarnAmber else BorderSlate,
-                                            RoundedCornerShape(6.dp)
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 5.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text(
-                                            if (activeGroup.cloudUnreadMessages > 0) {
-                                                "🕵️ ${activeGroup.cloudUnreadMessages} ungelesen"
-                                            } else {
-                                                "🕵️ Chat: ${activeGroup.cloudTotalMessages}"
-                                            },
-                                            color = if (activeGroup.cloudUnreadMessages > 0) WarnAmber else TextSecondary,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        InfoHintIcon(
-                                            title = "Anonymer Fragen-Chat",
-                                            text = "Teilnehmer schreiben ihrem Wichtelkind oder Wichtel im Portal 100 % anonym (ohne Namen/Nummer). Mit „📣 Hinweis“ sendest du eine neutrale Erinnerung in die Gruppe."
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    CompactButton("📣 Hinweis") {
-                                        if (activeGroup.cloudRoundId.isNotBlank()) {
-                                            runCatching {
-                                                val msg = buildNeutralAnonInboxNudge(activeGroup)
-                                                val url = "https://wa.me/?text=${android.net.Uri.encode(msg)}"
-                                                context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                                            }
-                                        }
                                     }
                                 }
                             }
