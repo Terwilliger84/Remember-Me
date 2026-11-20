@@ -622,6 +622,7 @@
       wishDraft: null,
       pushStatus: "checking", // "checking" | "prompt" | "active" | "denied" | "ios-homescreen" | "unsupported"
       pushBusy: false,
+      pushPromptDismissed: false,
       swReg: null,
       lastCloudSig: "",
       lastPollTs: 0,
@@ -1205,6 +1206,49 @@
       `;
     }
 
+    function dismissPushPopup() {
+      state.pushPromptDismissed = true;
+      renderPreservingInputs();
+    }
+
+    function renderPushPopupOverlay() {
+      if (!state.unlockedPid || state.pushPromptDismissed) return "";
+      if (state.pushStatus === "prompt") {
+        return `
+          <div class="info-backdrop" style="z-index:1100;">
+            <div class="info-dialog" style="max-width:390px; border:2px solid var(--green); text-align:center; padding:22px 18px; display:flex; flex-direction:column; gap:12px;">
+              <div style="font-size:48px; line-height:1;">🔔</div>
+              <div style="font-weight:900; font-size:20px; color:#fff;">Benachrichtigungen einschalten</div>
+              <div style="font-size:15px; color:#e2e8f0; line-height:1.48;">
+                Damit dein Handy sich sofort meldet, wenn eine anonyme Frage oder ein neuer Wunsch eingeht – auch wenn der Browser geschlossen ist!
+              </div>
+              <button type="button" class="btn primary" style="padding:15px 16px; font-size:17px;" onclick="enableHandyNotifications()">
+                ${state.pushBusy ? "⏳ Bitte warten…" : "🔔 Jetzt einschalten"}
+              </button>
+              <button type="button" class="btn small" style="background:transparent; border:none; color:var(--muted); margin:0 auto;" onclick="dismissPushPopup()">
+                Später
+              </button>
+            </div>
+          </div>
+        `;
+      }
+      if (state.pushStatus === "ios-homescreen") {
+        return `
+          <div class="info-backdrop" style="z-index:1100;">
+            <div class="info-dialog" style="max-width:390px; border:2px solid var(--gold); text-align:center; padding:22px 18px; display:flex; flex-direction:column; gap:12px;">
+              <div style="font-size:46px; line-height:1;">🔔</div>
+              <div style="font-weight:900; font-size:19px; color:#fff;">iPhone-Benachrichtigungen</div>
+              <div style="font-size:15px; color:#e2e8f0; line-height:1.48;">
+                Tippe unten in Safari auf <b>„Teilen ⬆️“</b> und wähle <b>„Zum Home-Bildschirm“</b>. Öffne danach das 🎄-Symbol, um automatische Meldungen einzuschalten!
+              </div>
+              <button type="button" class="btn gold" onclick="dismissPushPopup()">✓ Verstanden</button>
+            </div>
+          </div>
+        `;
+      }
+      return "";
+    }
+
     function renderUnifiedChatBubbles(targetFirst) {
       const hasIncomingFromSanta = (state.inMessages || []).some(m => m.fromRole === "SANTA");
       const merged = [
@@ -1483,7 +1527,8 @@
         unifiedChatHtml +
         myOwnWishHtml +
         revealAllHtml +
-        switchFooterHtml;
+        switchFooterHtml +
+        renderPushPopupOverlay();
       scrollUnifiedChatToBottom();
     }
 
