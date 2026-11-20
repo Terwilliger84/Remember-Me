@@ -3690,7 +3690,7 @@ fun KontaktChronikApp(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Remember Me v1.0.62",
+                "Remember Me v1.0.63",
                 color = TextPrimary,
                 fontSize = 15.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -4773,7 +4773,7 @@ fun KontaktChronikApp(
             val dateStr = formatIsoToDdMmYyyy(LocalDate.now().toString())
             return JSONObject().apply {
                 put("app", "Remember Me")
-                put("version", "1.0.62")
+                put("version", "1.0.63")
                 put("themeMode", appThemeMode)
                 put("createdAt", dateStr)
                 put("dismissedMergePairs", JSONArray(dismissedMergePairs.toList()))
@@ -11962,6 +11962,8 @@ fun WichtelScreen(
         }
     }
 
+    var showRoundDropdown by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -11970,16 +11972,73 @@ fun WichtelScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            LazyRow(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                items(groups) { g ->
-                    val isSel = g.id == activeGroup?.id
-                    CompactButton(if (isSel) "✓ 🎄 ${g.groupName}" else "🎄 ${g.groupName}") {
-                        selectedGroupId = g.id
+            if (groups.size > 1 && activeGroup != null) {
+                Box(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CardSlate, RoundedCornerShape(8.dp))
+                            .border(1.dp, AccentSteel, RoundedCornerShape(8.dp))
+                            .clickable { showRoundDropdown = true }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🎄 ${activeGroup.groupName}",
+                            color = TextPrimary,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "▼ (${groups.size})",
+                            color = AccentSteel,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showRoundDropdown,
+                        onDismissRequest = { showRoundDropdown = false },
+                        modifier = Modifier.background(CardSlate)
+                    ) {
+                        groups.forEach { g ->
+                            val isSel = g.id == activeGroup.id
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = (if (isSel) "✓ " else "") + "🎄 ${g.groupName} (${g.participants.size})",
+                                        color = if (isSel) AccentSteel else TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
+                                onClick = {
+                                    selectedGroupId = g.id
+                                    showRoundDropdown = false
+                                }
+                            )
+                        }
                     }
                 }
+            } else if (activeGroup != null) {
+                Box(modifier = Modifier.weight(1f)) {
+                    CompactButton("✓ 🎄 ${activeGroup.groupName}") {
+                        selectedGroupId = activeGroup.id
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
             }
             Spacer(modifier = Modifier.width(5.dp))
             CompactButton("🌐 Portal") {
