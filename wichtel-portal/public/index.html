@@ -474,10 +474,20 @@
 
     async function triggerServerPushEvent(payload) {
       try {
+        const enriched = { ...payload };
+        if (!enriched.fromPid && state.unlockedPid) {
+          enriched.fromPid = state.unlockedPid;
+        }
+        if (state.swReg && state.swReg.pushManager) {
+          try {
+            const sub = await state.swReg.pushManager.getSubscription();
+            if (sub && sub.endpoint) enriched.senderEndpoint = sub.endpoint;
+          } catch (_) {}
+        }
         await fetch(`${PORTAL_ORIGIN}/api/push-event`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(enriched)
         });
       } catch (_) {}
     }

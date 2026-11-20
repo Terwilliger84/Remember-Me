@@ -236,15 +236,11 @@ async function handlePushSubscribe(request, env) {
     return jsonResponse({ ok: false, error: "Nicht autorisiert" }, 403);
   }
 
-  const pushDocId = `ps_${roundId}_${pid}`;
-  const existingRes = await appwriteFetch("GET", `/databases/${DB_ID}/collections/${COL_ID}/documents/${pushDocId}`);
-  let existingSubs = [];
-  if (existingRes.status >= 200 && existingRes.status < 300 && existingRes.json) {
-    try {
-      const parsed = JSON.parse(existingRes.json.payload || "{}");
-      if (Array.isArray(parsed.subs)) existingSubs = parsed.subs;
-    } catch (_) {}
-  }
+  const allPushRes = await appwriteFetch(
+    "GET",
+    `/databases/${DB_ID}/collections/${COL_ID}/documents?queries[]=${qEqual("roundId", `push_${roundId}`)}&queries[]=${qLimit(100)}`
+  );
+  const allPushDocs = (allPushRes.json && allPushRes.json.documents) || [];
 
   const cleanOpenPath = String(body.openPath || `/?r=${encodeURIComponent(roundId)}`).startsWith("/")
     ? String(body.openPath)
@@ -259,6 +255,23 @@ async function handlePushSubscribe(request, env) {
     openPath: cleanOpenPath,
     updatedAt: new Date().toISOString()
   };
+
+  let existingSubs = [];
+  for (const pd of allPushDocs) {
+    try {
+      const parsed = JSON.parse(pd.payload || "{}");
+      const docPid = Number(parsed.pid || 0);
+      const docSubs = Array.isArray(parsed.subs) ? parsed.subs : [];
+      if (docPid === pid) {
+        existingSubs = docSubs;
+      } else if (docPid > 0 && docSubs.some((s) => s && s.endpoint === newEntry.endpoint)) {
+        // Ein Browser/Handy darf pro Wichtelrunde immer nur EINEM Teilnehmer gehören:
+        // Entferne diesen Push-Endpoint automatisch von allen anderen Teilnehmern!
+        const cleaned = docSubs.filter((s) => s && s.endpoint && s.endpoint !== newEntry.endpoint);
+        await upsertPushDoc(roundId, docPid, { pid: docPid, subs: cleaned });
+      }
+    } catch (_) {}
+  }
 
   const filtered = existingSubs.filter((s) => s && s.endpoint && s.endpoint !== newEntry.endpoint);
   filtered.push(newEntry);
@@ -351,13 +364,17 @@ async function handlePushEvent(request, env) {
   }
 
   // Ziel-Empfänger rein im Arbeitsspeicher ermitteln (100 % anonym!)
+  let senderPid = Number(body.fromPid || 0);
+  const senderEndpoint = String(body.senderEndpoint || "").trim();
   const deliveries = []; // { pid, title, body, tag }
   if (eventType === "NEW_MESSAGE") {
     const slotKey = String(body.slotKey || "");
     const fromRole = String(body.fromRole || "");
     if (fromRole === "SANTA") {
+      const santaPart = parts.find((p) => p.box && p.box.outThreadId === slotKey);
       const targetPart = parts.find((p) => p.box && p.box.inThreadId === slotKey);
-      if (targetPart) {
+      if (!senderPid && santaPart) senderPid = santaPart.pid;
+      if (targetPart && targetPart.pid !== senderPid) {
         deliveries.push({
           pid: targetPart.pid,
           title: "🎄 Neue Nachricht von deinem Wichtel!",
@@ -368,8 +385,9 @@ async function handlePushEvent(request, env) {
     } else if (fromRole === "TARGET") {
       const santaPart = parts.find((p) => p.box && p.box.outThreadId === slotKey);
       const targetPart = parts.find((p) => p.box && p.box.inThreadId === slotKey);
+      if (!senderPid && targetPart) senderPid = targetPart.pid;
       const senderFirst = targetPart ? targetPart.name.trim().split(" ")[0] : "Dein Wichtelkind";
-      if (santaPart) {
+      if (santaPart && santaPart.pid !== senderPid) {
         deliveries.push({
           pid: santaPart.pid,
           title: `🎁 Nachricht von ${senderFirst}!`,
@@ -380,10 +398,11 @@ async function handlePushEvent(request, env) {
     }
   } else if (eventType === "WISH_UPDATED") {
     const fromPid = Number(body.fromPid || 0);
+    if (!senderPid && fromPid > 0) senderPid = fromPid;
     const wishOwner = parts.find((p) => p.pid === fromPid);
     const santaPart = parts.find((p) => p.box && Number(p.box.targetPid) === fromPid);
     const ownerFirst = wishOwner ? wishOwner.name.trim().split(" ")[0] : "Dein Wichtelkind";
-    if (santaPart) {
+    if (santaPart && santaPart.pid !== senderPid) {
       deliveries.push({
         pid: santaPart.pid,
         title: `📝 Wunschzettel von ${ownerFirst}!`,
@@ -412,6 +431,20 @@ async function handlePushEvent(request, env) {
     }
   }
 
+  // Selbst-Benachrichtigung bei NEW_MESSAGE / WISH_UPDATED strikt verhindern:
+  // Falls der Absender-Endpoint (z. B. durch Öffnen mehrerer Links am selben Handy) noch
+  // versehentlich beim Empfänger gespeichert ist, überspringen und direkt bereinigen!
+  const blockedEndpoints = new Set();
+  if (eventType === "NEW_MESSAGE" || eventType === "WISH_UPDATED") {
+    if (senderEndpoint) blockedEndpoints.add(senderEndpoint);
+    if (senderPid > 0) {
+      const senderSubs = subsByPid.get(senderPid) || [];
+      for (const s of senderSubs) {
+        if (s && s.endpoint) blockedEndpoints.add(s.endpoint);
+      }
+    }
+  }
+
   let deliveredCount = 0;
   for (const item of deliveries) {
     const subs = subsByPid.get(item.pid);
@@ -419,6 +452,11 @@ async function handlePushEvent(request, env) {
     const stillValid = [];
     let pruned = false;
     for (const sub of subs) {
+      if (blockedEndpoints.has(sub.endpoint)) {
+        // Veraltetes Duplikat vom Absender-Gerät direkt aus dem Empfänger-Slot entfernen
+        pruned = true;
+        continue;
+      }
       try {
         const res = await sendWebPushNotification(
           sub,
